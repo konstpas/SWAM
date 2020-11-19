@@ -1,0 +1,4 @@
+f90EXE_sources += main.f90 
+
+f90EXE_sources += initdata.f90 Readinput.f90
+
