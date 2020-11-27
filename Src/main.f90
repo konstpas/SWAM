@@ -1,13 +1,13 @@
 program SWAM
 
 
-!use amrex_base_module 
 use amrex_amr_module 
 use amr_data_module 
 use initdata_module 
 use my_amr_module
 use compute_dt_module 
 use plotfile_module 
+use timestep_module
 
 implicit none
 
@@ -19,6 +19,7 @@ call amrex_amrcore_init
 
 call my_amr_init() 
 call initdata() 
+
 
 !!!.................................................
 
@@ -44,7 +45,7 @@ call initdata()
 
        lev = 0
        substep = 1
-       !call timestep(lev, cur_time, substep)
+       call timestep(lev, cur_time, substep)
  
        cur_time = cur_time + dt(0)
 

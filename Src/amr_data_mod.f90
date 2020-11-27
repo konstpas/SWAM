@@ -21,7 +21,6 @@ module amr_data_module
 
   type(amrex_fluxregister), allocatable :: flux_reg(:)
 
-!  type(amrex_particlecontainer) :: pc
   
 contains
 
@@ -47,7 +46,7 @@ contains
     do lev = 1, amrex_max_level
        call amrex_fluxregister_destroy(flux_reg(lev))
     end do
-    !call amrex_particlecontainer_destroy(pc)
+
   end subroutine amr_data_finalize
   
 end module amr_data_module
