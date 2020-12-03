@@ -21,15 +21,6 @@ call my_amr_init()
 call initdata() 
 
 
-!!!.................................................
-
-    !use my_amr_module, only : stepno, max_step, stop_time, dt, plot_int
-    !use amr_data_module, only : phi_old, phi_new, t_new
-    !use compute_dt_module, only : compute_dt
-    !use plotfile_module, only : writeplotfile
-    !real(amrex_real) :: cur_time
-    !integer :: last_plot_file_step, step, lev, substep, finest_level
-
     cur_time = t_new(0)   !! current time 
     last_plot_file_step = 0;
     
@@ -74,7 +65,6 @@ call initdata()
     end if
 
 
-!!!!-------------------------------------------
 
 
 
