@@ -43,6 +43,8 @@ call initdata()
 
        call compute_dt()   !! calculate time step size 
 
+
+	! Iterative call to each level and contained substeps  
        lev = 0
        substep = 1
        call timestep(lev, cur_time, substep)
