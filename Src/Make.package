@@ -1,3 +1,3 @@
 f90EXE_sources += main.f90 
 
-f90EXE_sources += tagging_mod.f90 bc_mod.f90 fillpatch_mod.f90 Prob_2d.f90 my_amr_mod.f90 amr_data_mod.f90 averagedown_mod.f90 compute_dt_mod.f90 initdata.f90 plotfile_mod.f90 timestep_mod.f90
+f90EXE_sources += tagging_mod.f90 bc_mod.f90 fillpatch_mod.f90 Prob_2d.f90 my_amr_mod.f90 amr_data_mod.f90 averagedown_mod.f90 compute_dt_mod.f90 initdata.f90 plotfile_mod.f90 timestep_mod.f90 energy_mod.f90 

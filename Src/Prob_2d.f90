@@ -35,10 +35,10 @@ contains
              
              if ( amrex_spacedim .eq. 2) then
                 r2 = ((x-0.5d0)**2 + (y-0.75d0)**2) / 0.01d0
-                phi(i,j,k) = 1.d0 + exp(-r2)
+                phi(i,j,k) = 1.d0 !+ exp(-r2)
              else
                 r2 = ((x-0.5d0)**2 + (y-0.75d0)**2 + (z-0.5d0)**2) / 0.01d0
-                phi(i,j,k) = 1.d0 + exp(-r2)
+                phi(i,j,k) = 1.d0 !+ exp(-r2)
              end if
           end do
        end do

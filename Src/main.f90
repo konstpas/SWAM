@@ -8,10 +8,12 @@ use my_amr_module
 use compute_dt_module 
 use plotfile_module 
 use timestep_module
+use energy_module 
 
 implicit none
 
     real(amrex_real) :: cur_time
+    real(amrex_real) :: total_enthalpy     
     integer :: last_plot_file_step, step, lev, substep, finest_level
 
 call amrex_init 
@@ -38,8 +40,13 @@ call initdata()
 	! Iterative call to each level and contained substeps  
        lev = 0
        substep = 1
-       call timestep(lev, cur_time, substep)
- 
+      	call timestep(lev, cur_time, substep)
+       
+ 	call sum_enthalpy(total_enthalpy)  !Integrate energy across whole domain 
+ 	
+ 	print *, 'Enthalpy is [cm3]', total_enthalpy 
+ 	print *, '' 
+ 	
        cur_time = cur_time + dt(0)
 
        if (amrex_parallel_ioprocessor()) then

@@ -105,7 +105,7 @@ contains
 	call increment(time, bx%lo, bx%hi, &
 		pin, lbound(pin), ubound(pin), &
 		pout,lbound(pout),ubound(pout), &
-		amrex_geom(lev)%dx, dt(lev)) 
+		amrex_geom(lev), dt(lev)) 
 
 
     end do ! while(mfi%next())
@@ -143,30 +143,96 @@ contains
   subroutine increment(time, lo, hi, &
   			uin, ui_lo, ui_hi, &
   			uout, uo_lo, uo_hi, & 
-  			dx, dt)
+  			geom, dt)
   			
-    integer, intent(in) :: lo(2), hi(2)
-    real(amrex_real), intent(in) :: dx(2), dt, time
-    integer, intent(in) :: ui_lo(2), ui_hi(2)
-    integer, intent(in) :: uo_lo(2), uo_hi(2)
-    real(amrex_real), intent(in   ) :: uin (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2))
-    real(amrex_real), intent(inout) :: uout(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))
+    integer, intent(in) :: lo(2), hi(2)  		! bounds of current tile box
+    real(amrex_real), intent(in) :: dt, time		! grid size, sub time step, and time 
+    type(amrex_geometry), intent(in) :: geom  	! geometry at level
+    integer, intent(in) :: ui_lo(2), ui_hi(2)		! bounds of input tilebox 
+    integer, intent(in) :: uo_lo(2), uo_hi(2)		! bounds of output tilebox 
+    real(amrex_real), intent(in   ) :: uin (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2)) ! 
+    real(amrex_real), intent(inout) :: uout(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2)) ! 
+    real(amrex_real) :: uface(ui_lo(1):ui_hi(1)+1,ui_lo(2):ui_hi(2)) ! face velocity x direction 
+    real(amrex_real) :: fluxx(ui_lo(1):ui_hi(1)+1,ui_lo(2):ui_hi(2)) ! flux x direction 
+    real(amrex_real) :: dx(2)
+    
+    ! uface is face velocity in whole domain, extracted from SW equations. 
     
     integer :: i,j 
     
+    
+    dx = geom%dx(1:amrex_spacedim) ! grid width at level 
   
-  
+  	call get_face_velocity(time, geom%get_physical_location(ui_lo), dx, uface, ui_lo, ui_hi )
+  	!call create_face_flux() 
+  	!call volume_heating() 
+  	
+  	! create face flux
+  	! preferably propagate solution with conservative scheme for advection of enthalpy 
+  	! problems may arise since 2d or 1d flow not incompressible if vertical component neglected. 
+  	! Also need to treat advection on empty-adjacent cells once surface is variable 
+  	do i = ui_lo(1),ui_hi(1)
+  	 do j = ui_lo(2),ui_hi(2) 
+		if (uface(i,j) > 0_amrex_real) then 
+			fluxx(i,j) = uin(i-1,j)*uface(i,j)
+		else 
+			fluxx(i,j) = uin(i,j)*uface(i,j)
+		end if 
+  	 end do 
+  	end do 
+  	
+  	
   	do i = lo(1),hi(1)
   	 do j = lo(2),hi(2) 
-  	  uout(i,j) = uin(i,j) + &
-  	     dt/(dx(1)**2) * (uin(i-1,j  )-2*uin(i,j) + uin(i+1,j  )) +  & 
-  	     dt/(dx(2)**2) * (uin(i  ,j-1)-2*uin(i,j) + uin(i  ,j+1))
+  	  uout(i,j) = uin(i,j) &
+  	     + dt/(dx(1)**2) * (uin(i-1,j  )-2*uin(i,j) + uin(i+1,j  ))  &  	! diffusion x-direction 
+  	     + dt/(dx(2)**2) * (uin(i  ,j-1)-2*uin(i,j) + uin(i  ,j+1))  &  	! diffusion y-direction 
+  	     - dt/dx(1)      * (fluxx(i+1,j)-fluxx(i,j))			! advection x-direction 
   	 end do 
   	end do 
   	
   
   
   end subroutine increment 
+
+
+  subroutine get_face_velocity(time, xlo, dx, uface, ui_lo, ui_hi ) ! to be its own module, using input from fluid solver and heat conduction solver 
+      real(amrex_real), intent(in) :: dx(2), time, xlo(2) 	! grid size, time, and lower corner physical location 
+      integer, intent(in) :: ui_lo(2), ui_hi(2)		! bounds of input tilebox 
+      real(amrex_real), intent(inout) :: uface(ui_lo(1):ui_hi(1)+1,ui_lo(2):ui_hi(2)) ! face velocity 
+      integer 		:: i,j, yhigh, ylow  ! indexes and bounds 
+      real(amrex_real)	:: yhighpos(ui_lo(1):ui_hi(1)), ylowpos (ui_lo(1):ui_hi(1))
+      real(amrex_real) :: ypos 
+      
+      uface = 0_amrex_real 
+      !call sw_vel()
+      yhighpos = 0.90_amrex_real
+      ylowpos = 0.85_amrex_real
+      
+      do i = ui_lo(1), ui_hi(1) 
+      !find yhigh,ylow (yhighpos(i)) 
+      	do j = ui_lo(2), ui_hi(2) 
+      						! stagger		x   x   x  	
+      	ypos = xlo(2) + (j-ui_lo(2))*dx(2)  	! index backwards 	!---!---!---!
+      						! for now		 j-1  i  j+1   
+      	if ((ypos < yhighpos(i)).and.(ypos > ylowpos(i))) then 
+      		uface(i,j) = -40_amrex_real 
+      	end if 
+      	
+      	
+      	end do 
+      end do 
+  	
+  	
+  	
+  	
+  
+  	
+  
+  end subroutine get_face_velocity 
+  
+  
+  
 
 
 
