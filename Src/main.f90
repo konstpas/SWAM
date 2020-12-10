@@ -44,7 +44,7 @@ call initdata()
        
  	call sum_enthalpy(total_enthalpy)  !Integrate energy across whole domain 
  	
- 	print *, 'Enthalpy is [cm3]', total_enthalpy 
+ 	print *, 'Enthalpy is', total_enthalpy 
  	print *, '' 
  	
        cur_time = cur_time + dt(0)

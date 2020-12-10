@@ -124,17 +124,17 @@ contains
     real(amrex_real), 	intent(inout) :: q(qlo(1):qhi(1),qlo(2):qhi(2))			! assign array 
     integer i,j ! 
 
-	do i = qlo(1),qhi(1) ! low end to high end of x dir in current mfi 
+	!do i = qlo(1),qhi(1) ! low end to high end of x dir in current mfi 
 	
 
-		if (qlo(2) == domlo(2)-1) then ! low y-bound
-		q(i,qlo(2)) = 0_amrex_real	
-		end if 
-		if (qhi(2) == domhi(2)+1) then ! high y-bound 
-		q(i,qhi(2)) = 1_amrex_real + xlo(1)+dx(1)*(i-qlo(1))!  0_amrex_real	
-		end if 
+	!	if (qlo(2) == domlo(2)-1) then ! low y-bound
+	!	q(i,qlo(2)) = 0_amrex_real	
+	!	end if 
+	!	if (qhi(2) == domhi(2)+1) then ! high y-bound 
+	!	q(i,qhi(2)) = 1_amrex_real + xlo(1)+dx(1)*(i-qlo(1))!  0_amrex_real	
+	!	end if 
 		
-	end do 
+	!end do 
 
     
   end subroutine my_fillbc
