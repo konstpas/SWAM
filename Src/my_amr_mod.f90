@@ -5,7 +5,6 @@ module my_amr_module
   use amrex_fort_module, only : rt => amrex_real
 
   use amr_data_module
-
   implicit none
 
   ! runtime parameters
@@ -36,9 +35,9 @@ contains
 
   subroutine my_amr_init ()
     use bc_module, only : lo_bc, hi_bc
+    use domain_module 
     type(amrex_parmparse) :: pp
     integer :: ilev
-
     if (.not.amrex_amrcore_initialized()) call amrex_amrcore_init()
     
     call amrex_init_virtual_functions (my_make_new_level_from_scratch, &
@@ -69,6 +68,16 @@ contains
     call pp%query("plot_file", plot_file)
     call pp%query("restart", restart)
     call amrex_parmparse_destroy(pp)
+    
+    ! Domain parameters 
+    call amrex_parmparse_build(pp, "domain")
+    call pp%query("surfpos", surfpos)   
+    call pp%query("meltvel", meltvel)  
+    call pp%query("tempinit", tempinit)  
+    call pp%getarr("surfdist", surfdist)  
+    call amrex_parmparse_destroy(pp)
+    
+
     
     ! Parameters myamr.*
     call amrex_parmparse_build(pp, "myamr")
@@ -104,9 +113,10 @@ contains
   end subroutine my_amr_finalize
 
   ! Make a new level from scratch and put the data in phi_new.
-  ! Note tha phi_old contains no valid data after this.
+  ! Note that phi_old contains no valid data after this.
   subroutine my_make_new_level_from_scratch (lev, time, pba, pdm) bind(c)
-    use prob_module, only : init_prob_data
+    use initdomain_module, only : init_phi
+    use domain_module, only : tempinit
     integer, intent(in), value :: lev
     real(amrex_real), intent(in), value :: time
     type(c_ptr), intent(in), value :: pba, pdm
@@ -137,7 +147,7 @@ contains
     do while (mfi%next())
        bx = mfi%tilebox()
        phi => phi_new(lev)%dataptr(mfi)
-       call init_prob_data(lev, t_new(lev), bx%lo, bx%hi, phi, lbound(phi), ubound(phi), &
+       call init_phi(lev, t_new(lev), bx%lo, bx%hi, tempinit, phi, lbound(phi), ubound(phi), &
             amrex_geom(lev)%dx, amrex_problo)
     end do
 
@@ -172,8 +182,8 @@ contains
     call fillcoarsepatch(lev, time, phi_new(lev))
   end subroutine my_make_new_level_from_coarse
 
-  ! Remake a level from current and coarse elvels and put the data in phi_new.
-  ! Note tha phi_old contains no valid data after this.
+  ! Remake a level from current and coarse levels and put the data in phi_new.
+  ! Note that phi_old contains no valid data after this.
   subroutine my_remake_level (lev, time, pba, pdm) bind(c)
     use fillpatch_module, only : fillpatch
     integer, intent(in), value :: lev
@@ -215,11 +225,13 @@ contains
 
   subroutine my_error_estimate (lev, cp, t, settag, cleartag) bind(c)
     use tagging_module, only : tag_phi_error
+    use domain_module,  only : surfpos, surfdist 
     integer, intent(in), value :: lev
     type(c_ptr), intent(in), value :: cp
     real(amrex_real), intent(in), value :: t
     character(kind=c_char), intent(in), value :: settag, cleartag
-
+    
+    type(amrex_geometry) :: geom  	! geometry at level
     real(amrex_real), allocatable, save :: phierr(:)
     type(amrex_parmparse) :: pp
     type(amrex_tagboxarray) :: tag
@@ -235,7 +247,9 @@ contains
     end if
 
     tag = cp
-
+    geom = amrex_geom(lev) 
+    
+	
     !$omp parallel private(mfi, bx, phiarr, tagarr)
     call amrex_mfiter_build(mfi, phi_new(lev), tiling=.true.)
     do while(mfi%next())
@@ -243,6 +257,7 @@ contains
        phiarr => phi_new(lev)%dataptr(mfi)
        tagarr => tag%dataptr(mfi)
        call tag_phi_error(lev, t, bx%lo, bx%hi, &
+            geom%get_physical_location(bx%lo), geom%dx, surfpos, surfdist(lev+1), & 
             phiarr, lbound(phiarr), ubound(phiarr), &
             tagarr, lbound(tagarr), ubound(tagarr), &
             phierr(lev+1), settag, cleartag)  ! +1 because level starts with 0, but phierr starts with 1
