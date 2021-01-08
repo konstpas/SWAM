@@ -156,14 +156,14 @@ contains
     integer, intent(in) :: uo_lo(2), uo_hi(2)		! bounds of output tilebox 
     real(amrex_real), intent(in   ) :: uin (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2)) ! 
     real(amrex_real), intent(inout) :: uout(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2)) ! 
-    real(amrex_real) :: uface(ui_lo(1):ui_hi(1)+1,ui_lo(2):ui_hi(2)  ) ! face velocity x direction (nodal)
-    real(amrex_real) :: fluxx(ui_lo(1):ui_hi(1)+1,ui_lo(2):ui_hi(2)  ) ! flux x direction (nodal)
-    real(amrex_real) :: fluxy(ui_lo(1):ui_hi(1)  ,ui_lo(2):ui_hi(2)+1) ! flux y direction (nodal)
-    real(amrex_real) :: qbound(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2))	! Volumetric heating (boundary)
-    real(amrex_real) :: qheat(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2))	! Volumetric heating
+    real(amrex_real) :: uface (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2)) ! face velocity x direction (nodal)
+    real(amrex_real) :: fluxx (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2)) ! flux x direction (nodal)
+    real(amrex_real) :: fluxy (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2)) ! flux y direction (nodal)
+    real(amrex_real) :: qbound(lo(1):hi(1),lo(2):hi(2))	! Volumetric heating (boundary)
+    real(amrex_real) :: qheat (lo(1):hi(1),lo(2):hi(2))	! Volumetric heating
     real(amrex_real) :: dx(2) 
-    logical :: xfluxflag(ui_lo(1):ui_hi(1)+1,ui_lo(2):ui_hi(2)  ) 	! surface flag for x-nodes 
-    logical :: yfluxflag(ui_lo(1):ui_hi(1)  ,ui_lo(2):ui_hi(2)+1) 	! surface flag for y-nodes   
+    logical :: xfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2)) 	! surface flag for x-nodes 
+    logical :: yfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2)) 	! surface flag for y-nodes   
     
     ! uface is face velocity in whole domain, extracted from SW equations. 
     
@@ -178,7 +178,7 @@ contains
   				fluxx, fluxy)
   	! Zero flux across surface boundary. Volumetric heat deposition in first internal cell constitutes absorbed boundary flux. 
   	! Incorporates all absorption and cooling terms 			
-  	call get_bound_heat(time, geom%get_physical_location(ui_lo), dx, ui_lo, ui_hi, yfluxflag, qbound) 	! domain module 			
+  	call get_bound_heat(time, geom%get_physical_location(ui_lo), dx, lo, hi, ui_lo, ui_hi, yfluxflag, qbound) 	! domain module 			
   	!call volume_heating(time, geom%get_physical_location(ui_lo), dx, qheat) 
   	
 
