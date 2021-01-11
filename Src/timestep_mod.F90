@@ -149,33 +149,38 @@ contains
   			geom, dt)
   			
     use domain_module 			
-    integer, intent(in) :: lo(2), hi(2)  		! bounds of current tile box
+    integer, intent(in) :: lo(3), hi(3)  		! bounds of current tile box
     real(amrex_real), intent(in) :: dt, time		! grid size, sub time step, and time 
     type(amrex_geometry), intent(in) :: geom  	! geometry at level
-    integer, intent(in) :: ui_lo(2), ui_hi(2)		! bounds of input tilebox 
-    integer, intent(in) :: uo_lo(2), uo_hi(2)		! bounds of output tilebox 
-    real(amrex_real), intent(in   ) :: uin (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2)) ! 
-    real(amrex_real), intent(inout) :: uout(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2)) ! 
-    real(amrex_real) :: uface (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2)) ! face velocity x direction (nodal)
-    real(amrex_real) :: fluxx (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2)) ! flux x direction (nodal)
-    real(amrex_real) :: fluxy (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2)) ! flux y direction (nodal)
-    real(amrex_real) :: qbound(lo(1):hi(1),lo(2):hi(2))	! Volumetric heating (boundary)
-    real(amrex_real) :: qheat (lo(1):hi(1),lo(2):hi(2))	! Volumetric heating
-    real(amrex_real) :: dx(2) 
-    logical :: xfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2)) 	! surface flag for x-nodes 
-    logical :: yfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2)) 	! surface flag for y-nodes   
-    
-    ! uface is face velocity in whole domain, extracted from SW equations. 
-    
-    integer :: i,j 
+    integer, intent(in) :: ui_lo(3), ui_hi(3)		! bounds of input tilebox 
+    integer, intent(in) :: uo_lo(3), uo_hi(3)		! bounds of output tilebox 
+  !#if AMREX_SPACEDIM == 3     
+    real(amrex_real), intent(in   ) :: uin (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! 
+    real(amrex_real), intent(inout) :: uout(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3)) ! 
+    real(amrex_real) :: uface (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! face velocity x direction (nodal)
+    real(amrex_real) :: fluxx (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! flux x direction (nodal)
+    real(amrex_real) :: fluxy (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! flux y direction (nodal)
+    real(amrex_real) :: qbound(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))	! Volumetric heating (boundary)
+    real(amrex_real) :: qheat (lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))	! Volumetric heating
+    real(amrex_real) :: dx(3) 
+    logical :: xfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for x-nodes 
+    logical :: yfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for y-nodes   
+    integer :: i,j,k  
+ 
+       
+  !#if AMREX_SPACEDIM == 3
+   !         print *, 'hello 3'
+  !#endif
    
-    dx = geom%dx(1:amrex_spacedim) ! grid width at level 
+    dx = geom%dx(1:3) ! grid width at level 
     
   	call surface_tag(time, geom%get_physical_location(ui_lo), dx, ui_lo, ui_hi, xfluxflag, yfluxflag)
   	call get_face_velocity(time, geom%get_physical_location(ui_lo), dx, uface, ui_lo, ui_hi ) 	! domain module 
+  	
   	call create_face_flux(time, geom%get_physical_location(ui_lo), dx, & 			! domain module 
   				uin, uface, ui_lo, ui_hi, xfluxflag, yfluxflag, & 
   				fluxx, fluxy)
+  	
   	! Zero flux across surface boundary. Volumetric heat deposition in first internal cell constitutes absorbed boundary flux. 
   	! Incorporates all absorption and cooling terms 			
   	call get_bound_heat(time, geom%get_physical_location(ui_lo), dx, lo, hi, ui_lo, ui_hi, yfluxflag, qbound) 	! domain module 			
@@ -185,12 +190,14 @@ contains
 
   	
   	
-  	do i = lo(1),hi(1)
-  	 do j = lo(2),hi(2) 
-  	  uout(i,j) = uin(i,j) &
-  	     - dt/dx(1)      * (fluxx(i+1,j  )-fluxx(i,j))	&		! flux divergence x-direction 
-  	     - dt/dx(2)      * (fluxy(i  ,j+1)-fluxy(i,j))	& 		! flux divergence y-direction 
-  	     + dt*qbound(i,j)							! 'boundary volumetric' source
+  	do   i = lo(1),hi(1)
+  	 do  j = lo(2),hi(2) 
+  	  do k = lo(3),hi(3)
+  	  uout(i,j,k) = uin(i,j,k) &
+  	     - dt/dx(1)      * (fluxx(i+1,j  ,k)-fluxx(i,j,k))	&		! flux divergence x-direction 
+  	     - dt/dx(2)      * (fluxy(i  ,j+1,k)-fluxy(i,j,k))	& 		! flux divergence y-direction 
+  	     + dt*qbound(i,j,k)	
+  	  end do    						! 'boundary volumetric' source
   	 end do 
   	end do 
   	
