@@ -13,7 +13,6 @@ contains
        dx, prob_lo)
 
     use amrex_fort_module, only : amrex_spacedim, amrex_real
-    use domain_module    , only : surfpos!, tempinit
     implicit none
     integer, intent(in) :: level, lo(3), hi(3), phi_lo(3), phi_hi(3)
     real(amrex_real), intent(in) :: time, tempinit

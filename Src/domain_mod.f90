@@ -5,11 +5,11 @@ module domain_module
   implicit none
   private
   
-  public :: surfpos, tempinit, meltvel, surfdist ! description of surface alignment, constant scalar for now, multifab later. Need to interpolate between multifabs. 
-  public :: get_face_velocity, create_face_flux, surface_tag, get_bound_heat
+  public :: tempinit, meltvel, surfdist 
+  public :: get_face_velocity, create_face_flux, surface_tag, get_bound_heat, get_surf_pos
   
   
-  real(amrex_real) :: surfpos, tempinit, meltvel     ! y surface position, for now constant given by input file
+  real(amrex_real) :: tempinit, meltvel  
   real(amrex_real), allocatable :: surfdist(:)
   
   contains 
@@ -111,32 +111,22 @@ module domain_module
   end subroutine create_face_flux 
 
 	
-  subroutine surface_tag(time, xlo, dx, ui_lo, ui_hi, xflux, yflux)
+ subroutine surface_tag(time, xlo, dx, ui_lo, ui_hi, xflux, yflux)
   real(amrex_real), intent(in   ) :: time, xlo(2), dx(2)			! time, lower corner physical location, and grid size
   integer, intent(in   ) :: ui_lo(2), ui_hi(2)			      	! bounds of input tilebox
   logical, intent(  out) :: xflux(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2)) 	! surface flag for x-nodes 
   logical, intent(  out) :: yflux(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2)) 	! surface flag for y-nodes 
   
-  real(amrex_real) :: surf(ui_lo(1):ui_hi(1)) ! To be multifab with ghost points
+  real(amrex_real) :: surfpos(ui_lo(1):ui_hi(1)) 
   integer          :: surfind(ui_lo(1):ui_hi(1)) 
   integer :: i,j, jsurf
   
-
-  do i = ui_lo(1),ui_hi(1) 
-  surf(i) = surfpos + & 
-  0.1_amrex_real*SIN(6.18_amrex_real*(xlo(1) + (i-ui_lo(1))*dx(1)) )
   
-  		!(1+0.1*SIN(  (i-ui_lo(1))*dx(1) + xlo(1)  ))			! y-position of surface, array as given by fluid solver. 
-  							! what form. Multifab? if so, need to interpolated between grids. 
-  							! Need to 'know' surfpos at ui_lo(1)-1 
-    
-  end do 					
   
-  !surf(ui_lo(1)+1) = surfpos + 0.1
   
-  !surf(ui_hi(1)-1) = surfpos + 0.1
-  					
-  					
+  
+   call get_surf_pos(xlo, dx, ui_lo, ui_hi, surfpos)
+											
   xflux = .false. 
   yflux = .false. 
   
@@ -149,9 +139,8 @@ module domain_module
   
   ! Find surface index and flag surface edge for flux y-direction 
   do i = ui_lo(1),ui_hi(1) 
-      jsurf = ui_lo(2) + floor(  (surf(i)-xlo(2))/dx(2) ) 
+      jsurf = ui_lo(2) + floor(  (surfpos(i)-xlo(2))/dx(2) ) 
       surfind(i) = jsurf 		! y-index of surface element 
-    !if (xlo(2) < surf(i)) then ! 
     if (jsurf >= ui_lo(2)) then 	! if surface is contained within this box
       	if (jsurf <= ui_hi(2)) then 	! if surface is contained within this box 
       	yflux(i, jsurf) = .true. 	! no diffusion across surface 
@@ -182,14 +171,14 @@ module domain_module
   
   
 
-  end subroutine surface_tag
+ end subroutine surface_tag
   
   
  
  
  
  
-  subroutine get_bound_heat(time, xlo, dx, lo, hi, ui_lo, ui_hi, yflux, qb) 
+ subroutine get_bound_heat(time, xlo, dx, lo, hi, ui_lo, ui_hi, yflux, qb) 
   real(amrex_real), intent(in   ) :: time, xlo(2), dx(2)			! time, lower corner physical location, and grid size
   integer         , intent(in   ) :: lo(2), hi(2)			      	! bounds of input tilebox  
   integer         , intent(in   ) :: ui_lo(2), ui_hi(2)			      	! bounds of input tilebox (ghost points)
@@ -200,14 +189,37 @@ module domain_module
   qb = 0. 
    do i = lo(1), hi(1) 
     do j = lo(2), hi(2)
-    if(yflux(i,j+1)) then 
+            if ( (xlo(1)+(i-lo(1))*dx(1)).gt.0.95 ) then 
+            if ( (xlo(1)+(i-lo(1))*dx(1)).lt.1.05 ) then 
+      if(yflux(i,j+1)) then 
     qb(i,j) = 3_amrex_real/dx(2)   
-    end if 
+      end if 
+            end if 
+            end if
     end do  
    end do  
   
-  end subroutine get_bound_heat
+ end subroutine get_bound_heat
   
+  
+  
+ ! Surface position interpolated to cell centers at interface  
+ subroutine get_surf_pos(xlo, dx, ui_lo, ui_hi, surfpos)
+  real(amrex_real), intent(in   ) :: xlo(2), dx(2)			! lower corner physical location, and grid size
+  integer         , intent(in   ) :: ui_lo(2), ui_hi(2)			      	! bounds of input tilebox  
+  real(amrex_real), intent(  out) :: surfpos(ui_lo(1):ui_hi(1))
+  integer :: i
+  
+  do i = ui_lo(1),ui_hi(1) 
+   surfpos(i) = 0.5_amrex_real + & 
+   0.1_amrex_real*SIN(6.18_amrex_real*(xlo(1) + (i-ui_lo(1))*dx(1)) )
+  end do 
+ 
+ 
+ 
+ 
+ end subroutine get_surf_pos 
+ 
  
   
   

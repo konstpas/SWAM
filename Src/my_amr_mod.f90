@@ -71,7 +71,6 @@ contains
     
     ! Domain parameters 
     call amrex_parmparse_build(pp, "domain")
-    call pp%query("surfpos", surfpos)   
     call pp%query("meltvel", meltvel)  
     call pp%query("tempinit", tempinit)  
     call pp%getarr("surfdist", surfdist)  
@@ -225,7 +224,7 @@ contains
 
   subroutine my_error_estimate (lev, cp, t, settag, cleartag) bind(c)
     use tagging_module, only : tag_phi_error
-    use domain_module,  only : surfpos, surfdist 
+    use domain_module,  only : surfdist 
     integer, intent(in), value :: lev
     type(c_ptr), intent(in), value :: cp
     real(amrex_real), intent(in), value :: t
@@ -257,7 +256,7 @@ contains
        phiarr => phi_new(lev)%dataptr(mfi)
        tagarr => tag%dataptr(mfi)
        call tag_phi_error(lev, t, bx%lo, bx%hi, &
-            geom%get_physical_location(bx%lo), geom%dx, surfpos, surfdist(lev+1), & 
+            geom%get_physical_location(bx%lo), geom%dx, surfdist(lev+1), & 
             phiarr, lbound(phiarr), ubound(phiarr), &
             tagarr, lbound(tagarr), ubound(tagarr), &
             phierr(lev+1), settag, cleartag)  ! +1 because level starts with 0, but phierr starts with 1
