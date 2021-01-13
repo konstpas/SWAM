@@ -23,7 +23,7 @@ contains
     character(kind=c_char), intent(inout) :: tag(taglo(1):taghi(1),taglo(2):taghi(2),taglo(3):taghi(3))
     real(amrex_real)      , intent(in   ) :: time, phierr
     character(kind=c_char), intent(in   ) :: settag, cleartag
-    real(amrex_real)                      :: surfpos(lo(1):hi(1))  ! Array surface position 
+    real(amrex_real)                      :: surfpos(lo(1):hi(1),lo(3):hi(3))  ! Array surface position 
 
     integer :: i,j,k
 
@@ -37,7 +37,7 @@ contains
        do    j = lo(2), hi(2)
           do i = lo(1), hi(1)
             
-             ydist = abs(xlo(2) + (j-lo(2))*dx(2) - surfpos(i) ) 
+             ydist = abs(xlo(2) + (j-lo(2))*dx(2) - surfpos(i,k) ) 
              if (ydist .le. surfdist) then 
                 tag(i,j,k) = settag
              endif 

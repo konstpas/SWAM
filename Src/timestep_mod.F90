@@ -153,8 +153,7 @@ contains
     real(amrex_real), intent(in) :: dt, time		! grid size, sub time step, and time 
     type(amrex_geometry), intent(in) :: geom  	! geometry at level
     integer, intent(in) :: ui_lo(3), ui_hi(3)		! bounds of input tilebox 
-    integer, intent(in) :: uo_lo(3), uo_hi(3)		! bounds of output tilebox 
-  !#if AMREX_SPACEDIM == 3     
+    integer, intent(in) :: uo_lo(3), uo_hi(3)		! bounds of output tilebox   
     real(amrex_real), intent(in   ) :: uin (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! 
     real(amrex_real), intent(inout) :: uout(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3)) ! 
     real(amrex_real) :: uface (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! face velocity x direction (nodal)
@@ -166,24 +165,42 @@ contains
     logical :: xfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for x-nodes 
     logical :: yfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for y-nodes   
     integer :: i,j,k  
- 
-       
-  !#if AMREX_SPACEDIM == 3
-   !         print *, 'hello 3'
-  !#endif
+#if AMREX_SPACEDIM == 3 
+    real(amrex_real) :: wface (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! face velocity z direction (nodal)	 
+    real(amrex_real) :: fluxz (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! flux z direction (nodal)
+    logical :: zfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for z-nodes
+#endif        
+
    
     dx = geom%dx(1:3) ! grid width at level 
     
-  	call surface_tag(time, geom%get_physical_location(ui_lo), dx, ui_lo, ui_hi, xfluxflag, yfluxflag)
-  	call get_face_velocity(time, geom%get_physical_location(ui_lo), dx, uface, ui_lo, ui_hi ) 	! domain module 
+        ! Subroutine assigns logical arrays denoting free interface boundary 
+  	call surface_tag(time, geom%get_physical_location(ui_lo), dx, ui_lo, ui_hi, xfluxflag, yfluxflag &
+#if AMREX_SPACEDIM == 3 
+  			, zfluxflag & 
+#endif  
+			)	
   	
+  	! Subroutine assigns tangential (x,z) velocity on grid edges in whole domain  
+  	call get_face_velocity(time, geom%get_physical_location(ui_lo), dx, 	uface, &
+#if AMREX_SPACEDIM == 3  
+				wface, &
+#endif 
+  				ui_lo, ui_hi ) 	
+  	
+
+  	! Subroutine assigns enthalpy flux on grid edges in whole domain 
   	call create_face_flux(time, geom%get_physical_location(ui_lo), dx, & 			! domain module 
   				uin, uface, ui_lo, ui_hi, xfluxflag, yfluxflag, & 
-  				fluxx, fluxy)
+  				fluxx, fluxy  & 
+#if AMREX_SPACEDIM == 3 
+				, wface, zfluxflag, fluxz &
+#endif 	
+  				)
   	
   	! Zero flux across surface boundary. Volumetric heat deposition in first internal cell constitutes absorbed boundary flux. 
   	! Incorporates all absorption and cooling terms 			
-  	call get_bound_heat(time, geom%get_physical_location(ui_lo), dx, lo, hi, ui_lo, ui_hi, yfluxflag, qbound) 	! domain module 			
+  	call get_bound_heat(time, geom%get_physical_location(lo), dx, lo, hi, ui_lo, ui_hi, yfluxflag, qbound) 	! domain module 			
   	!call volume_heating(time, geom%get_physical_location(ui_lo), dx, qheat) 
   	
 
@@ -194,8 +211,11 @@ contains
   	 do  j = lo(2),hi(2) 
   	  do k = lo(3),hi(3)
   	  uout(i,j,k) = uin(i,j,k) &
-  	     - dt/dx(1)      * (fluxx(i+1,j  ,k)-fluxx(i,j,k))	&		! flux divergence x-direction 
-  	     - dt/dx(2)      * (fluxy(i  ,j+1,k)-fluxy(i,j,k))	& 		! flux divergence y-direction 
+  	     - dt/dx(1)      * (fluxx(i+1,j  ,k  )-fluxx(i,j,k))	&		! flux divergence x-direction 
+  	     - dt/dx(2)      * (fluxy(i  ,j+1,k  )-fluxy(i,j,k))	& 		! flux divergence y-direction 
+#if AMREX_SPACEDIM == 3 
+  	     - dt/dx(3)      * (fluxz(i  ,j  ,k+1)-fluxz(i,j,k))	&		! flux divergence z-direction
+#endif 
   	     + dt*qbound(i,j,k)	
   	  end do    						! 'boundary volumetric' source
   	 end do 
