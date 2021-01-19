@@ -12,7 +12,7 @@ contains
 
   recursive subroutine timestep (lev, time, substep)
     use my_amr_module, only : regrid_int, stepno, nsubsteps, dt, do_reflux, verbose !! input
-    use amr_data_module, only : t_old, t_new, phi_old, phi_new, flux_reg !! transients of the solution 
+    use amr_data_module, only : t_old, t_new, phi_old, phi_new, temp, flux_reg !! transients of the solution 
     use averagedown_module, only : averagedownto
     use fillpatch_module, only : fillpatch
     integer, intent(in) :: lev, substep
@@ -24,14 +24,14 @@ contains
     
     !integer, intent(in) :: step, nsub
     integer :: step, nsub
-    integer, parameter :: ngrow = 1 ! 3 			! number of ghost points in each spatial direction 
+    integer, parameter :: ngrow = 1    			! number of ghost points in each spatial direction 
     
     integer :: ncomp, idim, lowbound(2), hbound(2), i,j 	! components, ranges, and indexes
     logical :: nodal(3)   					! logical for flux multifabs 
     type(amrex_multifab) :: phiborder 			! multifab on mfi owned tilebox, with ghost points 
     type(amrex_mfiter) :: mfi					! mfi iterator 
     type(amrex_box) :: bx, tbx
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin,pout ! input, output pointers 
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin, pout, ptemp ! input, output pointers 
     type(amrex_multifab) :: fluxes(amrex_spacedim)    
     
     
@@ -93,21 +93,24 @@ contains
 
     call fillpatch(lev, time, phiborder)
 
-!$omp parallel private(mfi,bx,tbx,pin,pout)
-    call amrex_mfiter_build(mfi, phi_new(lev), tiling=.true.)
+
+!$omp parallel private(mfi,bx,tbx,pin,pout,ptemp)
+    call amrex_mfiter_build(mfi, phi_new(lev), tiling=.true.) ! Tiling splits validbox into several tile boxes 
+    								! could be useful depending on parallelization approach 
     do while(mfi%next())
-    bx = mfi%tilebox()
+    bx = mfi%tilebox()   
    
-       pin  => phiborder%dataptr(mfi)
-       pout => phi_new(lev)%dataptr(mfi)
+       pin   => phiborder%dataptr(mfi)
+       pout  => phi_new(lev)%dataptr(mfi)
+       ptemp => temp(lev)%dataptr(mfi)
        
        ! Increment solution at given mfi tilebox 
 	call increment(time, bx%lo, bx%hi, &
 		pin, lbound(pin), ubound(pin), &
-		pout,lbound(pout),ubound(pout), &
-		amrex_geom(lev), dt(lev)) 
+		pout,lbound(pout), ubound(pout), &
+		ptemp, amrex_geom(lev), dt(lev))  
 
-
+	 
     end do ! while(mfi%next())
     call amrex_mfiter_destroy(mfi)
 !$omp end parallel
@@ -146,22 +149,28 @@ contains
   subroutine increment(time, lo, hi, &
   			uin, ui_lo, ui_hi, &
   			uout, uo_lo, uo_hi, & 
-  			geom, dt)
+  			temp, geom, dt)
   			
-    use domain_module 			
+    use domain_module 	
+    use material_properties_module, only : get_temp  		
     integer, intent(in) :: lo(3), hi(3)  		! bounds of current tile box
     real(amrex_real), intent(in) :: dt, time		! grid size, sub time step, and time 
     type(amrex_geometry), intent(in) :: geom  	! geometry at level
     integer, intent(in) :: ui_lo(3), ui_hi(3)		! bounds of input tilebox 
-    integer, intent(in) :: uo_lo(3), uo_hi(3)		! bounds of output tilebox   
-    real(amrex_real), intent(in   ) :: uin (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! 
-    real(amrex_real), intent(inout) :: uout(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3)) ! 
+    integer, intent(in) :: uo_lo(3), uo_hi(3)		! bounds of output tilebox  
+    real(amrex_real) :: dx(3) 			! Grid size 
+
+    real(amrex_real), intent(in   ) :: uin (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Enthalpy in 
+    real(amrex_real), intent(inout) :: uout(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3)) ! Enthalpy out 
+    real(amrex_real), intent(inout) :: temp(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3)) ! Temperature out 
+    
     real(amrex_real) :: uface (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! face velocity x direction (nodal)
     real(amrex_real) :: fluxx (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! flux x direction (nodal)
     real(amrex_real) :: fluxy (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! flux y direction (nodal)
+    
     real(amrex_real) :: qbound(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))	! Volumetric heating (boundary)
     real(amrex_real) :: qheat (lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))	! Volumetric heating
-    real(amrex_real) :: dx(3) 
+    
     logical :: xfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for x-nodes 
     logical :: yfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for y-nodes   
     integer :: i,j,k  
@@ -206,7 +215,7 @@ contains
 
 
   	
-  	
+  	! Increment enthalpy 
   	do   i = lo(1),hi(1)
   	 do  j = lo(2),hi(2) 
   	  do k = lo(3),hi(3)
@@ -221,7 +230,12 @@ contains
   	 end do 
   	end do 
   	
-  
+	
+  	! Find temperature 
+  	call get_temp(lo, hi, uout, temp)
+
+  	
+  	
   
   end subroutine increment 
 

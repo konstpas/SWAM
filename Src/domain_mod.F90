@@ -79,6 +79,8 @@ module domain_module
 #endif 	
   				)
   				
+  use material_properties_module 
+  				
   real(amrex_real), intent(in   ) :: time, xlo(3), dx(3)				! time, lower corner physical location, and grid size
   integer         , intent(in   ) :: ui_lo(3), ui_hi(3)				! bounds of input tilebox	
   real(amrex_real), intent(in   ) :: uin      (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))  ! phi (temperature)
@@ -93,13 +95,14 @@ module domain_module
   real(amrex_real), intent(  out) :: fluxz    (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! flux z direction				
 #endif   
 
+
   integer :: i,j,k 
+  real(amrex_real) :: ktherm, temp 
 
 
   	! create face flux
   	! problems may arise since 2d or 1d flow not incompressible if vertical component neglected. 
   	! Also need to treat advection on empty-adjacent cells once surface is variable 
-
 
 	! construct logical array for edges bounding domain (true if edge constitutes boundary)
 	!call surface_tag(time, xlo, dx, ui_lo, ui_hi, xfluxflag, yfluxflag)
@@ -108,15 +111,17 @@ module domain_module
       		! index backwards 	!---!---!---!
       		! 			 i-1  i  i+1   
       	! Nodal enthalpy flux from temperature gradient and velocity field 	
-	do   i = ui_lo(1), ui_hi(1) 
-	 do  j = ui_lo(2), ui_hi(2) 
-	  do k = ui_lo(3), ui_hi(3) 
+	do   i = ui_lo(1)+1, ui_hi(1) 
+	 do  j = ui_lo(2)+1, ui_hi(2) 
+	  do k = ui_lo(3)+1, ui_hi(3) 
 	  
 	 	if (uface(i,j,k) > 0_amrex_real) then 
 			fluxx(i,j,k)  = uin(i-1,j,k)*uface(i,j,k)
 		else 
 			fluxx(i,j,k)  = uin(i  ,j,k)*uface(i,j,k)
 		end if 
+		
+		
 	   fluxx(i,j,k) = fluxx(i,j,k) - (uin(i,j,k)-uin(i-1,j  ,k))/dx(1)  ! x-velocity and temperature gradient 
 	   fluxy(i,j,k) =              - (uin(i,j,k)-uin(i  ,j-1,k))/dx(2)  ! no y-velocity, temperature gradient  
 	   
