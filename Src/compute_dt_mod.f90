@@ -47,7 +47,7 @@ contains
 
 
   function est_timestep (lev, time) result(dt)
-    use my_amr_module, only : phi_new, cfl !! input
+    use my_amr_module, only : phi_new, temp, cfl !! input
     
     real(amrex_real) :: dt
     integer, intent(in) :: lev
@@ -61,9 +61,14 @@ contains
 
     dt_est = huge(1._amrex_real)
 
-
-    dt_est = min(dt_est,amrex_geom(lev)%dx(1)*amrex_geom(lev)%dx(1))
-    dt_est = min(dt_est,amrex_geom(lev)%dx(2)*amrex_geom(lev)%dx(2))
+	! Von Neumann stability analysis dictates diff*dt*(1/dx2 + dy2 + dz2) .le. 0.5 
+	! 	 ktherm  = 100_amrex_real 
+	! 	 rho = 17e3           ! kg/m3 
+	!        Cp  = 270_amrex_real ! j/kgK
+    dt_est = min(dt_est,amrex_geom(lev)%dx(1)*amrex_geom(lev)%dx(1)*(17e3*270_amrex_real)/100_amrex_real)
+    dt_est = min(dt_est,amrex_geom(lev)%dx(2)*amrex_geom(lev)%dx(2)*(17e3*270_amrex_real)/100_amrex_real)
+    !dt_est = min(dt_est,amrex_geom(lev)%dx(1)*amrex_geom(lev)%dx(1))
+    !dt_est = min(dt_est,amrex_geom(lev)%dx(2)*amrex_geom(lev)%dx(2))
     
     dt = dt_est * cfl
 

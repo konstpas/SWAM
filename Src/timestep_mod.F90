@@ -28,11 +28,18 @@ contains
     
     integer :: ncomp, idim, lowbound(2), hbound(2), i,j 	! components, ranges, and indexes
     logical :: nodal(3)   					! logical for flux multifabs 
-    type(amrex_multifab) :: phiborder 			! multifab on mfi owned tilebox, with ghost points 
+    type(amrex_multifab) :: phiborder, tempborder 		! multifabs on mfi owned tilebox, with ghost points 
+    
     type(amrex_mfiter) :: mfi					! mfi iterator 
     type(amrex_box) :: bx, tbx
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin, pout, ptemp ! input, output pointers 
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin, pout, ptempin, ptemp ! input, output pointers 
     type(amrex_multifab) :: fluxes(amrex_spacedim)    
+    
+    ! Currently face velocity and face fluxes are declared as arrays in the increment subroutine 
+    ! Could be declared here as amrex_fab or amreX_multifab, could make it more neat with indexing, using nodalize
+    ! and all components of a velocity field contained in single object. 
+    ! Also necessary if output of those quantities is wanted on the amrex standard form.  
+    
     
     
     ! Regridding 
@@ -88,7 +95,8 @@ contains
        end do
     end if
 
-    call amrex_multifab_build(phiborder, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, ngrow) ! check that ngrow is indeed number of ghost points
+    call amrex_multifab_build(phiborder, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, ngrow) 
+    call amrex_multifab_build(tempborder, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, ngrow)
 
 
     call fillpatch(lev, time, phiborder)
@@ -100,15 +108,19 @@ contains
     do while(mfi%next())
     bx = mfi%tilebox()   
    
-       pin   => phiborder%dataptr(mfi)
-       pout  => phi_new(lev)%dataptr(mfi)
-       ptemp => temp(lev)%dataptr(mfi)
+       pin     => phiborder%dataptr(mfi)
+       pout    => phi_new(lev)%dataptr(mfi)
+       ptempin => tempborder%dataptr(mfi)
+       ptemp   => temp(lev)%dataptr(mfi)
+
        
        ! Increment solution at given mfi tilebox 
 	call increment(time, bx%lo, bx%hi, &
-		pin, lbound(pin), ubound(pin), &
-		pout,lbound(pout), ubound(pout), &
-		ptemp, amrex_geom(lev), dt(lev))  
+		pin,     lbound(pin),     ubound(pin),     &
+		pout,    lbound(pout),    ubound(pout),    &
+		ptempin, lbound(ptempin), ubound(ptempin), &
+		ptemp,   lbound(ptemp),   ubound(ptemp),   &
+		amrex_geom(lev), dt(lev))  
 
 	 
     end do ! while(mfi%next())
@@ -144,25 +156,32 @@ contains
 
 
 
-
+		! Subroutine takes input enthalpy and indexes (with ghost points interpolated from nearby multifab at level and below) 
+		! Updates enthalpy by divergence of enthalpy flux 
 
   subroutine increment(time, lo, hi, &
-  			uin, ui_lo, ui_hi, &
-  			uout, uo_lo, uo_hi, & 
-  			temp, geom, dt)
+  			uin,    ui_lo, ui_hi, &
+  			uout,   uo_lo, uo_hi, & 
+  			tempin, ti_lo, ti_hi, & 
+  			temp,   t_lo , t_hi , & 
+  			geom, dt)
   			
     use domain_module 	
     use material_properties_module, only : get_temp  		
     integer, intent(in) :: lo(3), hi(3)  		! bounds of current tile box
     real(amrex_real), intent(in) :: dt, time		! grid size, sub time step, and time 
     type(amrex_geometry), intent(in) :: geom  	! geometry at level
-    integer, intent(in) :: ui_lo(3), ui_hi(3)		! bounds of input tilebox 
-    integer, intent(in) :: uo_lo(3), uo_hi(3)		! bounds of output tilebox  
+    integer, intent(in) :: ui_lo(3), ui_hi(3)		! bounds of input enthalpy box 
+    integer, intent(in) :: uo_lo(3), uo_hi(3)		! bounds of output enthalpy box  
+    integer, intent(in) :: ti_lo(3), ti_hi(3)		! bounds of temperature box  
+    integer, intent(in) :: t_lo (3), t_hi (3)		! bounds of temperature box    
     real(amrex_real) :: dx(3) 			! Grid size 
 
     real(amrex_real), intent(in   ) :: uin (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Enthalpy in 
     real(amrex_real), intent(inout) :: uout(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3)) ! Enthalpy out 
-    real(amrex_real), intent(inout) :: temp(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3)) ! Temperature out 
+    real(amrex_real), intent(inout) :: tempin (ti_lo(1):ti_hi(1),ti_lo(2):ti_hi(2),ti_lo(3):ti_hi(3)) ! Temperature on enthalpy in-box
+    real(amrex_real), intent(inout) :: temp   (t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3)) ! Temperature out 
+
     
     real(amrex_real) :: uface (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! face velocity x direction (nodal)
     real(amrex_real) :: fluxx (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! flux x direction (nodal)
@@ -183,29 +202,42 @@ contains
    
     dx = geom%dx(1:3) ! grid width at level 
     
+    
+
+   	call get_temp(ti_lo, ti_hi,             &	! tilebox indexes 
+  		      ui_lo, ui_hi, uin, &	! Output enthalpy indexes and data array
+  		      ti_lo, ti_hi, tempin)	! Temperature indexes and data array    
+    
+    
         ! Subroutine assigns logical arrays denoting free interface boundary 
-  	call surface_tag(time, geom%get_physical_location(ui_lo), dx, ui_lo, ui_hi, xfluxflag, yfluxflag &
+  	call surface_tag(time, geom%get_physical_location(ui_lo), dx, lo, hi, &
+  			xfluxflag, yfluxflag, ui_lo, ui_hi &
 #if AMREX_SPACEDIM == 3 
   			, zfluxflag & 
 #endif  
 			)	
   	
+  	
   	! Subroutine assigns tangential (x,z) velocity on grid edges in whole domain  
-  	call get_face_velocity(time, geom%get_physical_location(ui_lo), dx, 	uface, &
+  	call get_face_velocity(time, geom%get_physical_location(lo), dx, lo, hi, uface, &
 #if AMREX_SPACEDIM == 3  
 				wface, &
 #endif 
   				ui_lo, ui_hi ) 	
-  	
+ 
+ 		
+  				
+  				 	
 
   	! Subroutine assigns enthalpy flux on grid edges in whole domain 
-  	call create_face_flux(time, geom%get_physical_location(ui_lo), dx, & 			! domain module 
-  				uin, uface, ui_lo, ui_hi, xfluxflag, yfluxflag, & 
-  				fluxx, fluxy  & 
+  	call create_face_flux(time, geom%get_physical_location(ui_lo), dx, lo, hi, & 			! domain module 
+  				uin, uface, xfluxflag, yfluxflag, 	& 
+  				fluxx, fluxy,  			& 
 #if AMREX_SPACEDIM == 3 
-				, wface, zfluxflag, fluxz &
+				wface, zfluxflag, fluxz, 		&
 #endif 	
-  				)
+				        ui_lo, ui_hi, 			&
+  				tempin, ti_lo, ti_hi)
   	
   	! Zero flux across surface boundary. Volumetric heat deposition in first internal cell constitutes absorbed boundary flux. 
   	! Incorporates all absorption and cooling terms 			
@@ -232,8 +264,10 @@ contains
   	
 	
   	! Find temperature 
-  	call get_temp(lo, hi, uout, temp)
-
+  	call get_temp(lo, hi,             &	! tilebox indexes 
+  		      uo_lo, uo_hi, uout, &	! Output enthalpy indexes and data array
+  		      t_lo , t_hi , temp)	! Temperature indexes and data array 
+ 
   	
   	
   

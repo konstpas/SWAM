@@ -1,17 +1,17 @@
 max_step  = 1000000
-stop_time = 2.0
+stop_time = 0.2
 
 # PROBLEM SIZE & GEOMETRY
 geometry.is_periodic =  0  0  0
 geometry.coord_sys   =  0       # 0 => cart
 geometry.prob_lo     =  0.0  0.0  0.0 
-geometry.prob_hi     =  2.0  1.0  2.0
+geometry.prob_hi     =  0.02  0.01  0.02
 amr.n_cell           =  32   32   32
 
 # DOMAIN 
 domain.meltvel = 10
 domain.tempinit = 1.0 
-domain.surfdist = 0.1  0.05  0.01 
+domain.surfdist = 0.001  0.0005  0.0001 
 
 # VERBOSITY
 amr.v              = 1       # verbosity in Amr

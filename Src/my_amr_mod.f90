@@ -151,8 +151,11 @@ contains
        ptemp => temp(lev)%dataptr(mfi)
        call init_phi(lev, t_new(lev), bx%lo, bx%hi, tempinit, phi, lbound(phi), ubound(phi), &
             amrex_geom(lev)%dx, amrex_problo)
-       call get_temp(bx%lo, bx%hi, phi, ptemp)    
+       call get_temp(bx%lo, bx%hi, & 
+       	lbound(phi),   ubound(phi),   phi, &
+       	lbound(ptemp), ubound(ptemp), ptemp)    
     end do
+
 
     call amrex_mfiter_destroy(mfi)
   end subroutine my_make_new_level_from_scratch
@@ -199,7 +202,9 @@ contains
        bx = mfi%tilebox()
        phi => phi_new(lev)%dataptr(mfi)
        ptemp => temp(lev)%dataptr(mfi)
-       call get_temp(bx%lo, bx%hi, phi, ptemp)    
+       call get_temp(bx%lo, bx%hi, & 
+       	lbound(phi),   ubound(phi),   phi, &
+       	lbound(ptemp), ubound(ptemp), ptemp)    
     end do    
     
     call amrex_mfiter_destroy(mfi)
@@ -250,7 +255,9 @@ contains
        bx = mfi%tilebox()
        phi => phi_new(lev)%dataptr(mfi)
        ptemp => temp(lev)%dataptr(mfi)
-        call get_temp(bx%lo, bx%hi, phi, ptemp)    
+       call get_temp(bx%lo, bx%hi, & 
+       	lbound(phi),   ubound(phi),   phi, &
+       	lbound(ptemp), ubound(ptemp), ptemp)   
      end do    
     call amrex_mfiter_destroy(mfi)
     

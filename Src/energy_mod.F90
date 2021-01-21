@@ -15,7 +15,11 @@ contains
    
    
    ! integrate enthalpy in solid and liquid domain 
-   enth_tot = phi_new(0)%sum(1) * amrex_geom(0)%dx(1)*amrex_geom(0)%dx(2)
+   enth_tot = phi_new(0)%sum(1) * 	amrex_geom(0)%dx(1)* & 
+   				  	amrex_geom(0)%dx(2)  & 
+#if AMREX_SPACEDIM == 3 
+  					*amrex_geom(0)%dx(3) 
+#endif  
    
    end subroutine sum_enthalpy
 
