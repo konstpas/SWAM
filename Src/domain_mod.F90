@@ -280,11 +280,11 @@ module domain_module
     do  j = lo(2), hi(2)
      do k = lo(3), hi(3) 
 
-            
+      	if (time.lt.0.3) then     
       if(yflux(i,j+1,k)) then 
-    qb(i,j,k) = 100E6/dx(2)   
+    qb(i,j,k) = 300E6/dx(2)   
       end if 
-      
+      	end if 
 
      end do        
     end do  
@@ -307,7 +307,7 @@ module domain_module
  ! in order to construct the heat conduction free interface  
   do  i = ui_lo(1),ui_hi(1) 
    do k = ui_lo(3),ui_hi(3)
-   surfpos(i,k) = 0.005_amrex_real + & 
+   surfpos(i,k) = 0.025_amrex_real + & 
    0.001_amrex_real*SIN(6.18_amrex_real*(xlo(1) + (i-ui_lo(1))*dx(1)) ) & 
                  *SIN(6.18_amrex_real*(xlo(3) + (k-ui_lo(3))*dx(3)) )
    end do 

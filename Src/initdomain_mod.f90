@@ -45,7 +45,9 @@ contains
     !$omp end parallel do
     
   end subroutine init_phi
+  
 
+  
 
   
 end module initdomain_module
