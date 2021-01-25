@@ -2,4 +2,5 @@ tmp_build_dir/
 *.ex
 *.o
 *.0
-*plt* 
+*plt*
+*properties.txt 

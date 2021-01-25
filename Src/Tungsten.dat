@@ -3,7 +3,7 @@ Atomic mass [g/mol]
 183.84 
 Melting point [K] 
 3695 
-Enthalpy of fusion [kJ/mol] 
-52.3     
+Enthalpy of fusion [kJ/mol], density at melting [kg/m3] 
+52.3, 17e3      
 End temperature [K] and number of data points [], used for table of temperature as function of enthalpy 
-7000, 10
+8000, 1000

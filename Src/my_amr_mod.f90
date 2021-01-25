@@ -36,7 +36,7 @@ contains
   subroutine my_amr_init ()
     use bc_module, only : lo_bc, hi_bc
     use domain_module 
-    use material_properties_module, only : material 
+    use material_properties_module, only : init_mat_prop, material 
     type(amrex_parmparse) :: pp
     integer :: ilev
     if (.not.amrex_amrcore_initialized()) call amrex_amrcore_init()
@@ -73,12 +73,16 @@ contains
     ! Domain parameters 
     call amrex_parmparse_build(pp, "domain")
     call pp%query("meltvel", meltvel)  
-    call pp%query("tempinit", tempinit)  
+    call pp%query("tempinit", tempinit) 
+    call pp%get("surf_pos", surf_pos_init)   
     call pp%getarr("surfdist", surfdist)  
     call pp%get("material", material)  
+    call pp%query("flux_peak", flux_peak) 
+    call pp%getarr("flux_pos", flux_pos)
+    call pp%getarr("flux_width", flux_width)
+    call pp%query("exp_time", exp_time) 
     call amrex_parmparse_destroy(pp)
-    
-
+    call init_mat_prop ! Initialize material properties 
     
     ! Parameters myamr.*
     call amrex_parmparse_build(pp, "myamr")

@@ -209,6 +209,7 @@ contains
   		      ti_lo, ti_hi, tempin)	! Temperature indexes and data array    
     
     
+    
         ! Subroutine assigns logical arrays denoting free interface boundary 
   	call surface_tag(time, geom%get_physical_location(ui_lo), dx, lo, hi, &
   			xfluxflag, yfluxflag, ui_lo, ui_hi &
@@ -216,7 +217,6 @@ contains
   			, zfluxflag & 
 #endif  
 			)	
-  	
   	
   	! Subroutine assigns tangential (x,z) velocity on grid edges in whole domain  
   	call get_face_velocity(time, geom%get_physical_location(lo), dx, lo, hi, uface, &
@@ -238,6 +238,8 @@ contains
 #endif 	
 				        ui_lo, ui_hi, 			&
   				tempin, ti_lo, ti_hi)
+  	
+  	
   	
   	! Zero flux across surface boundary. Volumetric heat deposition in first internal cell constitutes absorbed boundary flux. 
   	! Incorporates all absorption and cooling terms 			

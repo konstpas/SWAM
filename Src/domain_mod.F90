@@ -5,12 +5,12 @@ module domain_module
   implicit none
   private
   
-  public :: tempinit, meltvel, surfdist 
+  public :: tempinit, meltvel, surfdist, surf_pos_init, flux_peak, flux_pos, flux_width, exp_time
   public :: get_face_velocity, create_face_flux, surface_tag, get_bound_heat, get_surf_pos
   
   
-  real(amrex_real) :: tempinit, meltvel  
-  real(amrex_real), allocatable :: surfdist(:)
+  real(amrex_real) :: tempinit, meltvel, surf_pos_init, flux_peak, exp_time   
+  real(amrex_real), allocatable :: surfdist(:), flux_pos(:), flux_width(:) 
   
   contains 
   
@@ -38,27 +38,27 @@ module domain_module
 #endif  
       
       ! Some test velocity allocated 
-      yhighpos = 0.90_amrex_real
-      ylowpos = 0.70_amrex_real
+!      yhighpos = 0.90_amrex_real
+!      ylowpos = 0.70_amrex_real
       
-      do i = lo(1), hi(1)+1  ! +1 because of staggering 
-      do k = lo(3), hi(3)+1  ! +1 because of staggering 
+!      do i = lo(1), hi(1)+1  ! +1 because of staggering 
+!      do k = lo(3), hi(3)+1  ! +1 because of staggering 
 
-      	do j = lo(2), hi(2) 
-      						! stagger		x   x   x  	
-      	ypos = xlo(2) + (j-lo(2))*dx(2)  	! index backwards 	!---!---!---!
+!      	do j = lo(2), hi(2) 
+!      						! stagger		x   x   x  	
+!      	ypos = xlo(2) + (j-lo(2))*dx(2)  	! index backwards 	!---!---!---!
       						! for now		 j-1  j  j+1   
-      	if ((ypos < yhighpos(i,k)).and.(ypos > ylowpos(i,k))) then 
-      		uface(i,j,k) = -10_amrex_real 
-#if AMREX_SPACEDIM == 3 
-      		wface(i,j,k) = -10_amrex_real 
-#endif       		
-      	end if 
+!      	if ((ypos < yhighpos(i,k)).and.(ypos > ylowpos(i,k))) then 
+!      		uface(i,j,k) = -10_amrex_real 
+!#if AMREX_SPACEDIM == 3 
+!      		wface(i,j,k) = -10_amrex_real 
+!#endif       		
+!      	end if 
       	
-      	end do 
+!      	end do 
       	
-      end do 
-      end do 
+!      end do 
+!      end do 
 
   end subroutine get_face_velocity 
   
@@ -113,7 +113,7 @@ module domain_module
       	! Nodal enthalpy flux from temperature gradient and velocity field 	
 	do   i = lo(1), hi(1)+1  
 	 do  j = lo(2), hi(2)+1 ! +1 because of staggering
-	  do k = lo(3), hi(3)+1 
+	  do k = lo(3), hi(3)+1 ! Needs rewrite for 2D. 
 	  
 	 	if (uface(i,j,k) > 0_amrex_real) then 
 			fluxx(i,j,k)  = uin(i-1,j,k)*uface(i,j,k)
@@ -199,12 +199,11 @@ module domain_module
   ! valid for single valued height as function of tangential coordinate 
   ! step-wise approximation
   
-  
+
   ! Find surface index and flag surface edge for flux y-direction
-   
   
   do i = lo(1)-1, hi(1)+1 ! Including ghost points 
-  do k = lo(3)-1, hi(3)+1 ! Including ghost points 
+  do k = lo(3)-1, hi(3)+1 ! Including ghost points (needs rewrite for 2D) 
       jsurf = ui_lo(2) + floor(  (surfpos(i, k)-xlo(2))/dx(2) ) 
       surfind(i,k) = jsurf 		! y-index of surface element 
     if (jsurf >= lo(2)) then 	! if surface is contained within this box
@@ -234,6 +233,8 @@ module domain_module
   end do  
   end do 
   
+
+  
 #if AMREX_SPACEDIM == 3   
   ! Flag surface edge for z-direction flux 
   do i = lo(1),hi(1)
@@ -252,8 +253,6 @@ module domain_module
   end do  
   end do 
 #endif   
-
-
   
 
  end subroutine surface_tag
@@ -269,20 +268,29 @@ module domain_module
   integer         , intent(in   ) :: ui_lo(3), ui_hi(3)			      	! bounds of input tilebox (ghost points)
   logical         , intent(in   ) :: yflux(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for y-nodes  
   real(amrex_real), intent(  out) :: qb(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))    ! Volumetric heating localized to boundary 	
+  real(amrex_real) :: xpos, zpos 
   integer :: i,j,k
   
   
   qb = 0. 
   
   
-  ! Test case for boundary heating 
+  ! Boundary heating 
    do   i = lo(1), hi(1) 
     do  j = lo(2), hi(2)
      do k = lo(3), hi(3) 
 
-      	if (time.lt.0.3) then     
+	xpos = xlo(1) + (i-lo(1))*dx(1)
+	zpos = xlo(3) + (k-lo(3))*dx(3)
+
+      	if (time.lt.exp_time) then     
       if(yflux(i,j+1,k)) then 
-    qb(i,j,k) = 300E6/dx(2)   
+    qb(i,j,k) = flux_peak*EXP( 	&
+    	-((xpos-flux_pos(1))**2)/(flux_width(1)**2)	&
+#if AMREX_SPACEDIM == 3    	
+    	-((zpos-flux_pos(2))**2)/(flux_width(2)**2)	& 
+#endif    	
+    				)/dx(2)   
       end if 
       	end if 
 
@@ -307,9 +315,9 @@ module domain_module
  ! in order to construct the heat conduction free interface  
   do  i = ui_lo(1),ui_hi(1) 
    do k = ui_lo(3),ui_hi(3)
-   surfpos(i,k) = 0.025_amrex_real + & 
-   0.001_amrex_real*SIN(6.18_amrex_real*(xlo(1) + (i-ui_lo(1))*dx(1)) ) & 
-                 *SIN(6.18_amrex_real*(xlo(3) + (k-ui_lo(3))*dx(3)) )
+   surfpos(i,k) = surf_pos_init ! + & 
+   !0.01_amrex_real*SIN(6.18_amrex_real*(xlo(1) + (i-ui_lo(1))*dx(1))/0.02 ) & 
+   !              *SIN(6.18_amrex_real*(xlo(3) + (k-ui_lo(3))*dx(3))/0.02 )
    end do 
   end do 
  
