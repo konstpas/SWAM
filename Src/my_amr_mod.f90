@@ -144,6 +144,9 @@ contains
     call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, nghost)
+    ! Build multifab for surface position for ba where each box has only one y-component 
+    
+    
 
    if (lev > 0 .and. do_reflux) then
       call amrex_fluxregister_build(flux_reg(lev), ba, dm, amrex_ref_ratio(lev-1), lev, ncomp)
@@ -160,6 +163,7 @@ contains
        call get_temp(bx%lo, bx%hi, & 
        	lbound(phi),   ubound(phi),   phi, &
        	lbound(ptemp), ubound(ptemp), ptemp)    
+       ! Initialize surface 	
     end do
 
 
@@ -192,6 +196,7 @@ contains
     call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, nghost)
+    ! Build surface multifab 
     
     if (lev > 0 .and. do_reflux) then
        call amrex_fluxregister_build(flux_reg(lev), ba, dm, amrex_ref_ratio(lev-1), lev, ncomp)
@@ -199,7 +204,7 @@ contains
 
      
     call fillcoarsepatch(lev, time, phi_new(lev))
-    
+    ! Interpolate surface data 
     
     ! Fill temperature data 
     call amrex_mfiter_build(mfi, temp(lev))
@@ -275,6 +280,7 @@ contains
     call amrex_multifab_destroy(phi_new(lev))
     call amrex_multifab_destroy(phi_old(lev))
     call amrex_multifab_destroy(temp(lev))
+    ! destroy surface multifabs 
     call amrex_fluxregister_destroy(flux_reg(lev))
   end subroutine my_clear_level
 

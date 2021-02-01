@@ -19,8 +19,8 @@ implicit none
 call amrex_init 
 call amrex_amrcore_init 
 
-call my_amr_init() !
-call initdata()    !Initialize multifab data from scratch 
+call my_amr_init() ! Read input file and the initialize multifabs (subr. amr_data_init in amr data mod)
+call initdata()    !Initialize multifab data from scratch (initdata mod) 
 
 
     cur_time = t_new(0)   !! current time 

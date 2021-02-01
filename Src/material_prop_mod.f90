@@ -201,7 +201,7 @@ module material_properties_module
 	
 	
 	! Output employed material properties in table 
-	open (2, file = TRIM(material)//'_properties.txt', status = 'unknown') 
+	open (2, file = 'Employed_'//TRIM(material)//'_properties.txt', status = 'unknown') 
 		write(2,*) 'Material properties employed' 
 		write(2,*) 'Temperature, Cp [J/kgK], rho [kg/m3], k [W/mk]' 
 		do i = 0,ntemp

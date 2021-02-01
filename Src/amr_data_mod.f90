@@ -10,15 +10,19 @@ module amr_data_module
   implicit none
 
   private
-  public :: t_new, t_old, phi_new, phi_old, flux_reg, temp
+  public :: t_new, t_old, phi_new, phi_old, flux_reg, temp, surface, surf_ind, loop_test ! (remove loop test)
   public :: amr_data_init, amr_data_finalize
 
   real(rt), allocatable :: t_new(:)
   real(rt), allocatable :: t_old(:)
-
+  integer :: loop_test = 1  ! for test, remove   
+  integer :: surf_ind(2,2) ! fluid domain index bounds (x,z) (lo,hi) 
+  
   type(amrex_multifab), allocatable :: phi_new(:)
   type(amrex_multifab), allocatable :: phi_old(:)
   type(amrex_multifab), allocatable :: temp(:)
+  type(amrex_multifab) :: surface
+  
 
   type(amrex_fluxregister), allocatable :: flux_reg(:)
 
@@ -49,7 +53,7 @@ contains
     do lev = 1, amrex_max_level
        call amrex_fluxregister_destroy(flux_reg(lev))
     end do
-
+	call amrex_multifab_destroy(surface)
   end subroutine amr_data_finalize
   
 end module amr_data_module

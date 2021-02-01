@@ -184,7 +184,7 @@ module domain_module
   
   
   
-  ! Inefficient as of now, since it fills whole box for every called tile 
+  ! Inefficient as of now, since it fills whole box for every called tile (every box has several tiles) 
   ! Will not be included once fluid motion is implemented 
   call get_surf_pos(xlo, dx, ui_lo, ui_hi, surfpos)  ! Unnecessary if surfpos is passed as argument 
 											
@@ -279,12 +279,12 @@ module domain_module
    do   i = lo(1), hi(1) 
     do  j = lo(2), hi(2)
      do k = lo(3), hi(3) 
-
-	xpos = xlo(1) + (i-lo(1))*dx(1)
-	zpos = xlo(3) + (k-lo(3))*dx(3)
-
       	if (time.lt.exp_time) then     
       if(yflux(i,j+1,k)) then 
+      
+	xpos = xlo(1) + (i-lo(1))*dx(1)
+	zpos = xlo(3) + (k-lo(3))*dx(3)
+	
     qb(i,j,k) = flux_peak*EXP( 	&
     	-((xpos-flux_pos(1))**2)/(flux_width(1)**2)	&
 #if AMREX_SPACEDIM == 3    	
