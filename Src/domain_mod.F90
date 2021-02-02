@@ -305,17 +305,60 @@ module domain_module
  ! Subroutine to interpolate surface position as given by the fluid solver 
  ! in order to construct the heat conduction free interface  
  subroutine get_surf_pos(xlo, dx, ui_lo, ui_hi, surfpos)
+ use amr_data_module, only : surface, surf_ind, surf_xlo, surf_dx  
+ 
   real(amrex_real), intent(in   ) :: xlo(3), dx(3)			                ! lower corner physical location, and grid size
-  integer         , intent(in   ) :: ui_lo(3), ui_hi(3)			      	! bounds of input tilebox  
-  real(amrex_real), intent(  out) :: surfpos(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3))  ! Surface position with x and z coordinates 
-  integer :: i,k
+  integer         , intent(in   ) :: ui_lo(3), ui_hi(3)			      	 ! bounds of input tilebox  
+  real(amrex_real), intent(  out) :: surfpos(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3))     ! Surface position with x and z coordinates   
+  real(amrex_real) :: surface_array(surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2))! = surf_pos_init 
+  integer :: i, k, xind, zind
+  real(amrex_real) :: xpos, zpos, x_alpha, z_alpha, valzp, valzm, valxp, valxm   
+  !real(amrex_real) :: surf_xlo(2), surf_dx(2) ! will be passed as arguments 
   
+ ! Change surface from multifab to array  
+ ! Create iterator for the 2D surface multifab 
+ 
+ ! Test interpolation below 
+ ! Will not use multifab for surface parameters 
+ ! fluid propagated on highest level only, and interpolated to lower levels 
+ 
+ 
+ 
+ ! surf_xlo needs to correspond to lower x and z corners of geometry 
+ ! find out how index space works. can we simply use index and skip interpolation at highest level? (possible if index space is managed by index =0 low corner always), and not index 0 at smallest coordinate at highest level. 
+	
+	
+   do i = surf_ind(1,1),surf_ind(1,2) 
+   do k = surf_ind(2,1),surf_ind(2,2) 
+	surface_array(i,k) = surf_pos_init * (1_amrex_real + 0.2*SIN(i*surf_dx(1)/0.01))
+   end do 
+   end do 
+   ! dx and xlo for surface domain needed. xlo = 0 for now. dx = highest level dx 
+   ! find whether xlo is defined at edge or centre 
   
  ! Subroutine to interpolate surface position as given by the fluid solver 
  ! in order to construct the heat conduction free interface  
   do  i = ui_lo(1),ui_hi(1) 
    do k = ui_lo(3),ui_hi(3)
-   surfpos(i,k) = surf_pos_init ! + & 
+   
+   xpos = xlo(1) + (0.5 + i-ui_lo(1))*dx(1) 
+   zpos = xlo(3) + (0.5 + k-ui_lo(3))*dx(3)
+   
+   xind = ceiling( (xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)  ) ! -surf_dx(1)/2, and ceiling ceiling since staggered 'backwards' on faces w.r.t values which are centered. 
+   x_alpha = mod(xpos - surf_dx(1)/2 - surf_xlo(1), surf_dx(1))
+   zind = ceiling( (zpos - surf_dx(2)/2 - surf_xlo(2))/surf_dx(2)  ) !
+   z_alpha = mod(zpos - surf_dx(2)/2 - surf_xlo(2), surf_dx(2))
+   
+   if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
+   if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
+   if (zind.lt.surf_ind(2,1)) zind = surf_ind(2,1)
+   if (zind.ge.surf_ind(2,2)) zind = surf_ind(2,2)-1 
+   
+   
+   valzm = surface_array(xind,zind  ) + x_alpha * (surface_array(xind+1,zind  )-surface_array(xind,zind  )) ! interpolated value at zind	
+   valzp = surface_array(xind,zind+1) + x_alpha * (surface_array(xind+1,zind+1)-surface_array(xind,zind+1)) ! int value at zind+1 
+   
+   surfpos(i,k) = valzm + z_alpha*(valzp - valzm)  ! 2D linear interpolation 
    !0.01_amrex_real*SIN(6.18_amrex_real*(xlo(1) + (i-ui_lo(1))*dx(1))/0.02 ) & 
    !              *SIN(6.18_amrex_real*(xlo(3) + (k-ui_lo(3))*dx(3))/0.02 )
    end do 

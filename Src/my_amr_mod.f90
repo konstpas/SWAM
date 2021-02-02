@@ -14,6 +14,7 @@ module my_amr_module
   integer :: regrid_int = 2
   integer :: check_int  = -1
   integer :: plot_int   = -1
+  integer :: max_grid_size_2d   = 16
   !
   logical :: do_reflux  = .true.
   !
@@ -31,6 +32,7 @@ module my_amr_module
 
   integer, private, parameter :: ncomp = 1, nghost = 0
   
+  
 contains
 
   subroutine my_amr_init ()
@@ -39,6 +41,7 @@ contains
     use material_properties_module, only : init_mat_prop, material 
     type(amrex_parmparse) :: pp
     integer :: ilev
+    
     if (.not.amrex_amrcore_initialized()) call amrex_amrcore_init()
     
     call amrex_init_virtual_functions (my_make_new_level_from_scratch, &
@@ -68,6 +71,7 @@ contains
     call pp%query("check_file", check_file)
     call pp%query("plot_file", plot_file)
     call pp%query("restart", restart)
+    call pp%query("max_grid_size_2d", max_grid_size_2d)
     call amrex_parmparse_destroy(pp)
     
     ! Domain parameters 
@@ -83,6 +87,7 @@ contains
     call pp%query("exp_time", exp_time) 
     call amrex_parmparse_destroy(pp)
     call init_mat_prop ! Initialize material properties 
+    
     
     ! Parameters myamr.*
     call amrex_parmparse_build(pp, "myamr")
@@ -109,6 +114,16 @@ contains
     allocate(dt(0:amrex_max_level))
     dt = huge(1._rt)
 
+	
+	! 2D domain initialized 
+	surf_xlo(1) = amrex_problo(1) 
+	surf_xlo(2) = amrex_problo(3) ! 2nd dimension in fluid is z direction, 3rd dimension in 3d. 
+	
+	surf_dx(1) = amrex_geom(0)%dx(1)/(2**amrex_max_level)
+	surf_dx(2) = amrex_geom(0)%dx(3)/(2**amrex_max_level)
+	
+	
+	
     call amr_data_init()
   end subroutine my_amr_init
 
@@ -121,7 +136,7 @@ contains
   ! Note that phi_old contains no valid data after this.
   subroutine my_make_new_level_from_scratch (lev, time, pba, pdm) bind(c)
     use initdomain_module, only : init_phi
-    use domain_module, only : tempinit
+    use domain_module, only : tempinit, surf_pos_init
     use material_properties_module, only : get_temp 
     integer, intent(in), value :: lev
     real(amrex_real), intent(in), value :: time
@@ -132,6 +147,12 @@ contains
     type(amrex_mfiter) :: mfi
     type(amrex_box) :: bx
     real(amrex_real), contiguous, pointer :: phi(:,:,:,:), ptemp(:,:,:,:)
+    
+    ! Transfer ba, dm, mf, bx 
+    type(amrex_boxarray) :: trba
+    type(amrex_distromap) :: trdm
+    type(amrex_box) :: trbx
+    logical :: firstbox = .true. 
 
     ba = pba
     dm = pdm
@@ -140,7 +161,8 @@ contains
     t_old(lev) = time - 1.e200_amrex_real
 
     call my_clear_level(lev)
-  
+    call amrex_multifab_destroy(surface) 
+    
     call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, nghost)
@@ -153,6 +175,7 @@ contains
    end if
 
     call amrex_mfiter_build(mfi, phi_new(lev))
+	
 
     do while (mfi%next())
        bx = mfi%tilebox()
@@ -162,18 +185,59 @@ contains
             amrex_geom(lev)%dx, amrex_problo)
        call get_temp(bx%lo, bx%hi, & 
        	lbound(phi),   ubound(phi),   phi, &
-       	lbound(ptemp), ubound(ptemp), ptemp)    
-       ! Initialize surface 	
+       	lbound(ptemp), ubound(ptemp), ptemp)  
+       	  	! index space covered at highest level 
+    			if (lev.eq.amrex_max_level) then 
+       	  	 if (firstbox) then 
+  			surf_ind(1,1) = bx%lo(1)
+  			surf_ind(2,1) = bx%lo(3)
+  			surf_ind(1,2) = bx%hi(1)
+  			surf_ind(2,2) = bx%hi(3)
+  			firstbox = .false. 
+    			 else 
+  			surf_ind(1,1) = min(surf_ind(1,1),bx%lo(1))
+  			surf_ind(2,1) = min(surf_ind(2,1),bx%lo(3))
+  			surf_ind(1,2) = max(surf_ind(1,2),bx%hi(1))
+  			surf_ind(2,2) = max(surf_ind(2,2),bx%hi(3))
+    			 end if 
+    			end if 
     end do
 
 
     call amrex_mfiter_destroy(mfi)
+    
+    if (lev.eq.amrex_max_level) then 
+
+
+
+		    trbx%lo(1) = surf_ind(1,1)
+		    trbx%lo(2) = 0 
+		    trbx%lo(3) = surf_ind(2,1)
+		    trbx%hi(1) = surf_ind(1,2)
+		    trbx%hi(2) = 0 
+		    trbx%hi(3) = surf_ind(2,2)
+			
+			! Intermediate multifab
+			call amrex_boxarray_build(trba,trbx)
+			
+			call trba%maxSize(max_grid_size_2d)
+						
+			call amrex_distromap_build(trdm,trba)
+			call amrex_multifab_build(surface, trba, trdm, 1, 0 )
+			call surface%setval(surf_pos_init)
+
+			call amrex_distromap_destroy(trdm) 
+			call amrex_boxarray_destroy(trba) 
+
+    end if 
+
   end subroutine my_make_new_level_from_scratch
 
   ! Make a new level from coarse level and put the data in phi_new.
   ! Note tha phi_old contains no valid data after this.
   subroutine my_make_new_level_from_coarse (lev, time, pba, pdm) bind(c)
     use fillpatch_module, only : fillcoarsepatch
+    use domain_module, only : surf_pos_init
     use material_properties_module, only : get_temp 
     integer, intent(in), value :: lev
     real(amrex_real), intent(in), value :: time
@@ -184,6 +248,13 @@ contains
     type(amrex_mfiter) :: mfi
     type(amrex_box) :: bx
     real(amrex_real), contiguous, pointer :: phi(:,:,:,:), ptemp(:,:,:,:)
+
+    type(amrex_multifab) :: trmf 
+    type(amrex_boxarray) :: trba
+    type(amrex_distromap) :: trdm
+    type(amrex_box) :: trbx
+    integer :: tr_ind(2,2)=0 ! transfer fluid domain index bounds 
+
 
     ba = pba
     dm = pdm
@@ -215,10 +286,66 @@ contains
        ptemp => temp(lev)%dataptr(mfi)
        call get_temp(bx%lo, bx%hi, & 
        	lbound(phi),   ubound(phi),   phi, &
-       	lbound(ptemp), ubound(ptemp), ptemp)    
+       	lbound(ptemp), ubound(ptemp), ptemp)  
+       	
+    			if (lev.eq.amrex_max_level) then 
+  			tr_ind(1,1) = min(surf_ind(1,1),bx%lo(1))
+  			tr_ind(2,1) = min(surf_ind(2,1),bx%lo(3))
+  			tr_ind(1,2) = max(surf_ind(1,2),bx%hi(1))
+  			tr_ind(2,2) = max(surf_ind(2,2),bx%hi(3))
+    			end if  
     end do    
     
     call amrex_mfiter_destroy(mfi)
+   
+   
+	! 1. define transfer surface multifab defined on low-hi box bounds in x,z coordinates at highest level 
+	! 2. Get data based on existing surf multifab (new multifab has different boxarray) (as by fillpatch) 
+	! 3. destroy current surface multifab 
+	! 4. make new surface multifab on level (with updated boxarray) 
+	! 5. Transfer data from transfer to surface multifab     
+if (lev.eq.amrex_max_level) then 
+
+		if ((tr_ind(1,1).lt.surf_ind(1,1)).or.&
+		    (tr_ind(2,1).lt.surf_ind(2,1)).or.&
+		    (tr_ind(1,2).gt.surf_ind(1,2)).or.&
+		    (tr_ind(2,2).gt.surf_ind(2,2))) then 
+		    
+		    ! New index bounds of surface domain 
+		    trbx%lo(1) = min(tr_ind(1,1),surf_ind(1,1))
+		    trbx%lo(2) = 0 
+		    trbx%lo(3) = min(tr_ind(2,1),surf_ind(2,1))
+		    trbx%hi(1) = max(tr_ind(1,2),surf_ind(1,2))
+		    trbx%hi(2) = 0 
+		    trbx%hi(3) = max(tr_ind(2,2),surf_ind(2,2))
+
+			
+			! Intermediate multifab
+			call amrex_boxarray_build(trba,trbx)
+			call trba%maxSize(max_grid_size_2d)		
+			call amrex_distromap_build(trdm,trba)
+			call amrex_multifab_build(trmf, trba, trdm, 1, 0 )
+			call trmf%setval(surf_pos_init)
+			
+			! copy data from surface to transfermf 
+			! Parallel_copy performs on regions of intersection (here, intersection is previous surface domain)
+			call trmf%parallel_copy(surface,amrex_geom(lev))
+			
+			! Remake surface multifab on new region 
+			call amrex_multifab_destroy(surface) 
+			call amrex_multifab_build(surface, trba, trdm, 1, 0 )
+			
+			! swap transfer and surface multifabs
+			call amrex_multifab_swap(trmf, surface)
+			
+			call amrex_multifab_destroy(trmf) 
+			call amrex_distromap_destroy(trdm) 
+			call amrex_boxarray_destroy(trba) 
+
+		end if
+    
+    
+    end if 
     
   end subroutine my_make_new_level_from_coarse
 
@@ -226,6 +353,7 @@ contains
   ! Note that phi_old contains no valid data after this.
   subroutine my_remake_level (lev, time, pba, pdm) bind(c)
     use fillpatch_module, only : fillpatch
+    use domain_module, only : surf_pos_init
     use material_properties_module, only : get_temp     
     integer, intent(in), value :: lev
     real(amrex_real), intent(in), value :: time
@@ -238,9 +366,16 @@ contains
     type(amrex_box) :: bx
     real(amrex_real), contiguous, pointer :: phi(:,:,:,:), ptemp(:,:,:,:)
 
+    type(amrex_multifab) :: trmf 
+    type(amrex_boxarray) :: trba
+    type(amrex_distromap) :: trdm
+    type(amrex_box) :: trbx
+    integer :: tr_ind(2,2)=0 ! transfer fluid domain index bounds 
+    
+
     ba = pba
     dm = pdm
-
+	
     call amrex_multifab_build(new_phi_new, ba, dm, ncomp, 0)
     call fillpatch(lev, time, new_phi_new)
 
@@ -269,9 +404,62 @@ contains
        call get_temp(bx%lo, bx%hi, & 
        	lbound(phi),   ubound(phi),   phi, &
        	lbound(ptemp), ubound(ptemp), ptemp)   
+    			if (lev.eq.amrex_max_level) then 
+  			tr_ind(1,1) = min(surf_ind(1,1),bx%lo(1))
+  			tr_ind(2,1) = min(surf_ind(2,1),bx%lo(3))
+  			tr_ind(1,2) = max(surf_ind(1,2),bx%hi(1))
+  			tr_ind(2,2) = max(surf_ind(2,2),bx%hi(3))
+    			end if  
      end do    
     call amrex_mfiter_destroy(mfi)
+
+
+	! 1. define transfer surface multifab defined on low-hi box bounds in x,z coordinates at highest level 
+	! 2. Get data based on existing surf multifab (new multifab has different boxarray) (as by fillpatch) 
+	! 3. destroy current surface multifab 
+	! 4. make new surface multifab on level (with updated boxarray) 
+	! 5. Transfer data from transfer to surface multifab 
+if (lev.eq.amrex_max_level) then 
+		if ((tr_ind(1,1).lt.surf_ind(1,1)).or.&
+		    (tr_ind(2,1).lt.surf_ind(2,1)).or.&
+		    (tr_ind(1,2).gt.surf_ind(1,2)).or.&
+		    (tr_ind(2,2).gt.surf_ind(2,2))) then 
+		    
+		    ! New index bounds of surface domain 
+		    trbx%lo(1) = min(tr_ind(1,1),surf_ind(1,1))
+		    trbx%lo(2) = 0 
+		    trbx%lo(3) = min(tr_ind(2,1),surf_ind(2,1))
+		    trbx%hi(1) = max(tr_ind(1,2),surf_ind(1,2))
+		    trbx%hi(2) = 0 
+		    trbx%hi(3) = max(tr_ind(2,2),surf_ind(2,2))
+
+			
+			! Intermediate multifab
+			call amrex_boxarray_build(trba,trbx)
+			call trba%maxSize(max_grid_size_2d)		
+			call amrex_distromap_build(trdm,trba)
+			call amrex_multifab_build(trmf, trba, trdm, 1, 0 )
+			call trmf%setval(surf_pos_init)
+			
+			! copy data from surface to transfermf 
+			! Parallel_copy performs on regions of intersection (here, intersection is previous surface domain)
+			call trmf%parallel_copy(surface,amrex_geom(lev))
+			
+			! Remake surface multifab on new region 
+			call amrex_multifab_destroy(surface) 
+			call amrex_multifab_build(surface, trba, trdm, 1, 0 )
+			
+			! swap transfer and surface multifabs
+			call amrex_multifab_swap(trmf, surface)
+			
+			call amrex_multifab_destroy(trmf) 
+			call amrex_distromap_destroy(trdm) 
+			call amrex_boxarray_destroy(trba) 
+
+		end if
     
+    
+    end if 
     
   end subroutine my_remake_level
 

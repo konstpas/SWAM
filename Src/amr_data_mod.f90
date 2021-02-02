@@ -10,13 +10,14 @@ module amr_data_module
   implicit none
 
   private
-  public :: t_new, t_old, phi_new, phi_old, flux_reg, temp, surface, surf_ind, loop_test ! (remove loop test)
+  public :: t_new, t_old, phi_new, phi_old, flux_reg, temp
+  public :: surface, surf_ind, surf_xlo, surf_dx  ! 2D surface grid parameters 
   public :: amr_data_init, amr_data_finalize
 
   real(rt), allocatable :: t_new(:)
   real(rt), allocatable :: t_old(:)
-  integer :: loop_test = 1  ! for test, remove   
-  integer :: surf_ind(2,2) ! fluid domain index bounds (x,z) (lo,hi) 
+  integer  :: surf_ind(2,2) = 0 ! fluid domain index bounds (x,z) (lo,hi) 
+  real(rt) :: surf_xlo(2), surf_dx(2) 
   
   type(amrex_multifab), allocatable :: phi_new(:)
   type(amrex_multifab), allocatable :: phi_old(:)
