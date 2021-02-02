@@ -29,22 +29,14 @@ contains
     integer :: ncomp, idim, lowbound(2), hbound(2), i,j 	! components, ranges, and indexes
     logical :: nodal(3)   					! logical for flux multifabs 
     type(amrex_multifab) :: phiborder, tempborder 		! multifabs on mfi owned tilebox, with ghost points 
-    type(amrex_multifab) :: surface_pos			! Surface position multifab test 
     
     type(amrex_mfiter) :: mfi					! mfi iterator 
     type(amrex_box) :: bx, tbx
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin, pout, ptempin, ptemp ! input, output pointers 
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: psurf, ptransient  
     
     
     type(amrex_multifab) :: fluxes(amrex_spacedim)    
-    
-    type(amrex_multifab) :: testmf, transientmf 
-    type(amrex_box)      :: testbox 
-    type(amrex_boxarray) :: testba
-    type(amrex_distromap):: testdm 
-    real(amrex_real) :: mfval = 2.0, mfval2 = 1.0  
-    integer :: ba_maxSize_test  
+     
     
     ! Currently face velocity and face fluxes are declared as arrays in the increment subroutine 
     ! Could be declared here as amrex_fab or amreX_multifab, could make it more neat with indexing, using nodalize
@@ -108,123 +100,10 @@ contains
 
     call amrex_multifab_build(phiborder, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, ngrow) 
     call amrex_multifab_build(tempborder, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, ngrow)
-    !call amrex_multifab_build()
-    
-    !testbox = phi_new(lev)%ba%get_box!(1) 
-    !!print *, phi_new(lev)%ba%num_pts()
-    !print *, phi_new(lev)%ba%get_box()
-    !print *, 'testbox lo hi is ', testbox%lo, testbox%hi 
-    !print *, '' 
-    !call amrex_print(phi_new(lev)%ba)
+
 
 
     call fillpatch(lev, time, phiborder)
-
-
-
-		! Procedure as in my_remake_level 
-	! 1. define transient surface multifab defined on low-hi box bounds in x,z coordinates at highest level 
-	! 2. Get data based on existing surf multifab (new multifab has different boxarray) (as by fillpatch) 
-	! 3. destroy current surface multifab 
-	! 4. make new surface multifab on level (with updated boxarray) 
-	! 5. Transfer data from transient to surface multifab 
-
-	! Then how to store surface data for removed points ?
-	! Perhaps never remove points, only add. 
-	! In that case, keep old boxarray and proceed past step 1 only if bigger index space is encompassed. 
-	! 
-
-!--------------Testing-----------------------------------------
-	! Multifab 'surface' defined in amr_data_mod 
-	! 
-	!print *, surface%ba%get_box(0)  !phi_new(lev)%ba%get_box!(1)
-	!pause 
-	
-	testbox%lo(1) = 6 
-	testbox%lo(2) = 0  
-	testbox%lo(3) = 6 - loop_test 
-	
-	testbox%hi(1) = 10! + loop_test
-	testbox%hi(2) = 0  
-	testbox%hi(3) = 10 + loop_test 
-	
-	call amrex_boxarray_build(testba,testbox)
-	ba_maxSize_test = 4 
-	call testba%maxSize(ba_maxSize_test)
-	!testba%maxSize(2)
-	
-	call amrex_distromap_build(testdm,testba) 
-	
-	! print *, 'testbox indexes are lo, hi ', testbox%lo, testbox%hi 
-	!call amrex_print(testba)
-	print *, 'loop is ', loop_test 
-	if (loop_test.eq.1) then ! second loop, test multifab expansion idea  
-		call amrex_multifab_build(surface, testba, testdm, 1, 0 )
-		surf_ind(1,1) = testbox%lo(1)
-		surf_ind(2,1) = testbox%lo(3)
-		surf_ind(1,2) = testbox%hi(1)
-		surf_ind(2,2) = testbox%hi(3)
-		call surface%setval(mfval)  
-	else 
-		! 1. Find if new ba encompasses larger index space 
-		! 2. Create transient mf 
-		! 3. Transfer data from surface to transient mf 
-		! 4. Remake surface multifab
-		! 5. Transfer data back (multifab swap)
-		
-		! if transient box not contained within surface mf ba
-		if ((testbox%lo(1).lt.surf_ind(1,1)).or.&
-		    (testbox%lo(3).lt.surf_ind(2,1)).or.&
-		    (testbox%hi(1).gt.surf_ind(1,2)).or.&
-		    (testbox%hi(3).gt.surf_ind(2,2))) then 
-		    
-		    ! New bounds 
-		    testbox%lo(1) = min(testbox%lo(1),surf_ind(1,1))
-		    testbox%lo(3) = min(testbox%lo(3),surf_ind(2,1))
-		    testbox%hi(1) = max(testbox%hi(1),surf_ind(1,2))
-		    testbox%hi(3) = max(testbox%hi(3),surf_ind(2,2))
-		  	surf_ind(1,1) = testbox%lo(1)
-			surf_ind(2,1) = testbox%lo(3)
-			surf_ind(1,2) = testbox%hi(1)
-			surf_ind(2,2) = testbox%hi(3)
-			
-			! Intermediate multifab
-			call amrex_boxarray_build(testba,testbox)
-			ba_maxSize_test = 4 
-			call testba%maxSize(ba_maxSize_test)
-			call amrex_distromap_build(testdm,testba)
-			call amrex_multifab_build(transientmf, testba, testdm, 1, 0 )
-			call transientmf%setval(mfval2)
-			
-			! copy data from surface to transientmf 
-			! Parallel_copy performs on regions of intersection (here, intersection is previous surface domain)
-			call transientmf%parallel_copy(surface,amrex_geom(lev))
-			
-			! Remake surface multifab on new region 
-			call amrex_multifab_destroy(surface) 
-			call amrex_multifab_build(surface, testba, testdm, 1, 0 )
-			
-			! swap transient and surface multifabs
-			call amrex_multifab_swap(transientmf, surface)
-			
-
-		end if 
-		
-	end if 
-	
-	!call amrex_print(testba)
-	print *, 'sum of surface is', surface%sum() 
-	
-    
-    
-    loop_test = loop_test +1 ! for testing only 
-    pause 	
-! -------------------------------------------------------------
-
-
-
-
-
 
 
 !$omp parallel private(mfi,bx,tbx,pin,pout,ptemp)

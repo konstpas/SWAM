@@ -31,6 +31,7 @@ amr.ref_ratio       = 2 2 2 2 # refinement ratio
 
 amr.blocking_factor = 8       # block factor in grid generation
 amr.max_grid_size   = 16
+amr.max_grid_size_2d = 16	# for fluid domain mesh
 
 amr.regrid_int      = 2       # how often to regrid
 

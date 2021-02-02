@@ -16,7 +16,7 @@ module amr_data_module
   real(rt), allocatable :: t_new(:)
   real(rt), allocatable :: t_old(:)
   integer :: loop_test = 1  ! for test, remove   
-  integer :: surf_ind(2,2) ! fluid domain index bounds (x,z) (lo,hi) 
+  integer :: surf_ind(2,2) = 0 ! fluid domain index bounds (x,z) (lo,hi) 
   
   type(amrex_multifab), allocatable :: phi_new(:)
   type(amrex_multifab), allocatable :: phi_old(:)
