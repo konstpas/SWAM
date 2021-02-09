@@ -16,8 +16,10 @@ module amr_data_module
 
   real(rt), allocatable :: t_new(:)
   real(rt), allocatable :: t_old(:)
+  
   integer  :: surf_ind(2,2) = 0 ! fluid domain index bounds (x,z) (lo,hi) 
   real(rt) :: surf_xlo(2), surf_dx(2) 
+
   
   type(amrex_multifab), allocatable :: phi_new(:)
   type(amrex_multifab), allocatable :: phi_old(:)

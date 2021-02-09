@@ -110,9 +110,7 @@ contains
     ! propagate SW 
     ! 
     ! end if 
-    
-    
-    
+
 
 
 !$omp parallel private(mfi,bx,tbx,pin,pout,ptemp)

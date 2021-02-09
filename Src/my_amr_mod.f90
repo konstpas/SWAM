@@ -208,8 +208,6 @@ contains
     
     if (lev.eq.amrex_max_level) then 
 
-
-
 		    trbx%lo(1) = surf_ind(1,1)
 		    trbx%lo(2) = 0 
 		    trbx%lo(3) = surf_ind(2,1)
