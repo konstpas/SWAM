@@ -3,4 +3,5 @@ tmp_build_dir/
 *.o
 *.0
 *plt*
-*properties.txt 
+*properties.txt
+*surf_1D_time.dat 

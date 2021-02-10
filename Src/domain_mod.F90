@@ -6,7 +6,7 @@ module domain_module
   private
   
   public :: tempinit, meltvel, surfdist, surf_pos_init, flux_peak, flux_pos, flux_width, exp_time
-  public :: get_face_velocity, create_face_flux, surface_tag, get_bound_heat, get_surf_pos
+  public :: get_face_velocity, create_face_flux, surface_tag, get_bound_heat, get_surf_pos, get_melt_pos, reset_melt_pos, integrate_surf 
   
   
   real(amrex_real) :: tempinit, meltvel, surf_pos_init, flux_peak, exp_time   
@@ -305,32 +305,19 @@ module domain_module
  ! Subroutine to interpolate surface position as given by the fluid solver 
  ! in order to construct the heat conduction free interface  
  subroutine get_surf_pos(xlo, dx, ui_lo, ui_hi, surfpos)
- use amr_data_module, only : surface, surf_ind, surf_xlo, surf_dx  
+ use amr_data_module, only : surf_ind, surface_array, surf_xlo, surf_dx  
  
   real(amrex_real), intent(in   ) :: xlo(3), dx(3)			                ! lower corner physical location, and grid size
   integer         , intent(in   ) :: ui_lo(3), ui_hi(3)			      	 ! bounds of input tilebox  
-  real(amrex_real), intent(  out) :: surfpos(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3))     ! Surface position with x and z coordinates   
-  real(amrex_real) :: surface_array(surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2))! = surf_pos_init 
+  real(amrex_real), intent(  out) :: surfpos(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3))     ! Surface position with x and z coordinates, at grid size   
   integer :: i, k, xind, zind
   real(amrex_real) :: xpos, zpos, x_alpha, z_alpha, valzp, valzm, valxp, valxm   
-  !real(amrex_real) :: surf_xlo(2), surf_dx(2) ! will be passed as arguments 
   
- ! Change surface from multifab to array  
- ! Create iterator for the 2D surface multifab 
- 
- ! Test interpolation below 
- ! Will not use multifab for surface parameters 
- ! fluid propagated on highest level only, and interpolated to lower levels 
- 
- 
- 
- ! surf_xlo needs to correspond to lower x and z corners of geometry 
- ! find out how index space works. can we simply use index and skip interpolation at highest level? (possible if index space is managed by index =0 low corner always), and not index 0 at smallest coordinate at highest level. 
 	
 	
    do i = surf_ind(1,1),surf_ind(1,2) 
    do k = surf_ind(2,1),surf_ind(2,2) 
-	surface_array(i,k) = surf_pos_init * (1_amrex_real + 0.2*SIN(i*surf_dx(1)/0.01))
+	surface_array(i,k) = surf_pos_init * (1_amrex_real)! + 0.2*SIN(i*surf_dx(1)/0.01))
    end do 
    end do 
    ! dx and xlo for surface domain needed. xlo = 0 for now. dx = highest level dx 
@@ -369,6 +356,71 @@ module domain_module
  end subroutine get_surf_pos 
  
  
+ 
+ 
+ subroutine reset_melt_pos()	
+ use amr_data_module, only : surface_array, melt_array, surf_ind    ! 2D array of melt position 
+ integer :: i,k 
+  
+ do i =  surf_ind(1,1), surf_ind(1,2) 
+  do k = surf_ind(2,1), surf_ind(2,2)
+    melt_array(i,k) = surface_array(i,k)
+  end do 
+ end do  
+ 
+ end subroutine reset_melt_pos  	
+ 
+ subroutine get_melt_pos(lo, hi, temp, t_lo, t_hi, geom)	
+ use amr_data_module, only : surface_array, melt_array   ! 2D array of melt position 
+ use material_properties_module, only : melt_point
+ integer,              intent(in) :: lo(3), hi(3)  		! bounds of current tile box
+ integer,              intent(in) :: t_lo(3), t_hi(3)		! bounds of temperature box    
+ real(amrex_real),     intent(in) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3)) ! Temperature out 
+ type(amrex_geometry), intent(in) :: geom  	! geometry at level
+ integer :: i,j,k, it(1:3) 
+ real(amrex_real) :: grid_pos(1:3)
+ 
+	
+
+	do i = lo(1), hi(1)  ! x-direction 
+	do k = lo(3), hi(3)  ! z-direction 
+	!melt_array(i,k) = surface_array(i,k) 	
+		do j = lo(2), hi(2) 
+
+		if (temp(i,j,k).gt.melt_point) then 
+		   it(1) = i
+		   it(2) = j
+		   it(3) = k 
+ 		   grid_pos = geom%get_physical_location(it)
+ 		if (grid_pos(2).lt.melt_array(i,k)) then    
+ 		 melt_array(i,k) = grid_pos(2) 
+ 		end if    
+		end if 
+	
+		end do 
+	
+	end do 
+	end do 
+
+ end subroutine get_melt_pos 			  
+			  
+ subroutine integrate_surf(melt_vol)	
+ use amr_data_module, only : surface_array, melt_array, surf_ind, surf_dx   ! 2D array of surface position, melt position. Index space for surface and grid size for surface 
+ real(amrex_real), intent(out) :: melt_vol ! Integrated melt volume [mm3] 
+ integer :: i,k 
+ 
+ melt_vol = 0 
+ 
+ do i =  surf_ind(1,1), surf_ind(1,2) 
+  do k = surf_ind(2,1), surf_ind(2,2)
+   melt_vol = melt_vol +  surface_array(i,k) - melt_array(i,k)
+  end do 
+ end do  
+ 
+ melt_vol = melt_vol*surf_dx(1)*surf_dx(2)*1E9  
+
+
+ end subroutine integrate_surf 				  
   
   
 end module domain_module 

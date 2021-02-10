@@ -62,6 +62,7 @@ call initdata()    !Initialize multifab data from scratch (initdata mod)
        if (plot_int .gt. 0 .and. mod(step+1,plot_int) .eq. 0) then
           last_plot_file_step = step+1
           call writeplotfile()
+          call write2dplotfile() 
        end if
 
        if (cur_time .ge. stop_time - 1.e-6_amrex_real*dt(0)) exit
@@ -69,6 +70,7 @@ call initdata()    !Initialize multifab data from scratch (initdata mod)
 
     if (plot_int .gt. 0 .and. stepno(0) .gt. last_plot_file_step) then
        call writeplotfile()
+       call write2dplotfile() 
     end if
 
 

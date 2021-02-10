@@ -1,23 +1,23 @@
 max_step  = 1000000
-stop_time = 0.4
+stop_time = 1.0
 
 # PROBLEM SIZE & GEOMETRY
 geometry.is_periodic =  0  0  0
 geometry.coord_sys   =  0       # 0 => cart
 geometry.prob_lo     =  0.00  0.00  0.00 
 geometry.prob_hi     =  0.02  0.03  0.02
-amr.n_cell           =  16   128   16
+amr.n_cell           =  8   32   8
 
 # DOMAIN 
 domain.meltvel = 10
 domain.tempinit = 1.0 
-domain.surf_pos = 0.015
+domain.surf_pos = 0.025
 domain.surfdist = 0.001  0.0005  0.0001 
 domain.material = Tungsten
-domain.flux_peak = 100e6 
+domain.flux_peak = 200e6 
 domain.flux_pos = 0.02 0.02 
-domain.flux_width = 0.008 0.008 
-domain.exp_time = 0.2
+domain.flux_width = 0.108 0.108 
+domain.exp_time = 0.5
 
     
     

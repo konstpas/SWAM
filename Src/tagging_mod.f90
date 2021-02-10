@@ -15,7 +15,8 @@ contains
        
   subroutine tag_phi_error (level, time, lo, hi, xlo, dx, surfdist, phi, philo, phihi, tag, taglo, taghi, phierr, &
        settag, cleartag)  
-    use domain_module, only : get_surf_pos    
+    use domain_module, only : get_surf_pos   
+    use material_properties_module, only : enth_at_melt  
     integer               , intent(in   ) :: level, lo(3), hi(3), philo(4), phihi(4), taglo(4), taghi(4)
     real(amrex_real)      , intent(in   ) :: phi(philo(1):phihi(1),philo(2):phihi(2),philo(3):phihi(3))
     real(amrex_real)      , intent(in   ) :: xlo(3), dx(3)  ! Surface y-position (to be multifab on DIM-1) 
@@ -38,8 +39,11 @@ contains
           do i = lo(1), hi(1)
             
              ydist = abs(xlo(2) + (j-lo(2))*dx(2) - surfpos(i,k) ) 
-             if (ydist .le. surfdist) then 
+             if (ydist .le. surfdist) then ! Free surface interface highly resolved 
                 tag(i,j,k) = settag
+             endif 
+             if (phi(i,j,k).ge.enth_at_melt) then ! all molten elements highly resolved 
+             	tag(i,j,k) = settag  
              endif 
              
           enddo

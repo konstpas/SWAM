@@ -11,7 +11,7 @@ module amr_data_module
 
   private
   public :: t_new, t_old, phi_new, phi_old, flux_reg, temp
-  public :: surface, surf_ind, surf_xlo, surf_dx  ! 2D surface grid parameters 
+  public :: surf_ind, surface_array, melt_array, surf_xlo, surf_dx  ! 2D surface grid parameters 
   public :: amr_data_init, amr_data_finalize
 
   real(rt), allocatable :: t_new(:)
@@ -24,8 +24,7 @@ module amr_data_module
   type(amrex_multifab), allocatable :: phi_new(:)
   type(amrex_multifab), allocatable :: phi_old(:)
   type(amrex_multifab), allocatable :: temp(:)
-  type(amrex_multifab) :: surface
-  
+  real(rt), allocatable :: surface_array(:,:), melt_array(:,:)
 
   type(amrex_fluxregister), allocatable :: flux_reg(:)
 
@@ -56,7 +55,6 @@ contains
     do lev = 1, amrex_max_level
        call amrex_fluxregister_destroy(flux_reg(lev))
     end do
-	call amrex_multifab_destroy(surface)
   end subroutine amr_data_finalize
   
 end module amr_data_module

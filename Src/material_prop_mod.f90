@@ -7,10 +7,12 @@ module material_properties_module
 	! String for chosen material 
 	! 
 
-	public :: init_mat_prop, get_ktherm, get_temp 
+	public :: init_mat_prop, get_ktherm, get_temp
+	public :: enth_at_melt, melt_point  
 
 	real(amrex_real), allocatable	:: temp_table(:), enth_table(:)
-	real(amrex_real) 		:: m_A, melt_point, enth_fus, rhomelt  
+	real(amrex_real) 		:: m_A, melt_point, enth_fus, rhomelt 
+	real(amrex_real)		:: enth_at_melt ! enthalpy at onset of melting  
 	character(len=:), allocatable	:: material		! material name
 	integer 			:: ntemp      		! ntemp temperature points for table
 	
@@ -174,6 +176,7 @@ module material_properties_module
 	 			   call get_Cp(temp_table(i),Cp)  
 	 			   rhocp_i = rho*Cp ! product of density and heat capacity at temperature  
 	      	  		 enth_table(i) = enth_table(i-1) + (rhocp_i+rhocp_im1)*dtemp/2_amrex_real   ! Enthalpy at melt onset 
+	      	  		 enth_at_melt = enth_table(i) 
 	        		 dtemp = (end_temp - melt_point)/(ntemp-1-i)  ! New dtemp to match end_temp ! 
 	       	end if 	
 	       
