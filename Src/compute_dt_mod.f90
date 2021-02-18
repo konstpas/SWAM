@@ -48,12 +48,13 @@ contains
 
   function est_timestep (lev, time) result(dt)
     use my_amr_module, only : phi_new, temp, cfl !! input
-    
+    use material_properties_module, only : max_diffus 
     real(amrex_real) :: dt
     integer, intent(in) :: lev
     real(amrex_real), intent(in) :: time
 
     real(amrex_real) :: dt_est
+    real(amrex_real) :: dxsqr 
     type(amrex_box) :: bx
     type(amrex_fab) :: u
     type(amrex_mfiter) :: mfi
@@ -61,15 +62,10 @@ contains
 
     dt_est = huge(1._amrex_real)
 
-	! Von Neumann stability analysis dictates diff*dt*(1/dx2 + dy2 + dz2) .le. 0.5 
-	! 	 ktherm  = 100_amrex_real 
-	! 	 rho = 17e3           ! kg/m3 
-	!        Cp  = 270_amrex_real ! j/kgK
-    dt_est = min(dt_est,amrex_geom(lev)%dx(1)*amrex_geom(lev)%dx(1)*(17e3*270_amrex_real)/100_amrex_real)
-    dt_est = min(dt_est,amrex_geom(lev)%dx(2)*amrex_geom(lev)%dx(2)*(17e3*270_amrex_real)/100_amrex_real)
-    !dt_est = min(dt_est,amrex_geom(lev)%dx(1)*amrex_geom(lev)%dx(1))
-    !dt_est = min(dt_est,amrex_geom(lev)%dx(2)*amrex_geom(lev)%dx(2))
-    
+    ! Von Neumann stability analysis dictates diff*dt*(1/dx2 + 1/dy2 + 1/dz2) .le. 0.5 
+    dxsqr= (1/amrex_geom(lev)%dx(1)**2 + 1/amrex_geom(lev)%dx(2)**2 + 1/amrex_geom(lev)%dx(3)**2) 
+    dt_est = 0.5/(dxsqr*max_diffus)
+
     dt = dt_est * cfl
 
   end function est_timestep

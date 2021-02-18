@@ -12,10 +12,11 @@ contains
 
   recursive subroutine timestep (lev, time, substep)
     use my_amr_module, only : regrid_int, stepno, nsubsteps, dt, do_reflux, verbose !! input
-    use amr_data_module, only : t_old, t_new, phi_old, phi_new, temp, surf_ind, flux_reg, melt_array !! transients of the solution 
+    use amr_data_module, only : t_old, t_new, phi_old, phi_new, temp, surf_ind, flux_reg !! transients of the solution 
     use averagedown_module, only : averagedownto
     use fillpatch_module, only : fillpatch
     use domain_module, only : get_melt_pos, reset_melt_pos 
+    use shallow_water_module, only : increment_SW
     integer, intent(in) :: lev, substep
     real(amrex_real), intent(in) :: time
     
@@ -105,12 +106,15 @@ contains
 
     call fillpatch(lev, time, phiborder)
     
-    ! if lev == max_lev 
-    ! 
-    ! propagate SW 
-    ! 
-    ! end if 
+    
+    ! Propagate SW equations (only at max level)
+	if (lev.eq.amrex_max_level) then 
+	
+	call increment_SW(time, amrex_geom(lev), dt(lev))
+	
+	end if  
 
+    ! RE-distribute energy from 'lost and gained' domain points how
 
 
     ! Set melt interface position array equal to free interface position array 
@@ -118,8 +122,7 @@ contains
     ! Therefore we reset melt position after solving SW, and before propagating temperature 
     ! Melt position is then found after heat has been propagated 
     call reset_melt_pos() 
-    
-    
+   
     
 
 !$omp parallel private(mfi,bx,tbx,pin,pout,ptemp)
@@ -142,9 +145,9 @@ contains
 		ptemp,   lbound(ptemp),   ubound(ptemp),   &
 		amrex_geom(lev), dt(lev))  
 		
-		
+
 	! Find melt interface y position 
-	if (lev.eq.amrex_get_finest_level()) then 
+	if (lev.eq.amrex_max_level) then 
 	
 	call get_melt_pos(bx%lo, bx%hi,                      	&
 			   ptemp, lbound(ptemp), ubound(ptemp), 	&
@@ -207,7 +210,7 @@ contains
   			geom, dt)
   			
     use domain_module 	
-    use material_properties_module, only : get_temp  		
+    use material_properties_module, only : get_temp, get_maxdiffus  		
     integer, intent(in) :: lo(3), hi(3)  		! bounds of current tile box
     real(amrex_real), intent(in) :: dt, time		! sub time step, and time 
     type(amrex_geometry), intent(in) :: geom  	! geometry at level
@@ -309,7 +312,11 @@ contains
   	call get_temp(lo, hi,             &	! tilebox indexes 
   		      uo_lo, uo_hi, uout, &	! Output enthalpy indexes and data array
   		      t_lo , t_hi , temp)	! Temperature indexes and data array 
- 
+  		      
+  	! find maximum diffusivity for time step determination 
+  	! Not called noe, constant max possible diffusivity used.	      
+ 	!call get_maxdiffus(lo, hi, & 
+ 	!		    t_lo, t_hi, temp)
   	
   	
   

@@ -7,12 +7,13 @@ module material_properties_module
 	! String for chosen material 
 	! 
 
-	public :: init_mat_prop, get_ktherm, get_temp
-	public :: enth_at_melt, melt_point  
+	public :: init_mat_prop, get_ktherm, get_temp, get_maxdiffus
+	public :: enth_at_melt, melt_point, max_diffus  
 
 	real(amrex_real), allocatable	:: temp_table(:), enth_table(:)
 	real(amrex_real) 		:: m_A, melt_point, enth_fus, rhomelt 
 	real(amrex_real)		:: enth_at_melt ! enthalpy at onset of melting  
+	real(amrex_real) 		:: max_diffus ! Maximum thermal diffusivity 
 	character(len=:), allocatable	:: material		! material name
 	integer 			:: ntemp      		! ntemp temperature points for table
 	
@@ -123,8 +124,10 @@ module material_properties_module
   	real(amrex_real) :: end_temp, dtemp 	! end of temperature interval (decided in input), and temperature increment size  
   	real(amrex_real) :: rho, Cp, ktherm 
   	integer :: i, imelt 
-  	real(amrex_real) :: rhocp_i, rhocp_im1  
+  	real(amrex_real) :: rhocp_i, rhocp_im1, diffus   
   	logical :: isolid = .true.  ! for enthalpy table, true before phase transfer  
+  	
+  	max_diffus = 0. 
   	
   	! Reads material properties values 
   	! Values constant unless known temperature dependence for 
@@ -198,6 +201,13 @@ module material_properties_module
 	 			   rhocp_i = rho*Cp ! product of density and heat capacity at temperature 
 	      		enth_table(i) = enth_table(i-1) + (rhocp_i+rhocp_im1)*dtemp/2_amrex_real  ! Trapezoidal integration 	
 	      end if 
+	  
+	  call get_ktherm(temp_table(i),ktherm)    
+	  diffus = ktherm/rhocp_i  
+	  if (diffus.gt.max_diffus) max_diffus=diffus ! Find maximum thermal diffusivity for time step determination
+	  ! Is continually re-evaluated to correspond to maximum within domain. This evaluation adds comp. load - perhaps 
+	  ! better to use max value at all times? (i.e. gain of slightly larger step does not outweigh extra load to find diff)
+	    
 	      
 	 end do 
 	! End of trapezoidal integration 
@@ -262,7 +272,36 @@ module material_properties_module
   	 end do 
   	end do 
 	
-	end subroutine 
+	end subroutine get_temp
+	
+	
+	
+	
+	! subroutine to find maximum diffusivity for variable timestep 
+	! If used, called at timestep_mod, subr. increment after second get_temp. diff has to be reset before call to timestep (main)
+	subroutine get_maxdiffus(lo, hi, 		 &
+				t_lo , t_hi , temp) 
+	 integer         , intent(in) :: lo(3), hi(3)				
+	 integer         , intent(in) :: t_lo(3), t_hi(3)			
+	 real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))  ! Temperature  [K] 
+	 integer :: i,j,k 			
+	 real(amrex_real) :: rho, Cp, ktherm, diffus 
+
+   	do   i = lo(1),hi(1)
+  	 do  j = lo(2),hi(2) 
+  	  do k = lo(3),hi(3)
+		call get_ktherm(temp(i,j,k),ktherm)
+		call get_rho(temp(i,j,k),rho) 
+		call get_Cp(temp(i,j,k),Cp) 
+		diffus = ktherm/(rho*Cp) 
+		if (diffus.gt.max_diffus) max_diffus = diffus 
+  	  end do    						
+  	 end do 
+  	end do 
+
+	end subroutine get_maxdiffus
+
+	
 
 
 end module material_properties_module 

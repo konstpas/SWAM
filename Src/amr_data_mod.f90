@@ -11,7 +11,8 @@ module amr_data_module
 
   private
   public :: t_new, t_old, phi_new, phi_old, flux_reg, temp
-  public :: surf_ind, surface_array, melt_array, surf_xlo, surf_dx  ! 2D surface grid parameters 
+  public :: surf_ind, surf_xlo, surf_dx ! 2D surface grid parameters 
+  public :: melt_pos, surf_pos, melt_vel  ! SW transients of the solution
   public :: amr_data_init, amr_data_finalize
 
   real(rt), allocatable :: t_new(:)
@@ -24,7 +25,7 @@ module amr_data_module
   type(amrex_multifab), allocatable :: phi_new(:)
   type(amrex_multifab), allocatable :: phi_old(:)
   type(amrex_multifab), allocatable :: temp(:)
-  real(rt), allocatable :: surface_array(:,:), melt_array(:,:)
+  real(rt), allocatable :: surf_pos(:,:), melt_pos(:,:), melt_vel(:,:,:) ! Init in my_amr_mod 
 
   type(amrex_fluxregister), allocatable :: flux_reg(:)
 

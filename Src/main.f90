@@ -9,7 +9,6 @@ use compute_dt_module
 use plotfile_module 
 use timestep_module
 use energy_module 
-
 implicit none
 
     real(amrex_real) :: cur_time
@@ -35,7 +34,8 @@ call initdata()    !Initialize multifab data from scratch (initdata mod)
        end if
 
        call compute_dt()   !! calculate time step size 
-
+		 
+	
 
 	! Iterative call to each level and contained substeps  
        lev = 0

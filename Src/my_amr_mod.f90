@@ -123,15 +123,20 @@ contains
 	surf_dx(2) = amrex_geom(amrex_max_level)%dx(3)!
 	
 	! Initiate surface position array (y-position as function of x and z)
-	allocate(surface_array(amrex_geom(amrex_max_level)%domain%lo(1):amrex_geom(amrex_max_level)%domain%hi(1), &
+	allocate(surf_pos(amrex_geom(amrex_max_level)%domain%lo(1):amrex_geom(amrex_max_level)%domain%hi(1), &
 				amrex_geom(amrex_max_level)%domain%lo(3):amrex_geom(amrex_max_level)%domain%hi(3)))
 	! Initiate melt interface position array (y-position as function of x and z)
-	allocate(melt_array   (amrex_geom(amrex_max_level)%domain%lo(1):amrex_geom(amrex_max_level)%domain%hi(1), &
-				amrex_geom(amrex_max_level)%domain%lo(3):amrex_geom(amrex_max_level)%domain%hi(3)))		
+	allocate(melt_pos(amrex_geom(amrex_max_level)%domain%lo(1):amrex_geom(amrex_max_level)%domain%hi(1), &
+				amrex_geom(amrex_max_level)%domain%lo(3):amrex_geom(amrex_max_level)%domain%hi(3)))	
+	! Initiate melt velocity array (2D velocity, index 1 x, index 2 z)
+	allocate(melt_vel(amrex_geom(amrex_max_level)%domain%lo(1):amrex_geom(amrex_max_level)%domain%hi(1)+1, &
+				amrex_geom(amrex_max_level)%domain%lo(3):amrex_geom(amrex_max_level)%domain%hi(3)+1, & 
+				1:amrex_spacedim-1))	
 					
-	surface_array = surf_pos_init  ! Initial value of surface array 	
-	melt_array = surf_pos_init     ! Initial value of melt array (no melting) 
-			
+					
+	surf_pos = surf_pos_init  ! Initial value of surface array 	
+	melt_pos = surf_pos_init     ! Initial value of melt position array (no melting) 
+	melt_vel = 0 		! Initial value of melt velocity array 
 	
 	surf_ind(1,1) = amrex_geom(amrex_max_level)%domain%lo(1)
 	surf_ind(1,2) = amrex_geom(amrex_max_level)%domain%hi(1)
