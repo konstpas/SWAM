@@ -180,8 +180,10 @@ contains
     call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, nghost)
-    
-    
+    call amrex_imultifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
+    call amrex_imultifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
+
+
 
    if (lev > 0 .and. do_reflux) then
       call amrex_fluxregister_build(flux_reg(lev), ba, dm, amrex_ref_ratio(lev-1), lev, ncomp)
@@ -199,6 +201,7 @@ contains
        call get_temp(bx%lo, bx%hi, & 
        	lbound(phi),   ubound(phi),   phi, &
        	lbound(ptemp), ubound(ptemp), ptemp)  
+       ! call get domain integers 	
     end do
 
 
@@ -211,7 +214,7 @@ contains
   ! Note tha phi_old contains no valid data after this.
   subroutine my_make_new_level_from_coarse (lev, time, pba, pdm) bind(c)
     use fillpatch_module, only : fillcoarsepatch
-    use domain_module, only : surf_pos_init
+    use domain_module, only : surf_pos_init, get_idomain
     use material_properties_module, only : get_temp 
     integer, intent(in), value :: lev
     real(amrex_real), intent(in), value :: time
@@ -222,8 +225,7 @@ contains
     type(amrex_mfiter) :: mfi
     type(amrex_box) :: bx
     real(amrex_real), contiguous, pointer :: phi(:,:,:,:), ptemp(:,:,:,:)
-
-
+    integer, contiguous, pointer :: idom(:,:,:,:) 
 
     ba = pba
     dm = pdm
@@ -236,6 +238,8 @@ contains
     call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, nghost)
+    call amrex_imultifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
+    call amrex_imultifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
     
     if (lev > 0 .and. do_reflux) then
        call amrex_fluxregister_build(flux_reg(lev), ba, dm, amrex_ref_ratio(lev-1), lev, ncomp)
@@ -246,14 +250,18 @@ contains
     
     ! Fill temperature data 
     call amrex_mfiter_build(mfi, temp(lev))
-    
+    ! parallelize 
     do while (mfi%next())
        bx = mfi%tilebox()
        phi => phi_new(lev)%dataptr(mfi)
        ptemp => temp(lev)%dataptr(mfi)
+       idom => idomain_new(lev)%dataptr(mfi)
        call get_temp(bx%lo, bx%hi, & 
        	lbound(phi),   ubound(phi),   phi, &
        	lbound(ptemp), ubound(ptemp), ptemp)  
+       call get_idomain(bx%lo, bx%hi, & 
+       		lbound(idom), ubound(idom), idom) 	
+       ! call get domain integers 
     end do    
     
     call amrex_mfiter_destroy(mfi)
@@ -294,6 +302,9 @@ contains
     call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, nghost)
+    call amrex_imultifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
+    call amrex_imultifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
+    
     if (lev > 0 .and. do_reflux) then
        call amrex_fluxregister_build(flux_reg(lev), ba, dm, amrex_ref_ratio(lev-1), lev, ncomp)
     end if
@@ -322,6 +333,8 @@ contains
     call amrex_multifab_destroy(phi_new(lev))
     call amrex_multifab_destroy(phi_old(lev))
     call amrex_multifab_destroy(temp(lev))
+    call amrex_imultifab_destroy(idomain_new(lev))
+    call amrex_imultifab_destroy(idomain_old(lev))
     call amrex_fluxregister_destroy(flux_reg(lev))
   end subroutine my_clear_level
 

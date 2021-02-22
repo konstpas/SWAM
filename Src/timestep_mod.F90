@@ -189,6 +189,7 @@ contains
 
        ! A problem occurs when mesh size in region containing free interface is changed 
        ! Finer mesh resolves interface somewhere withing coarse grid point
+       ! so that surface temperature is interpolated into vacuum region and diffuses on the wrong side of free interface boundary 
        call averagedownto(lev)  ! set covered coarse cells to be the average of fine
         
     end if
@@ -222,8 +223,8 @@ contains
 
     real(amrex_real), intent(in   ) :: uin (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Enthalpy in 
     real(amrex_real), intent(inout) :: uout(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3)) ! Enthalpy out 
-    real(amrex_real), intent(inout) :: tempin (ti_lo(1):ti_hi(1),ti_lo(2):ti_hi(2),ti_lo(3):ti_hi(3)) ! Temperature on enthalpy in-box
-    real(amrex_real), intent(inout) :: temp   (t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3)) ! Temperature out 
+    real(amrex_real), intent(inout) :: tempin(ti_lo(1):ti_hi(1),ti_lo(2):ti_hi(2),ti_lo(3):ti_hi(3)) ! Temperature on enthalpy in-box
+    real(amrex_real), intent(inout) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3)) ! Temperature out 
 
     
     real(amrex_real) :: uface (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! face velocity x direction (nodal)

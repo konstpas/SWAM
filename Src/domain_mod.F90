@@ -6,13 +6,27 @@ module domain_module
   private
   
   public :: tempinit, meltvel, surfdist, surf_pos_init, flux_peak, flux_pos, flux_width, exp_time
-  public :: get_face_velocity, create_face_flux, surface_tag, get_bound_heat, get_surf_pos, get_melt_pos, reset_melt_pos, integrate_surf 
+  public :: get_face_velocity, create_face_flux, surface_tag, get_bound_heat
+  public :: get_surf_pos, get_melt_pos, reset_melt_pos, integrate_surf, get_idomain  
   
   
   real(amrex_real) :: tempinit, meltvel, surf_pos_init, flux_peak, exp_time   
   real(amrex_real), allocatable :: surfdist(:), flux_pos(:), flux_width(:) 
   
   contains 
+  
+  
+   subroutine get_idomain(lo, hi, & 
+   			id_lo, id_hi, idom) 
+    integer, intent(in) :: lo(3), hi(3) 
+    integer, intent(in) :: id_lo(3), id_hi(3) 				
+    integer, intent(inout) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2), id_lo(3):id_hi(3)) 
+    real(amrex_real) :: surfpos(id_lo(1):id_hi(1),id_lo(3):id_hi(3))				
+     
+    idom = 0 
+     
+   end subroutine get_idomain 
+  
   
   
     subroutine get_face_velocity(time, xlo, dx, lo, hi, uface, & 
@@ -177,7 +191,7 @@ module domain_module
 #if AMREX_SPACEDIM == 3 
   logical, intent(  out) :: zflux(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for z-nodes
 #endif 
-  real(amrex_real) :: surfpos(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3)) ! Surfpos should be passed as argument (multifab dataptr) 
+  real(amrex_real) :: surfpos(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3)) ! 
   integer          :: surfind(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3)) 
   integer :: i,j,k, jsurf
   
@@ -313,14 +327,6 @@ module domain_module
   real(amrex_real) :: xpos, zpos, x_alpha, z_alpha, valzp, valzm, valxp, valxm   
   
 	
-	
-!   do i = surf_ind(1,1),surf_ind(1,2) 
-!   do k = surf_ind(2,1),surf_ind(2,2) 
-!	surf_pos(i,k) = surf_pos_init * (1_amrex_real)! + 0.2*SIN(i*surf_dx(1)/0.01))
-   !end do 
-   !end do 
-   ! dx and xlo for surface domain needed. xlo = 0 for now. dx = highest level dx 
-   ! find whether xlo is defined at edge or centre 
   
  ! Subroutine to interpolate surface position as given by the fluid solver 
  ! in order to construct the heat conduction free interface  
@@ -345,8 +351,7 @@ module domain_module
    valzp = surf_pos(xind,zind+1) + x_alpha * (surf_pos(xind+1,zind+1)-surf_pos(xind,zind+1)) ! int value at zind+1 
    
    surfpos(i,k) = valzm + z_alpha*(valzp - valzm)  ! 2D linear interpolation 
-   !0.01_amrex_real*SIN(6.18_amrex_real*(xlo(1) + (i-ui_lo(1))*dx(1))/0.02 ) & 
-   !              *SIN(6.18_amrex_real*(xlo(3) + (k-ui_lo(3))*dx(3))/0.02 )
+
    end do 
   end do 
  
@@ -400,7 +405,10 @@ module domain_module
 	end do 
 	end do 
 
- end subroutine get_melt_pos 			  
+ end subroutine get_melt_pos 		
+ 
+
+ 	  
 			  
  subroutine integrate_surf(melt_vol)	
  use amr_data_module, only : surf_pos, melt_pos, surf_ind, surf_dx   ! 2D array of surface position, melt position. Index space for surface and grid size for surface 

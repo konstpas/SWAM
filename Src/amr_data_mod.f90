@@ -11,6 +11,7 @@ module amr_data_module
 
   private
   public :: t_new, t_old, phi_new, phi_old, flux_reg, temp
+  public :: idomain_new, idomain_old 
   public :: surf_ind, surf_xlo, surf_dx ! 2D surface grid parameters 
   public :: melt_pos, surf_pos, melt_vel  ! SW transients of the solution
   public :: amr_data_init, amr_data_finalize
@@ -24,6 +25,11 @@ module amr_data_module
   
   type(amrex_multifab), allocatable :: phi_new(:)
   type(amrex_multifab), allocatable :: phi_old(:)
+  
+  ! integer multifab indicating filled or empty cells by 1 or 0 
+  type(amrex_imultifab), allocatable :: idomain_new(:)
+  type(amrex_imultifab), allocatable :: idomain_old(:)
+  
   type(amrex_multifab), allocatable :: temp(:)
   real(rt), allocatable :: surf_pos(:,:), melt_pos(:,:), melt_vel(:,:,:) ! Init in my_amr_mod 
 
@@ -42,6 +48,9 @@ contains
     allocate(phi_new(0:amrex_max_level))
     allocate(phi_old(0:amrex_max_level))
     allocate(temp(0:amrex_max_level))
+    
+    allocate(idomain_new(0:amrex_max_level))
+    allocate(idomain_old(0:amrex_max_level))
 
     allocate(flux_reg(0:amrex_max_level))
   end subroutine amr_data_init
@@ -52,6 +61,8 @@ contains
        call amrex_multifab_destroy(phi_new(lev))
        call amrex_multifab_destroy(phi_old(lev))
        call amrex_multifab_destroy(temp(lev))
+       call amrex_imultifab_destroy(idomain_new(lev))
+       call amrex_imultifab_destroy(idomain_old(lev))
     end do
     do lev = 1, amrex_max_level
        call amrex_fluxregister_destroy(flux_reg(lev))
