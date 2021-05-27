@@ -22,17 +22,13 @@ OBJS += $(patsubst %.F90, %.o, $(SRCF90))
 # Name of the executable                                                                             
 EXECUTABLE = swam
 
-# Compile                                                                                            
+# Compile                                                                                 
 all: $(EXECUTABLE)
 
 # Dependencies
-depend .depend:
-	makedepf90 *.f90 *.F90 >.depend
 include .depend
 
-%.o: %.f90
-	$(COMP_NAME) $(CFLAGS) -c $<
-
+# Compiling rules
 %.o: %.F90
 	$(COMP_NAME) $(CFLAGS) -c $<
 
@@ -40,6 +36,10 @@ include .depend
 $(EXECUTABLE): $(OBJS)
 	$(LINK_NAME) -fopenmp $^ -o $@ $(LFLAGS)
 
+# Generate dependencies
+depend .depend:
+	makedepf90 *.F90 >.depend
+
 # Clean
 clean:
-	rm *.mod *.o
+	rm *.mod *.o .depend
