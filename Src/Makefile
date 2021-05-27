@@ -1,5 +1,8 @@
 # Compiler
-CC = gfortran
+COMP_NAME = gfortran
+
+# Linker
+LINK_NAME = g++
 
 # Amrex
 AMREX_LIBRARY_HOME ?= /home/federico/amrex_local
@@ -8,21 +11,35 @@ INCDIR := $(AMREX_LIBRARY_HOME)/include
 COMPILE_CPP_FLAGS ?= $(shell awk '/Cflags:/ {$$1=$$2=""; print $$0}' $(LIBDIR)/pkgconfig/amrex.pc)
 COMPILE_LIB_FLAGS ?= $(shell awk '/Libs:/ {$$1=$$2=""; print $$0}' $(LIBDIR)/pkgconfig/amrex.pc)
 CFLAGS := -I$(INCDIR) $(COMPILE_CPP_FLAGS)
-LFLAGS := -L$(LIBDIR)
+LFLAGS := -L$(LIBDIR) $(COMPILE_LIB_FLAGS)
 
 # Files                                                                                              
-SRC = amr_data_mod.F90
-OBJS = $(patsubst %.F90, %.o, $(SRC))
+SRCf90 = $(wildcard *.f90)
+SRCF90 = $(wildcard *.F90)
+OBJS = $(patsubst %.f90, %.o, $(SRCf90))
+OBJS += $(patsubst %.F90, %.o, $(SRCF90))
 
-# Name of the executable                                                         
+# Name of the executable                                                                             
 EXECUTABLE = swam
 
 # Compile                                                                                            
 all: $(EXECUTABLE)
 
+# Dependencies
+depend .depend:
+	makedepf90 *.f90 *.F90 >.depend
+include .depend
+
+%.o: %.f90
+	$(COMP_NAME) $(CFLAGS) -c $<
+
 %.o: %.F90
-	$(CC) $(CFLAGS) -c $<
+	$(COMP_NAME) $(CFLAGS) -c $<
 
 # Link                                                                                               
 $(EXECUTABLE): $(OBJS)
-	$(CC) $^ -o $@ $(LFLAGS)
+	$(LINK_NAME) -fopenmp $^ -o $@ $(LFLAGS)
+
+# Clean
+clean:
+	rm *.mod *.o
