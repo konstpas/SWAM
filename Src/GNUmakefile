@@ -1,4 +1,4 @@
-AMREX_HOME ?= ../../../amrex
+AMREX_HOME ?= /home/federico/amrex
 
 DEBUG     = TRUE
 DEBUG     = FALSE
