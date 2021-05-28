@@ -1,7 +1,0 @@
-tmp_build_dir/
-*.ex
-*.o
-*.0
-*plt*
-*properties.txt
-*surf_1D_time.dat 
