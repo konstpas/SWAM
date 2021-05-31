@@ -2,8 +2,16 @@
 max_step 50
 
 # Maximum simulated time [in seconds] 
-max_time 0.75694
+max_time 1.0
 
+# Dimensions of the simulation box
+box_dimensions 0.0 0.02 0.0 0.025 0.0 0.02
+
+# Number of cells
+cells 16 64 16
+
+# Uniform melt velocity (will be removed)
+melt_velocity 10.0
 
 
 # max_step 100000
