@@ -1,4 +1,12 @@
-# max_step  = 1000000 # Maximum number of simulated steps
+# Maximum number of simulated time-steps
+max_step 50
+
+# Maximum simulated time [in seconds] 
+max_time 0.75694
+
+
+
+# max_step 100000
 # stop_time = 1.0     # Largest simulated time [in seconds]
 
 # # PROBLEM SIZE & GEOMETRY
@@ -13,7 +21,7 @@
 # domain.tempinit = 1.0 
 # domain.surf_pos = 0.020
 # domain.surfdist = 0.001  0.0005  0.0001 
-# domain.material = Tungsten
+domain.material = Tungsten
 # domain.flux_peak = 300e6 
 # domain.flux_pos = 0.0 0.0
 # domain.flux_width = 1.01 1.01 

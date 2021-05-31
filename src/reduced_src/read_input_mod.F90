@@ -19,7 +19,7 @@ module input
 
      ! Simulation duration
      integer :: max_step
-     real(amrex_real) :: stop_time
+     real(amrex_real) :: max_time
 
      ! Problem size and geometry
      real(amrex_real) :: prob_lo_x, prob_lo_y, prob_lo_z
@@ -66,7 +66,7 @@ contains
     integer :: fid = 99
     character(len=buffer) :: line
     character(len=buffer), dimension(buffer) :: tokens
-    integer :: ios, n_lines, n_tokens, ii
+    integer :: ios, ios_line, n_lines, n_tokens, ii
 
     ! Assign default values
     call assign_default(input_data)
@@ -91,19 +91,33 @@ contains
 
        ! Check that the line fits the buffer
        if (len(trim(line)) == buffer) then
-        
           print *, "Risk of buffer overflow while reading input line number: ", n_lines
-          close(fid)
           stop
-        
        end if
        
        ! Parse line
        call parse(line,' ', tokens, n_tokens)
 
-       ! Read command (skip comments and empty lines)
-       if ( tokens(1) /= "#" .or. n_tokens /= 0) then
-          print *, "---"
+       ! Read keywords (skip comments and empty lines)
+       if ( tokens(1) /= "#" .and. n_tokens /= 0) then
+          
+          if ( tokens(1) == "max_step" ) then
+             call read_max_step(line, input_data%max_step)
+             print *, input_data%max_step
+
+          else if ( tokens(1) == "max_time") then
+             call read_max_time(line, input_data%max_time)
+             print *, input_data%max_time
+ 
+         else if ( tokens(1) == "box_dimensions") then
+            call read_box_dimensions(line, input_data%prob_lo_x,                 &
+                                     input_data%prob_lo_y, input_data%prob_lo_z, &
+                                     input_data%prob_hi_x, input_data%prob_hi_y, &
+                                     input_data%prob_hi_z)
+
+
+          end if
+
        end if
        
        ! Stop at the end of file
@@ -115,6 +129,77 @@ contains
   close(fid)
     
   end subroutine read_input
+  ! Call value and error checking
+  subroutine getnum(string,num)
+ 
+  end subroutine getnum
+
+  subroutine read_max_step(line,num)
+
+    character(len=*), intent(in) :: line
+    integer, intent(inout) :: num
+    character(len=buffer), dimension(buffer) :: tokens
+    integer :: ios, n_tokens
+
+    ! Parse line
+    call parse(line,' ', tokens, n_tokens)
+
+    ! Extract number from string
+    call value(tokens(2), num, ios)
+
+    ! Error check
+    if ( ios /= 0 ) then
+       print *, "Error while reading line: ", line       
+    end if
+
+  end subroutine read_max_step
+
+
+  subroutine read_max_time(line,num)
+
+    character(len=*), intent(in) :: line
+    real(amrex_real), intent(inout) :: num
+    character(len=buffer), dimension(buffer) :: tokens
+    integer :: ios, n_tokens
+
+    ! Parse line
+    call parse(line,' ', tokens, n_tokens)
+
+    ! Extract number from string
+    call value(tokens(2), num, ios)
+
+    ! Error check
+    if ( ios /= 0 ) then
+       print *, "Error while reading line: ", line       
+    end if
+
+  end subroutine read_max_time
+
+
+  subroutine read_box_dimensions(line,num1, num2, num3, &
+                                 num4, num5, num6)
+
+    character(len=*), intent(in) :: line
+    real(amrex_real), intent(inout) :: num1, num2, num3 &
+                                       num4, num5, num6 
+    character(len=buffer), dimension(buffer) :: tokens
+    integer :: ios, n_tokens
+
+    ! Parse line
+    call parse(line,' ', tokens, n_tokens)
+
+    ! Extract number from string
+    call value(tokens(2), num, ios)
+
+    ! Error check
+    if ( ios /= 0 ) then
+       print *, "Error while reading line: ", line       
+    end if
+
+
+  end subroutine read_max_time
+
+
 
 
   subroutine assign_default(input_data)
@@ -123,7 +208,7 @@ contains
     
     ! Default values for input data
     input_data%max_step = 1000000
-    input_data%stop_time = 1.0
+    input_data%max_time = 1.0
     input_data%prob_lo_x = 0.0
     input_data%prob_lo_y = 0.0
     input_data%prob_lo_z = 0.0
