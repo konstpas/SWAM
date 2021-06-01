@@ -1,7 +1,7 @@
 # Maximum number of simulated time-steps
 max_step 50
 
-# Maximum simulated time [in seconds] 
+# Maximum simulated time (in second)
 max_time 1.0
 
 # Dimensions of the simulation box
@@ -13,6 +13,26 @@ cells 16 64 16
 # Uniform melt velocity (will be removed)
 melt_velocity 10.0
 
+# Initial temperature of the sample
+initial_temperature 10.0
+
+# Location of the surface (from the bottom of the box)
+surface_position 0.025
+
+# Distance from the surface that triggers remeshing
+remesh_distance 0.002 0.0005 0.001
+
+# Sample material
+material Hulubdum
+
+# Gaussian heat flux (only for testing)
+gaussian_flux 300e5 0.0 0.1 1.1 1.1
+
+# Exposure time (in seconds)
+exposure_time 0.4
+
+# Amrex levels for re-meshing
+amrex_levels 3 2 2
 
 # max_step 100000
 # stop_time = 1.0     # Largest simulated time [in seconds]
@@ -29,7 +49,7 @@ melt_velocity 10.0
 # domain.tempinit = 1.0 
 # domain.surf_pos = 0.020
 # domain.surfdist = 0.001  0.0005  0.0001 
-domain.material = Tungsten
+# domain.material = Tungsten
 # domain.flux_peak = 300e6 
 # domain.flux_pos = 0.0 0.0
 # domain.flux_width = 1.01 1.01 

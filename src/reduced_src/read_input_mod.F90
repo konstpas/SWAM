@@ -129,7 +129,7 @@ contains
  
 
           else if ( tokens(1) == "cells") then
-             call read_n_cells(line,                &
+             call read_cells(line,                &
                                input_data%n_cell_x, & 
                                input_data%n_cell_y, &
                                input_data%n_cell_z)
@@ -140,10 +140,51 @@ contains
           else if ( tokens(1) == "melt_velocity") then
              call read_melt_velocity(line, input_data%melt_vel)
              print *, input_data%melt_vel
+
+          else if ( tokens(1) == "initial_temperature") then
+             call read_initial_temperature(line, input_data%temp_init)
+             print *, input_data%temp_init
+
+          else if ( tokens(1) == "surface_position") then
+             call read_surface_position(line, input_data%surf_pos)
+             print *, input_data%surf_pos
+
+          else if ( tokens(1) == "remesh_distance") then
+             call read_remesh_distance(line,                   &
+                                       input_data%surf_dist_x, & 
+                                       input_data%surf_dist_y, &
+                                       input_data%surf_dist_z)
+             print *, input_data%surf_dist_x
+             print *, input_data%surf_dist_y
+             print *, input_data%surf_dist_z
+
+          else if ( tokens(1) == "material") then
+             call read_material(line, input_data%material)
+             print *, input_data%material
+
+          else if ( tokens(1) == "gaussian_flux") then
+             call read_gaussian_flux(line, input_data%flux_peak,                      &
+                                      input_data%flux_pos_x, input_data%flux_pos_z,   &
+                                      input_data%flux_width_x, input_data%flux_width_z)
+             print *, input_data%flux_peak
+             print *, input_data%flux_pos_x
+             print *, input_data%flux_pos_z
+             print *, input_data%flux_width_x
+             print *, input_data%flux_width_z
             
+          else if ( tokens(1) == "exposure_time") then
+             call read_exposure_time(line, input_data%exposure_time)
+             print *, input_data%exposure_time
 
+          else if ( tokens(1) == "amrex_levels") then
+             call read_amrex_levels(line, input_data%max_level, input_data%ref_ratio)
+
+          else
+             print *, "Unknown key-word in input file: ", tokens(1)
+             stop
+             
           end if
-
+          
        end if
        
        ! Stop at the end of file
@@ -236,7 +277,7 @@ contains
 
 
 
-  subroutine read_n_cells(line, num1, num2, num3)
+  subroutine read_cells(line, num1, num2, num3)
 
     character(len=*), intent(in) :: line
     integer, intent(inout) :: num1
@@ -256,7 +297,7 @@ contains
        stop
     end if
 
-  end subroutine read_n_cells
+  end subroutine read_cells
 
 
 
@@ -364,7 +405,7 @@ contains
 
 
 
-  subroutine read_guassian_flux(line, num1, num2, num3, &
+  subroutine read_gaussian_flux(line, num1, num2, num3, &
                                 num4, num5)
 
     character(len=*), intent(in) :: line
@@ -389,7 +430,7 @@ contains
        stop
     end if
 
-  end subroutine read_guassian_flux
+  end subroutine read_gaussian_flux
 
 
   subroutine read_exposure_time(line,num)
@@ -412,15 +453,17 @@ contains
 
 
 
-  subroutine read_amrex_levels(line,num)
+  subroutine read_amrex_levels(line,num,arr)
 
     character(len=*), intent(in) :: line
-    real(amrex_real), intent(inout) :: num
+    integer, intent(inout) :: num
+    integer, dimension(:), allocatable, intent(inout) :: arr
     character(len=buffer), dimension(buffer) :: tokens
     integer :: ios, n_tokens
 
     call parse(line,' ', tokens, n_tokens)
 
+    ! Number of levels
     call value(tokens(2), num, ios)
 
     if ( ios /= 0 ) then
@@ -428,6 +471,9 @@ contains
        stop
     end if
 
+    ! Refinement ratios
+    print *, num
+    
   end subroutine read_amrex_levels
 
 
@@ -492,7 +538,7 @@ contains
     input_data%max_level = 1
 
     allocate (input_data%ref_ratio(1))
-    input_data%ref_ratio = 1
+    input_data%ref_ratio(1) = 1
 
     input_data%blocking_factor = 8
 
