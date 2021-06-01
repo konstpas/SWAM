@@ -149,8 +149,8 @@ contains
              call read_surface_position(line, input_data%surf_pos)
              print *, input_data%surf_pos
 
-          else if ( tokens(1) == "remesh_distance") then
-             call read_remesh_distance(line,                   &
+          else if ( tokens(1) == "regrid_distance") then
+             call read_regrid_distance(line,                   &
                                        input_data%surf_dist_x, & 
                                        input_data%surf_dist_y, &
                                        input_data%surf_dist_z)
@@ -158,6 +158,20 @@ contains
              print *, input_data%surf_dist_y
              print *, input_data%surf_dist_z
 
+          else if ( tokens(1) == "regrid_error") then
+             call read_regrid_error(line,                 &
+                                    input_data%phi_err_x, & 
+                                    input_data%phi_err_y, &
+                                    input_data%phi_err_z)
+             print *, input_data%phi_err_x
+             print *, input_data%phi_err_y
+             print *, input_data%phi_err_z
+
+
+          else if ( tokens(1) == "regrid_interval") then
+             call read_regrid_interval(line, input_data%regrid_interval)
+             print *, input_data%regrid_interval
+             
           else if ( tokens(1) == "material") then
              call read_material(line, input_data%material)
              print *, input_data%material
@@ -177,8 +191,30 @@ contains
              print *, input_data%exposure_time
 
           else if ( tokens(1) == "amrex_levels") then
-             call read_amrex_levels(line, input_data%max_level, input_data%ref_ratio)
+             call read_amrex_levels(line, input_data%max_level, input_data%ref_ratio)             
+             do ii = 1,input_data%max_level
+                print *, input_data%ref_ratio(ii)
+             end do
 
+          else if ( tokens(1) == "grid_parameters") then
+             call read_grid_parameters(line, input_data%blocking_factor, &
+                                       input_data%max_grid_size,         &
+                                       input_data%max_grid_size_2d)
+             print *, input_data%blocking_factor
+             print *, input_data%max_grid_size
+             print *, input_data%max_grid_size_2d
+
+          else if ( tokens(1) == "plot") then
+             call read_plot(line, input_data%plot_file, &
+                            input_data%plot_interval)
+             print *, input_data%plot_file
+             print *, input_data%plot_interval
+
+          else if ( tokens(1) == "cfl") then
+             call read_cfl(line, input_data%cfl)
+             print *, input_data%cfl
+             
+             
           else
              print *, "Unknown key-word in input file: ", tokens(1)
              stop
@@ -361,7 +397,7 @@ contains
 
 
 
-  subroutine read_remesh_distance(line, num1, num2, num3)
+  subroutine read_regrid_distance(line, num1, num2, num3)
 
     character(len=*), intent(in) :: line
     real(amrex_real), intent(inout) :: num1
@@ -381,9 +417,53 @@ contains
        stop
     end if
 
-  end subroutine read_remesh_distance
+  end subroutine read_regrid_distance
 
 
+
+  subroutine read_regrid_error(line, num1, num2, num3)
+
+    character(len=*), intent(in) :: line
+    real(amrex_real), intent(inout) :: num1
+    real(amrex_real), intent(inout) :: num2
+    real(amrex_real), intent(inout) :: num3
+    character(len=buffer), dimension(buffer) :: tokens
+    integer :: ios, n_tokens
+
+    call parse(line,' ', tokens, n_tokens)
+
+    call value(tokens(2), num1, ios)
+    call value(tokens(3), num2, ios)
+    call value(tokens(4), num3, ios)
+
+    if ( ios /= 0 ) then
+       print *, "Error while reading line: ", line      
+       stop
+    end if
+
+  end subroutine read_regrid_error  
+  
+
+  
+  subroutine read_regrid_interval(line,num)
+
+    character(len=*), intent(in) :: line
+    integer, intent(inout) :: num
+    character(len=buffer), dimension(buffer) :: tokens
+    integer :: ios, n_tokens
+
+    call parse(line,' ', tokens, n_tokens)
+
+    call value(tokens(2), num, ios)
+
+    if ( ios /= 0 ) then
+       print *, "Error while reading line: ", line       
+       stop
+    end if
+
+  end subroutine read_regrid_interval
+  
+  
 
   subroutine read_material(line, id_string)
 
@@ -433,6 +513,7 @@ contains
   end subroutine read_gaussian_flux
 
 
+
   subroutine read_exposure_time(line,num)
 
     character(len=*), intent(in) :: line
@@ -459,7 +540,7 @@ contains
     integer, intent(inout) :: num
     integer, dimension(:), allocatable, intent(inout) :: arr
     character(len=buffer), dimension(buffer) :: tokens
-    integer :: ios, n_tokens
+    integer :: ios, n_tokens, ii
 
     call parse(line,' ', tokens, n_tokens)
 
@@ -472,11 +553,103 @@ contains
     end if
 
     ! Refinement ratios
-    print *, num
+    if (num == 1) then
+
+       call value(tokens(3), num, ios)
+       if ( ios /= 0 ) then
+          print *, "Error while reading line: ", line       
+          stop
+       end if
+       
+    else
+       
+       deallocate(arr)
+       allocate(arr(num))
+       do ii = 1,num
+          
+          call value(tokens(ii+1), arr(ii), ios)
+          if ( ios /= 0 ) then
+             print *, "Error while reading line: ", line       
+             stop
+          end if
+       
+       end do
+       
+    end if
     
   end subroutine read_amrex_levels
 
 
+
+  subroutine read_grid_parameters(line, num1, num2, num3)
+
+    character(len=*), intent(in) :: line
+    integer, intent(inout) :: num1
+    integer, intent(inout) :: num2
+    integer, intent(inout) :: num3
+    character(len=buffer), dimension(buffer) :: tokens
+    integer :: ios, n_tokens
+
+    call parse(line,' ', tokens, n_tokens)
+
+    call value(tokens(2), num1, ios)
+    call value(tokens(3), num2, ios)
+    call value(tokens(4), num3, ios)
+
+    if ( ios /= 0 ) then
+       print *, "Error while reading line: ", line      
+       stop
+    end if
+
+  end subroutine read_grid_parameters
+
+
+
+  subroutine read_plot(line, id_string, num)
+    
+    character(len=*), intent(in) :: line
+    character(len=*), intent(inout) :: id_string
+    integer, intent(inout) :: num
+    character(len=buffer), dimension(buffer) :: tokens
+    integer :: ios, n_tokens
+
+    call parse(line,' ', tokens, n_tokens)
+
+    if ( n_tokens < 2 ) then
+       print *, "Error while reading line: ", line      
+       stop
+    end if
+
+    id_string = tokens(2)
+    
+    call value(tokens(3), num, ios)
+
+    if ( ios /= 0 ) then
+       print *, "Error while reading line: ", line      
+       stop
+    end if
+
+  end subroutine read_plot
+
+
+  subroutine read_cfl(line,num)
+
+    character(len=*), intent(in) :: line
+    real(amrex_real), intent(inout) :: num
+    character(len=buffer), dimension(buffer) :: tokens
+    integer :: ios, n_tokens
+
+    call parse(line,' ', tokens, n_tokens)
+
+    call value(tokens(2), num, ios)
+
+    if ( ios /= 0 ) then
+       print *, "Error while reading line: ", line       
+       stop
+    end if
+
+  end subroutine read_cfl
+  
   ! ------------------------------------------------------------------
   ! Subroutines to assign the default values to the input
   ! -------------------------------------------------------------------
