@@ -48,7 +48,7 @@ contains
   end subroutine get_rho
 	
   ! --- Heat capacity ---
-  subroutine get_Cp(temp,rho)
+  subroutine get_Cp(temp,Cp)
     
     real(amrex_real), intent(in) :: temp  ! Temperature [K]
     real(amrex_real), intent(out) :: Cp   ! Specific heat capacity [J/kgK] 
@@ -77,7 +77,7 @@ contains
   subroutine get_melting_point()
 
     if (material.eq.'Tungsten') then 
-       call get_m_A_tungsten(melt_point, enth_fus, rho_melt)
+       call get_melting_point_tungsten(melt_point, enth_fus, rho_melt)
     else
        STOP 'Unknown material'
     end if
@@ -105,15 +105,15 @@ contains
     
     ! give end temperature point and data points in input file? 
     ! now called several times, move call to initdata later 
-    allocate(temp_table(0:phiT_table_points))
-    allocate(enth_table(0:phiT_table_points))     
+    allocate(temp_table(0:phiT_table_n_points))
+    allocate(enth_table(0:phiT_table_n_points))     
     
     ! Trapezoidal integration for enthalpy vs temperature, including phase transfer discontinuity  
     ! Enthalpy is phi = int_0^T rho(T')*Cp(T') dT' 
     ! Perhaps use larger number of data points for integration than for table. 
 
     ! Table increment
-    phiT_table_dT = phiT_table_max_T/phiT_table_points  ! Equal increment to end temperature
+    phiT_table_dT = phiT_table_max_T/phiT_table_n_points  ! Equal increment to end temperature
 
     ! Properties at zero temperature
     temp_table(0) = 0_amrex_real  ! Temperature table 
@@ -123,7 +123,7 @@ contains
     enth_table(0) = 0_amrex_real  ! Enthalpy table
 
     ! Fill phiT table
-    do i = 1,phiT_table_points                 
+    do i = 1,phiT_table_n_points                 
 
        temp_table(i) = temp_table(i-1) + phiT_table_dT  ! Update temperature 
        
@@ -142,7 +142,7 @@ contains
              rhocp_i = rho*Cp ! product of density and heat capacity at temperature  
              enth_table(i) = enth_table(i-1) + (rhocp_i+rhocp_im1)*phiT_table_dT/2_amrex_real   ! Enthalpy at melt onset 
              enth_at_melt = enth_table(i) 
-             phiT_table_dT = (phiT_table_max_T - melt_point)/(phiT_table_points-1-i)  ! New phiT_table_dT to match phiT_table_max_T !
+             phiT_table_dT = (phiT_table_max_T - melt_point)/(phiT_table_n_points-1-i)  ! New phiT_table_dT to match phiT_table_max_T !
              
           end if
           
@@ -186,7 +186,7 @@ contains
     ! open (2, file = 'Employed_'//TRIM(material)//'_properties.txt', status = 'unknown') 
     !  write(2,*) 'Material properties employed' 
     !  write(2,*) 'Temperature, Cp [J/kgK], rho [kg/m3], k [W/mk]' 
-    !  do i = 0,phiT_table_points
+    !  do i = 0,phiT_table_n_points
     !     call get_Cp(temp_table(i),Cp) 
     !     call get_ktherm(temp_table(i),ktherm) 
     !     call get_rho(temp_table(i),rho)
@@ -224,10 +224,10 @@ end subroutine init_mat_prop
   	 do  j = lo(2),hi(2) 
   	  do k = lo(3),hi(3)
   	  	! Linear interpolation of temperature by given enthalpy, from table 
-  	  	do e_ind = 0,phiT_table_points 
+  	  	do e_ind = 0,phiT_table_n_points 
   	  		if (phi(i,j,k) .le. enth_table(e_ind) ) exit 
   	  	end do 
-  	  		if (e_ind.eq.phiT_table_points) STOP 'Temperature table exceeded' 
+  	  		if (e_ind.eq.phiT_table_n_points) STOP 'Temperature table exceeded' 
 			alph = (phi(i,j,k)-enth_table(e_ind-1))/(enth_table(e_ind)-enth_table(e_ind-1))
 			temp(i,j,k) = temp_table(e_ind-1) + alph*(temp_table(e_ind)-temp_table(e_ind-1))
   	  end do    						
