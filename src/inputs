@@ -19,9 +19,11 @@ domain.flux_pos = 0.0 0.0
 domain.flux_width = 1.01 1.01 
 domain.exp_time = 0.4
 
+# MATERIAL
+material.material = Tungsten
+material.phiT_max_T = 8000
+material.phiT_n_points = 10000
     
-    
-
 # VERBOSITY
 amr.v              = 1       # verbosity in Amr
 

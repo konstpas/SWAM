@@ -36,9 +36,12 @@ module my_amr_module
 contains
 
   subroutine my_amr_init ()
+    
     use bc_module, only : lo_bc, hi_bc
     use domain_module 
-    use material_properties_module, only : init_mat_prop, material 
+    use material_properties_module, only : init_mat_prop, material, &
+        &                                  phiT_table_max_T, phiT_table_n_points
+
     type(amrex_parmparse) :: pp
     integer :: ilev
     
@@ -73,21 +76,26 @@ contains
     call pp%query("restart", restart)
     call pp%query("max_grid_size_2d", max_grid_size_2d)
     call amrex_parmparse_destroy(pp)
-    
+   
     ! Domain parameters 
     call amrex_parmparse_build(pp, "domain")
     call pp%query("meltvel", meltvel)  
     call pp%query("tempinit", tempinit) 
-    call pp%get("surf_pos", surf_pos_init)   
-    call pp%getarr("surfdist", surfdist)  
-    call pp%get("material", material)  
+    call pp%query("surf_pos", surf_pos_init)   
+    call pp%getarr("surfdist", surfdist)
     call pp%query("flux_peak", flux_peak) 
     call pp%getarr("flux_pos", flux_pos)
     call pp%getarr("flux_width", flux_width)
     call pp%query("exp_time", exp_time) 
     call amrex_parmparse_destroy(pp)
+
+    ! Material parameters
+    call amrex_parmparse_build(pp, "material")
+    call pp%query("material", material)
+    call pp%query("phiT_max_T", phiT_table_max_T)
+    call pp%query("phiT_n_points", phiT_table_n_points)
+    call amrex_parmparse_destroy(pp)
     call init_mat_prop ! Initialize material properties 
-    
     
     ! Parameters myamr.*
     call amrex_parmparse_build(pp, "myamr")

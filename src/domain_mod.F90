@@ -91,7 +91,7 @@ module domain_module
   				ui_lo, ui_hi, 			& 
   				temp, t_lo, t_hi)
   				
-  use material_properties_module 
+  use material_properties_module only get_ktherm
   				
   real(amrex_real), intent(in   ) :: time, xlo(3), dx(3)				! time, lower corner physical location, and grid size
   integer         , intent(in   ) :: lo(3), hi(3)					! bounds of input tilebox	  
