@@ -27,7 +27,7 @@ all: $(EXECUTABLE)
 include .depend
 
 # Compiling rules
-%.o: %.F90
+%.o: %.f90
 	$(COMP_NAME) $(CFLAGS) -c $<
 
 # Link                                                                                               
@@ -36,7 +36,7 @@ $(EXECUTABLE): $(OBJS)
 
 # Generate dependencies
 depend .depend:
-	makedepf90 *.F90 >.depend
+	makedepf90 *.f90 >.depend
 
 # Clean
 clean:

@@ -237,11 +237,9 @@ contains
     logical :: xfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for x-nodes 
     logical :: yfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for y-nodes   
     integer :: i,j,k  
-#if AMREX_SPACEDIM == 3 
     real(amrex_real) :: wface (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! face velocity z direction (nodal)	 
     real(amrex_real) :: fluxz (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! flux z direction (nodal)
     logical :: zfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for z-nodes
-#endif        
 
    
     dx = geom%dx(1:3) ! grid width at level 
@@ -257,16 +255,12 @@ contains
         ! Subroutine assigns logical arrays denoting free interface boundary 
   	call surface_tag(time, geom%get_physical_location(ui_lo), dx, lo, hi, &
   			xfluxflag, yfluxflag, ui_lo, ui_hi &
-#if AMREX_SPACEDIM == 3 
   			, zfluxflag & 
-#endif  
 			)	
   	
   	! Subroutine assigns tangential (x,z) velocity on grid edges in whole domain  
   	call get_face_velocity(time, geom%get_physical_location(lo), dx, lo, hi, uface, &
-#if AMREX_SPACEDIM == 3  
 				wface, &
-#endif 
   				ui_lo, ui_hi ) 	
  
  		
@@ -277,9 +271,7 @@ contains
   	call create_face_flux(time, geom%get_physical_location(ui_lo), dx, lo, hi, & 			! domain module 
   				uin, uface, xfluxflag, yfluxflag, 	& 
   				fluxx, fluxy,  			& 
-#if AMREX_SPACEDIM == 3 
 				wface, zfluxflag, fluxz, 		&
-#endif 	
 				        ui_lo, ui_hi, 			&
   				tempin, ti_lo, ti_hi)
   	
@@ -300,9 +292,7 @@ contains
   	  uout(i,j,k) = uin(i,j,k) &
   	     - dt/dx(1)      * (fluxx(i+1,j  ,k  )-fluxx(i,j,k))	&		! flux divergence x-direction 
   	     - dt/dx(2)      * (fluxy(i  ,j+1,k  )-fluxy(i,j,k))	& 		! flux divergence y-direction 
-#if AMREX_SPACEDIM == 3 
   	     - dt/dx(3)      * (fluxz(i  ,j  ,k+1)-fluxz(i,j,k))	&		! flux divergence z-direction
-#endif 
   	     + dt*qbound(i,j,k)	
   	  end do    						! 'boundary volumetric' source
   	 end do 

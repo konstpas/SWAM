@@ -30,27 +30,21 @@ module domain_module
   
   
     subroutine get_face_velocity(time, xlo, dx, lo, hi, uface, & 
-#if AMREX_SPACEDIM == 3  
-				wface, &
-#endif     
+				wface, &     
      				ui_lo, ui_hi )
      				
       real(amrex_real), intent(in) :: dx(3), time, xlo(3) 					! grid size, time, and lower corner physical location 
       integer, intent(in) :: lo(3), hi(3)						! bounds of input tilebox       
       integer, intent(in) :: ui_lo(3), ui_hi(3)					! bounds of input box 
       real(amrex_real), intent(inout) :: uface(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! face velocity 
-#if AMREX_SPACEDIM == 3  
       real(amrex_real), intent(inout) :: wface(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! face velocity 
-#endif  
       integer 		:: i,j,k, yhigh, ylow  							! indexes and bounds 
       real(amrex_real)	:: yhighpos(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3)), ylowpos (ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3))
       real(amrex_real) :: ypos 
       
       uface = 0_amrex_real 
-#if AMREX_SPACEDIM == 3 
       wface = 0_amrex_real 
-#endif  
-      
+
       ! Some test velocity allocated 
 !      yhighpos = 0.90_amrex_real
 !      ylowpos = 0.70_amrex_real
@@ -64,9 +58,7 @@ module domain_module
       						! for now		 j-1  j  j+1   
 !      	if ((ypos < yhighpos(i,k)).and.(ypos > ylowpos(i,k))) then 
 !      		uface(i,j,k) = -10_amrex_real 
-!#if AMREX_SPACEDIM == 3 
 !      		wface(i,j,k) = -10_amrex_real 
-!#endif       		
 !      	end if 
       	
 !      	end do 
@@ -85,9 +77,7 @@ module domain_module
   				uin, uface, 			&
   				xfluxflag,yfluxflag, 		&  
   				fluxx, fluxy, 			&
-#if AMREX_SPACEDIM == 3 
-				wface, zfluxflag, fluxz, 	&
-#endif 	
+				wface, zfluxflag, fluxz, 	& 	
   				ui_lo, ui_hi, 			& 
   				temp, t_lo, t_hi)
   				
@@ -103,11 +93,9 @@ module domain_module
   logical         , intent(in   ) :: yfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! surface flag for y-nodes 		
   real(amrex_real), intent(  out) :: fluxx    (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! flux x direction  			
   real(amrex_real), intent(  out) :: fluxy    (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! flux y direction  	
-#if AMREX_SPACEDIM == 3 
   real(amrex_real), intent(in   ) :: wface    (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! face velocity z direction 
   logical         , intent(in   ) :: zfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! surface flag for z-nodes 
   real(amrex_real), intent(  out) :: fluxz    (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! flux z direction				
-#endif   
   real(amrex_real), intent(in   ) :: temp     (t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))  ! temperature
 
   integer :: i,j,k 
@@ -151,9 +139,8 @@ module domain_module
 	   if(yfluxflag(i,j,k)) then ! true if surface node 
 	    fluxy(i,j,k) = 0_amrex_real ! 
 	   end if 
-	   
-#if AMREX_SPACEDIM == 3 
-	 	if (wface(i,j,k) > 0_amrex_real) then 
+
+    if (wface(i,j,k) > 0_amrex_real) then 
 			fluxz(i,j,k)  = uin(i,j,k-1)*wface(i,j,k)
 		else 
 			fluxz(i,j,k)  = uin(i,j,k  )*wface(i,j,k)
@@ -165,9 +152,8 @@ module domain_module
 	   
 	   if(zfluxflag(i,j,k)) then ! true if surface node 
 	    fluxz(i,j,k) = 0_amrex_real ! 
-	   end if 
-#endif 	   
-	   
+  end if
+  
 	  end do  
 	 end do
 	end do  
@@ -176,21 +162,15 @@ module domain_module
 
 	
  subroutine surface_tag(time, xlo, dx, lo, hi, &
- 			xflux, yflux, ui_lo, ui_hi & 
-#if AMREX_SPACEDIM == 3 
-			, zflux)
-#else  
- 			)
-#endif  
+ 			xflux, yflux, ui_lo, ui_hi, & 
+			zflux)
  
   real(amrex_real), intent(in   ) :: time, xlo(3), dx(3)			! time, lower corner physical location, and grid size
   integer, intent(in   ) :: lo(3), hi(3)			      		! bounds of input tilebox  
   integer, intent(in   ) :: ui_lo(3), ui_hi(3)			      	! bounds of input box
   logical, intent(  out) :: xflux(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for x-nodes 
   logical, intent(  out) :: yflux(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for y-nodes 
-#if AMREX_SPACEDIM == 3 
   logical, intent(  out) :: zflux(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for z-nodes
-#endif 
   real(amrex_real) :: surfpos(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3)) ! 
   integer          :: surfind(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3)) 
   integer :: i,j,k, jsurf
@@ -203,9 +183,7 @@ module domain_module
 											
   xflux = .false. 
   yflux = .false. 
-#if AMREX_SPACEDIM == 3 
   zflux = .false. 
-#endif   
   
   
   ! Preliminary flux application on surface 
@@ -248,7 +226,6 @@ module domain_module
   
 
   
-#if AMREX_SPACEDIM == 3   
   ! Flag surface edge for z-direction flux 
   do i = lo(1),hi(1)
   do k = lo(3),hi(3)+1   ! +1 because of grid staggering 
@@ -265,7 +242,6 @@ module domain_module
  	end if
   end do  
   end do 
-#endif   
   
 
  end subroutine surface_tag
@@ -300,10 +276,7 @@ module domain_module
 	
     qb(i,j,k) = flux_peak*EXP( 	&
     	-((xpos-flux_pos(1))**2)/(flux_width(1)**2)	&
-#if AMREX_SPACEDIM == 3    	
-    	-((zpos-flux_pos(2))**2)/(flux_width(2)**2)	& 
-#endif    	
-    				)/dx(2)   
+    	-((zpos-flux_pos(2))**2)/(flux_width(2)**2))/dx(2)   
       end if 
       	end if 
 
