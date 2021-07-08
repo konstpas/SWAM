@@ -8,9 +8,10 @@ module material_properties_tungsten_module
   ! Material properties of Tungsten: see Nuclear Materials and Energy 13
   ! (2017) 42-57 
   ! ----------------------------------------------------------------------
- 
+
+  private
   public :: get_ktherm_tungsten, get_rho_tungsten, get_Cp_tungsten
-  ! public :: get_m_A_tungsten, get_melting_point_tungsten 
+  public :: get_m_A_tungsten, get_melting_point_tungsten 
   
 contains 
 
