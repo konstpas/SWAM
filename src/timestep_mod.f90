@@ -74,7 +74,7 @@ contains
 
        ! Update coarse solution at coarse-fine interface via dPhidt = -div(+F) where F is stored flux (flux_reg)
        if (do_reflux) then
-          call flux_reg(lev+1)%reflux(phi_new(lev), 1.0_amrex_real) 
+          !call flux_reg(lev+1)%reflux(phi_new(lev), 1.0_amrex_real) 
        end if
 
        ! A problem occurs when mesh size in region containing free interface is changed 
@@ -104,7 +104,7 @@ contains
     type(amrex_multifab) :: phiborder, tempborder 		! multifabs on mfi owned tilebox, with ghost points 
     type(amrex_mfiter) :: mfi					! mfi iterator 
     type(amrex_box) :: bx, tbx
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin, pout, ptempin, ptemp, pfx, pfy, pfz ! input, output pointers
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin, pout, ptempin, ptemp, pfx, pfy, pfz, pf, pfab ! input, output pointers
     type(amrex_fab) :: flux(amrex_spacedim)
     type(amrex_multifab) :: fluxes(amrex_spacedim)    
     
@@ -120,6 +120,7 @@ contains
 
     call amrex_multifab_build(phiborder, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, ngrow) 
     call amrex_multifab_build(tempborder, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, ngrow)
+
     call fillpatch(lev, time, phiborder)
     
     ! Propagate SW equations (only at max level)
@@ -138,7 +139,7 @@ contains
    
     
 
-    !$omp parallel private(mfi,bx,tbx,pin,pout,ptemp)
+    !$omp parallel private(mfi,bx,tbx,pin,pout,ptemp,ptempin,pfx,pfy,pfz,pf,pfab,flux)
 
     do idim = 1, amrex_spacedim
        call flux(idim)%reset_omp_private()
@@ -173,9 +174,22 @@ contains
                                ptempin, lbound(ptempin), ubound(ptempin), &
                                ptemp,   lbound(ptemp),   ubound(ptemp),   &
                                pfx, pfy, pfz, &
-                               amrex_geom(lev), dt)  
+                               amrex_geom(lev), dt)
 
+       if (do_reflux) then
 
+          do idim = 1, amrex_spacedim
+
+             pf => fluxes(idim)%dataptr(mfi)
+             pfab => flux(idim)%dataptr()
+             tbx = mfi%nodaltilebox(idim)
+             pf       (tbx%lo(1):tbx%hi(1), tbx%lo(2):tbx%hi(2), tbx%lo(3):tbx%hi(3), :)  = & 
+                  pfab(tbx%lo(1):tbx%hi(1), tbx%lo(2):tbx%hi(2), tbx%lo(3):tbx%hi(3), :) 
+              
+          end do
+          
+       end if
+       
 	! Find melt interface y position 
        if (lev.eq.amrex_max_level) then
           call get_melt_pos(bx%lo, bx%hi,                      	&
