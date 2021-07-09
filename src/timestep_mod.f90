@@ -62,7 +62,7 @@ contains
     t_old(lev) = time
     t_new(lev) = time + dt(lev)
     call amrex_multifab_swap(phi_old(lev), phi_new(lev))
-    call advance(lev, time, dt(lev))
+    call advance(lev, time, dt(lev), substep)
 
 
     ! Propagate solution and synchronize levels
@@ -74,7 +74,7 @@ contains
 
        ! Update coarse solution at coarse-fine interface via dPhidt = -div(+F) where F is stored flux (flux_reg)
        if (do_reflux) then
-          !call flux_reg(lev+1)%reflux(phi_new(lev), 1.0_amrex_real) 
+          call flux_reg(lev+1)%reflux(phi_new(lev), 1.0_amrex_real) 
        end if
 
        ! A problem occurs when mesh size in region containing free interface is changed 
@@ -87,7 +87,7 @@ contains
   end subroutine timestep
 
 
-  subroutine advance(lev, time, dt)
+  subroutine advance(lev, time, dt, substep)
 
     use my_amr_module, only : do_reflux, verbose
     use amr_data_module, only : phi_new, temp, surf_ind, flux_reg  
@@ -96,7 +96,7 @@ contains
     use shallow_water_module, only : increment_SW
     use heat_transfer_module, only: increment_enthalpy
     
-    integer, intent(in) :: lev
+    integer, intent(in) :: lev, substep
     real(amrex_real), intent(in) :: time, dt        
     integer, parameter :: ngrow = 1    			! number of ghost points in each spatial direction 
     integer :: ncomp, idim, i,j 	! components, ranges, and indexes
@@ -104,7 +104,8 @@ contains
     type(amrex_multifab) :: phiborder, tempborder 		! multifabs on mfi owned tilebox, with ghost points 
     type(amrex_mfiter) :: mfi					! mfi iterator 
     type(amrex_box) :: bx, tbx
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin, pout, ptempin, ptemp ! input, output pointers 
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin, pout, ptempin, ptemp, pfx, pfy, pfz ! input, output pointers
+    type(amrex_fab) :: flux(amrex_spacedim)
     type(amrex_multifab) :: fluxes(amrex_spacedim)    
     
     ncomp = phi_new(lev)%ncomp()
@@ -113,7 +114,7 @@ contains
        do idim = 1, amrex_spacedim
           nodal = .false.
           nodal(idim) = .true.
-          !call amrex_multifab_build(fluxes(idim), phi_new(lev)%ba, phi_new(lev)%dm, ncomp, 0, nodal)
+          call amrex_multifab_build(fluxes(idim), phi_new(lev)%ba, phi_new(lev)%dm, ncomp, 0, nodal)
        end do
     end if
 
@@ -137,7 +138,12 @@ contains
    
     
 
-!$omp parallel private(mfi,bx,tbx,pin,pout,ptemp)
+    !$omp parallel private(mfi,bx,tbx,pin,pout,ptemp)
+
+    do idim = 1, amrex_spacedim
+       call flux(idim)%reset_omp_private()
+    end do
+    
     call amrex_mfiter_build(mfi, phi_new(lev), tiling=.true.) ! Tiling splits validbox into several tile boxes 
     								! could be useful depending on parallelization approach 
     do while(mfi%next())
@@ -148,6 +154,17 @@ contains
        pout    => phi_new(lev)%dataptr(mfi)
        ptempin => tempborder%dataptr(mfi)
        ptemp   => temp(lev)%dataptr(mfi)
+
+       do idim = 1, amrex_spacedim
+          tbx = bx
+          call tbx%nodalize(idim)
+          call flux(idim)%resize(tbx,ncomp)
+          call tbx%grow(substep)
+       end do
+
+       pfx => flux(1)%dataptr()
+       pfy => flux(2)%dataptr()
+       pfz => flux(3)%dataptr()
        
        ! Increment solution at given mfi tilebox 
        call increment_enthalpy(time, bx%lo, bx%hi, &
@@ -155,8 +172,9 @@ contains
                                pout,    lbound(pout),    ubound(pout),    &
                                ptempin, lbound(ptempin), ubound(ptempin), &
                                ptemp,   lbound(ptemp),   ubound(ptemp),   &
+                               pfx, pfy, pfz, &
                                amrex_geom(lev), dt)  
-		
+
 
 	! Find melt interface y position 
        if (lev.eq.amrex_max_level) then
@@ -168,8 +186,29 @@ contains
     end do
 
     call amrex_mfiter_destroy(mfi)
+    do idim = 1, amrex_spacedim
+       call amrex_fab_destroy(flux(idim))
+    end do
+    
 !$omp end parallel
 
+    if (do_reflux) then
+
+       ! The fluxes have already been scaled by dt and area in the increment_enthalpy subroutine
+       if (lev > 0) then
+          call flux_reg(lev)%fineadd(fluxes, 1.0_amrex_real)
+       end if
+
+       if (lev < amrex_get_finest_level()) then
+          call flux_reg(lev+1)%crseinit(fluxes, -1.0_amrex_real)
+       end if
+
+       do idim = 1, amrex_spacedim
+          call amrex_multifab_destroy(fluxes(idim))
+       end do
+       
+    end if
+       
     call amrex_multifab_destroy(phiborder)
     
  end subroutine advance

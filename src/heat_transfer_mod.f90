@@ -14,7 +14,8 @@ contains
                                 uin,    ui_lo, ui_hi, &
                                 uout,   uo_lo, uo_hi, & 
   			        tempin, ti_lo, ti_hi, & 
-  			        temp,   t_lo , t_hi , & 
+  			        temp,   t_lo , t_hi , &
+                                fluxx, fluxy, fluxz, &
   			        geom, dt)
   			
     use domain_module 	
@@ -35,8 +36,8 @@ contains
 
     
     real(amrex_real) :: uface (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! face velocity x direction (nodal)
-    real(amrex_real) :: fluxx (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! flux x direction (nodal)
-    real(amrex_real) :: fluxy (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! flux y direction (nodal)
+    real(amrex_real), intent(out) :: fluxx (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! flux x direction (nodal)
+    real(amrex_real), intent(out) :: fluxy (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! flux y direction (nodal)
     
     real(amrex_real) :: qbound(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))	! Volumetric heating (boundary)
     real(amrex_real) :: qheat (lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))	! Volumetric heating
@@ -45,7 +46,7 @@ contains
     logical :: yfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for y-nodes   
     integer :: i,j,k  
     real(amrex_real) :: wface (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! face velocity z direction (nodal)	 
-    real(amrex_real) :: fluxz (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! flux z direction (nodal)
+    real(amrex_real), intent(out) :: fluxz (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! flux z direction (nodal)
     logical :: zfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for z-nodes
 
 
@@ -95,7 +96,31 @@ contains
        end do
     end do
   	
-	
+    ! Scale the fluxes for the flux registers
+    do k = lo(3), hi(3)
+       do j = lo(2), hi(2)
+          do i = lo(1), hi(1)
+             fluxx(i,j,k) = fluxx(i,j,k) * (dt * dx(2)*dx(3))
+          end do
+       end do
+    end do
+
+    do k = lo(3), hi(3)
+       do j = lo(2), hi(2)
+          do i = lo(1), hi(1)
+             fluxy(i,j,k) = fluxy(i,j,k) * (dt * dx(1)*dx(3))
+          end do
+       end do
+    end do
+    
+    do k = lo(3), hi(3)
+       do j = lo(2), hi(2)
+          do i = lo(1), hi(1)
+             fluxz(i,j,k) = fluxz(i,j,k) * (dt * dx(1)*dx(2))
+          end do
+       end do
+    end do
+    
     ! Find temperature 
     call get_temp(lo, hi,             &
                   uo_lo, uo_hi, uout, &
