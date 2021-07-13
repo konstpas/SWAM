@@ -5,7 +5,7 @@ module material_properties_module
   
   implicit none 
 
-  public :: init_mat_prop, get_ktherm, get_temp, get_maxdiffus
+  public :: init_mat_prop, get_ktherm, get_temp, get_enthalpy, get_maxdiffus
   public :: enth_at_melt, melt_point, max_diffus  
   
   real(amrex_real), allocatable	:: temp_table(:), enth_table(:)
@@ -182,86 +182,106 @@ contains
     end do
 	
 	
-    ! ! Output employed material properties in table 
-    ! open (2, file = 'Employed_'//TRIM(material)//'_properties.txt', status = 'unknown') 
-    !  write(2,*) 'Material properties employed' 
-    !  write(2,*) 'Temperature, Cp [J/kgK], rho [kg/m3], k [W/mk]' 
-    !  do i = 0,phiT_table_n_points
-    !     call get_Cp(temp_table(i),Cp) 
-    !     call get_ktherm(temp_table(i),ktherm) 
-    !     call get_rho(temp_table(i),rho)
-    !     write(2,*) temp_table(i), Cp, rho, ktherm
-    !  end do
-    !  close(2) 
+    ! Output employed material properties in table 
+    open (2, file = 'Employed_'//TRIM(material)//'_properties.txt', status = 'unknown') 
+     write(2,*) 'Material properties employed' 
+     write(2,*) 'Temperature, Cp [J/kgK], rho [kg/m3], k [W/mk]' 
+     do i = 0,phiT_table_n_points
+        call get_Cp(temp_table(i),Cp) 
+        call get_ktherm(temp_table(i),ktherm) 
+        call get_rho(temp_table(i),rho)
+        write(2,*) temp_table(i), Cp, rho, ktherm, enth_table(i)
+     end do
+     close(2) 
 
-end subroutine init_mat_prop
+  end subroutine init_mat_prop
   
   
 	
 	
-	subroutine get_temp(lo, hi, 		 &
-				uo_lo, uo_hi, phi, & 
-				t_lo , t_hi , temp) 
-	 integer         , intent(in   ) :: lo(3), hi(3)
-	 integer         , intent(in   ) :: uo_lo(3), uo_hi(3)
-	 integer         , intent(in   ) :: t_lo(3), t_hi(3)
-	 real(amrex_real), intent(in   ) :: phi (uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3))  ! Enthalpy     [j/m3]
-	 real(amrex_real), intent(  out) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))  ! Temperature  [K] 	 
-	 real(amrex_real) :: rho, Cp  ! Mass density [kg/m3], Specific heat capacity [j/kgK]
-	 integer :: i,j,k
-	 integer :: e_ind 
-	 real(amrex_real) :: phi_melt_onset, phi_melt_finish, enth_fus
-	 real(amrex_real) :: alph 
-	 ! Tabulated temp as function of enthalpy 
-	 ! Enthalpy is phi = int_0^T rho(T')*Cp(T') dT' 	
-	
-	
-	! Enthalpy given as integral phi = int_0^T rho(T')*Cp(T') dT'. When initializing problem, perform integral and create table 
-	! Get temp interpolates temp(phi) for each point in the lo,hi box. 
-	
-	
-   	do   i = lo(1),hi(1)
-  	 do  j = lo(2),hi(2) 
-  	  do k = lo(3),hi(3)
-  	  	! Linear interpolation of temperature by given enthalpy, from table 
-  	  	do e_ind = 0,phiT_table_n_points 
-  	  		if (phi(i,j,k) .le. enth_table(e_ind) ) exit 
-  	  	end do 
-  	  		if (e_ind.eq.phiT_table_n_points) STOP 'Temperature table exceeded' 
-			alph = (phi(i,j,k)-enth_table(e_ind-1))/(enth_table(e_ind)-enth_table(e_ind-1))
-			temp(i,j,k) = temp_table(e_ind-1) + alph*(temp_table(e_ind)-temp_table(e_ind-1))
-  	  end do    						
-  	 end do 
-  	end do 
-	
-	end subroutine get_temp
-	
-	
-	
-	
-	! subroutine to find maximum diffusivity for variable timestep 
-	! If used, called at timestep_mod, subr. increment after second get_temp. diff has to be reset before call to timestep (main)
-	subroutine get_maxdiffus(lo, hi, 		 &
-				t_lo , t_hi , temp) 
-	 integer         , intent(in) :: lo(3), hi(3)				
-	 integer         , intent(in) :: t_lo(3), t_hi(3)			
-	 real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))  ! Temperature  [K] 
-	 integer :: i,j,k 			
-	 real(amrex_real) :: rho, Cp, ktherm, diffus 
+  subroutine get_temp(lo, hi, 		 &
+       uo_lo, uo_hi, phi, & 
+       t_lo , t_hi , temp) 
 
-   	do   i = lo(1),hi(1)
-  	 do  j = lo(2),hi(2) 
-  	  do k = lo(3),hi(3)
-		call get_ktherm(temp(i,j,k),ktherm)
-		call get_rho(temp(i,j,k),rho) 
-		call get_Cp(temp(i,j,k),Cp) 
-		diffus = ktherm/(rho*Cp) 
-		if (diffus.gt.max_diffus) max_diffus = diffus 
-  	  end do    						
-  	 end do 
-  	end do 
+    integer         , intent(in   ) :: lo(3), hi(3)
+    integer         , intent(in   ) :: uo_lo(3), uo_hi(3)
+    integer         , intent(in   ) :: t_lo(3), t_hi(3)
+    real(amrex_real), intent(in   ) :: phi (uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3))  ! Enthalpy     [j/m3]
+    real(amrex_real), intent(  out) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))  ! Temperature  [K] 	 
+    real(amrex_real) :: rho, Cp  ! Mass density [kg/m3], Specific heat capacity [j/kgK]
+    integer :: i,j,k
+    integer :: e_ind 
+    real(amrex_real) :: phi_melt_onset, phi_melt_finish, enth_fus
+    real(amrex_real) :: alph 
+    ! Tabulated temp as function of enthalpy 
+    ! Enthalpy is phi = int_0^T rho(T')*Cp(T') dT' 	
+    
+	
+    ! Enthalpy given as integral phi = int_0^T rho(T')*Cp(T') dT'. When initializing problem, perform integral and create table 
+    ! Get temp interpolates temp(phi) for each point in the lo,hi box. 
+	
 
-	end subroutine get_maxdiffus
+    do i = lo(1),hi(1)
+       do j = lo(2),hi(2)
+          do k = lo(3),hi(3)
+             !Linear interpolation of temperature by given enthalpy, from table 
+             do e_ind = 0,phiT_table_n_points 
+                if (phi(i,j,k) .le. enth_table(e_ind) ) exit 
+             end do
+             if (e_ind.eq.phiT_table_n_points) STOP 'Temperature table exceeded' 
+             alph = (phi(i,j,k)-enth_table(e_ind-1))/(enth_table(e_ind)-enth_table(e_ind-1))
+             temp(i,j,k) = temp_table(e_ind-1) + alph*(temp_table(e_ind)-temp_table(e_ind-1))
+          end do
+       end do
+    end do
+    
+  end subroutine get_temp
+
+
+  ! Get enthalpy for a given temperature (only used in the initialization phase)
+  subroutine get_enthalpy(temp,enth) 
+
+    integer :: e_ind 
+    real(amrex_real), intent(in) :: temp
+    real(amrex_real), intent(out) :: enth	
+    real(amrex_real) :: alph 
+
+    !Linear interpolation of temperature by given enthalpy, from table 
+    do e_ind = 0,phiT_table_n_points 
+       if (temp .le. temp_table(e_ind) ) exit 
+    end do
+    if (e_ind.eq.phiT_table_n_points) STOP 'Temperature table exceeded' 
+    alph = (temp-temp_table(e_ind-1))/(temp_table(e_ind)-temp_table(e_ind-1))
+    enth = enth_table(e_ind-1) + alph*(enth_table(e_ind)-enth_table(e_ind-1))
+     
+  end subroutine get_enthalpy
+	
+	
+	
+	
+  ! subroutine to find maximum diffusivity for variable timestep 
+  ! If used, called at timestep_mod, subr. increment after second get_temp. diff has to be reset before call to timestep (main)
+  subroutine get_maxdiffus(lo, hi, 		 &
+       t_lo , t_hi , temp) 
+    integer         , intent(in) :: lo(3), hi(3)				
+    integer         , intent(in) :: t_lo(3), t_hi(3)			
+    real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))  ! Temperature  [K] 
+    integer :: i,j,k 			
+    real(amrex_real) :: rho, Cp, ktherm, diffus 
+    
+    do   i = lo(1),hi(1)
+       do  j = lo(2),hi(2) 
+  	  do k = lo(3),hi(3)
+            call get_ktherm(temp(i,j,k),ktherm)
+            call get_rho(temp(i,j,k),rho) 
+            call get_Cp(temp(i,j,k),Cp) 
+            diffus = ktherm/(rho*Cp) 
+            if (diffus.gt.max_diffus) max_diffus = diffus 
+         end do
+      end do
+   end do
+
+ end subroutine get_maxdiffus
 
 	
 
