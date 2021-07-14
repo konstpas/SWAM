@@ -116,15 +116,16 @@ contains
        do j = lo(2), hi(2)+1 ! +1 because of staggering
 	  do k = lo(3), hi(3)+1 ! Needs rewrite for 2D.
      
-               if (uface(i,j,k) > 0_amrex_real) then 
-                  fluxx(i,j,k)  = uin(i-1,j,k)*uface(i,j,k)
-               else 
-                  fluxx(i,j,k)  = uin(i  ,j,k)*uface(i,j,k)
-               end if
+               ! if (uface(i,j,k) > 0_amrex_real) then 
+               !    fluxx(i,j,k)  = uin(i-1,j,k)*uface(i,j,k)
+               ! else 
+               !    fluxx(i,j,k)  = uin(i  ,j,k)*uface(i,j,k)
+               ! end if
    
                ! x direction flux 	
                temp_face = (temp(i,j,k) + temp(i-1,j,k))/2_amrex_real ! temperature on face 
                call get_ktherm(temp_face,ktherm)
+               fluxx(i,j,k) = 0_amrex_real
                fluxx(i,j,k) = fluxx(i,j,k) - ktherm*(temp(i,j,k)-temp(i-1,j  ,k))/dx(1)  ! x-velocity and temperature gradient 
                
                ! y direction flux 
@@ -132,28 +133,29 @@ contains
                call get_ktherm(temp_face,ktherm)
                fluxy(i,j,k) =              - ktherm*(temp(i,j,k)-temp(i  ,j-1,k))/dx(2)  ! no y-velocity, temperature gradient  
                
-               if(xfluxflag(i,j,k)) then ! true if center on either side of node is empty 
-                  fluxx(i,j,k) = 0_amrex_real ! 
-               end if
+               ! if(xfluxflag(i,j,k)) then ! true if center on either side of node is empty 
+               !    fluxx(i,j,k) = 0_amrex_real ! 
+               ! end if
                
-               if(yfluxflag(i,j,k)) then ! true if surface node 
-                  fluxy(i,j,k) = 0_amrex_real ! 
-               end if
+               ! if(yfluxflag(i,j,k)) then ! true if surface node 
+               !    fluxy(i,j,k) = 0_amrex_real ! 
+               ! end if
                
-               if (wface(i,j,k) > 0_amrex_real) then 
-                  fluxz(i,j,k)  = uin(i,j,k-1)*wface(i,j,k)
-               else 
-                  fluxz(i,j,k)  = uin(i,j,k  )*wface(i,j,k)
-               end if
+               ! if (wface(i,j,k) > 0_amrex_real) then 
+               !    fluxz(i,j,k)  = uin(i,j,k-1)*wface(i,j,k)
+               ! else 
+               !    fluxz(i,j,k)  = uin(i,j,k  )*wface(i,j,k)
+               ! end if
 
                ! z direction flux	
                temp_face = (temp(i,j,k) + temp(i,j,k-1))/2_amrex_real ! temperature on face 
                call get_ktherm(temp_face,ktherm)
+               fluxz(i,j,k) = 0_amrex_real               
                fluxz(i,j,k) = fluxz(i,j,k) - ktherm*(temp(i,j,k)-temp(i,j,k-1))/dx(3)  ! x-velocity and temperature gradient 
                
-               if(zfluxflag(i,j,k)) then ! true if surface node 
-                  fluxz(i,j,k) = 0_amrex_real ! 
-               end if
+               ! if(zfluxflag(i,j,k)) then ! true if surface node 
+               !    fluxz(i,j,k) = 0_amrex_real ! 
+               ! end if
                
             end do
          end do
@@ -268,35 +270,73 @@ contains
  
      subroutine get_bound_heat(time, xlo, dx, lo, hi, ui_lo, ui_hi, yflux, qb) 
 
+       use amr_data_module, only : surf_pos
+       
        real(amrex_real), intent(in   ) :: time, xlo(3), dx(3)			! time, lower corner physical location, and grid size
        integer         , intent(in   ) :: lo(3), hi(3)			      	! bounds of input tilebox  
        integer         , intent(in   ) :: ui_lo(3), ui_hi(3)			      	! bounds of input tilebox (ghost points)
        logical         , intent(in   ) :: yflux(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for y-nodes  
        real(amrex_real), intent(  out) :: qb(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))    ! Volumetric heating localized to boundary 	
-       real(amrex_real) :: xpos, zpos 
+       real(amrex_real) :: xpos, zpos, ypos
        integer :: i,j,k
   
   
        qb = 0. 
   
   
+       ! ! Boundary heating 
+       ! do   i = lo(1), hi(1) 
+       !    do  j = lo(2), hi(2)
+       !       do k = lo(3), hi(3)
+                
+       !          if (time.lt.exp_time) then
+                   
+       !             if(yflux(i,j+1,k)) then 
+                      
+       !                xpos = xlo(1) + (i-lo(1))*dx(1)
+       !                zpos = xlo(3) + (k-lo(3))*dx(3)
+                      
+       !                qb(i,j,k) = flux_peak*EXP( 	&
+       !                     -((xpos-flux_pos(1))**2)/(flux_width(1)**2)	&
+       !                     -((zpos-flux_pos(2))**2)/(flux_width(2)**2))/dx(2)   
+       !             end if
+                   
+       !          end if
+                
+       !       end do
+       !    end do
+       ! end do
+
        ! Boundary heating 
        do   i = lo(1), hi(1) 
-          do  j = lo(2), hi(2)
-             do k = lo(3), hi(3)
-                
-                if (time.lt.exp_time) then
+          do  k = lo(3), hi(3)
+             do j = lo(2), hi(2)
+
+                if (xlo(2).lt.surf_pos(i,k)) then
+
+                   if (time.lt.exp_time) then
+
+                      ypos = xlo(2) + (j+1-lo(2))*dx(2)
                    
-                   if(yflux(i,j+1,k)) then 
-                      
-                      xpos = xlo(1) + (i-lo(1))*dx(1)
-                      zpos = xlo(3) + (k-lo(3))*dx(3)
-                      
-                      qb(i,j,k) = flux_peak*EXP( 	&
-                           -((xpos-flux_pos(1))**2)/(flux_width(1)**2)	&
-                           -((zpos-flux_pos(2))**2)/(flux_width(2)**2))/dx(2)   
+                      if(ypos.gt.surf_pos(i,k)) then 
+                         
+                         xpos = xlo(1) + (i-lo(1))*dx(1)
+                         zpos = xlo(3) + (k-lo(3))*dx(3)
+                         
+                         qb(i,j,k) = flux_peak*EXP( 	&
+                              -((xpos-flux_pos(1))**2)/(flux_width(1)**2)	&
+                              -((zpos-flux_pos(2))**2)/(flux_width(2)**2))/dx(2)
+
+                         exit
+                         
+                      end if
+                   
                    end if
-                   
+
+                else
+
+                   exit
+                 
                 end if
                 
              end do

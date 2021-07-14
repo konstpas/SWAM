@@ -66,12 +66,12 @@ contains
     
   
     ! Subroutine assigns logical arrays denoting free interface boundary 
-    call surface_tag(time, geom%get_physical_location(ui_lo), dx, lo, hi, &
-                     xfluxflag, yfluxflag, ui_lo, ui_hi, zfluxflag)	
+    ! call surface_tag(time, geom%get_physical_location(ui_lo), dx, lo, hi, &
+    !                  xfluxflag, yfluxflag, ui_lo, ui_hi, zfluxflag)	
   	
     ! Subroutine assigns tangential (x,z) velocity on grid edges in whole domain  
-    call get_face_velocity(time, geom%get_physical_location(lo), dx, lo, hi, &
-                           uface, wface, ui_lo, ui_hi ) 	
+    ! call get_face_velocity(time, geom%get_physical_location(lo), dx, lo, hi, &
+    !                        uface, wface, ui_lo, ui_hi ) 	
  			 	
 
     ! Subroutine assigns enthalpy flux on grid edges in whole domain 
