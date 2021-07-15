@@ -323,10 +323,11 @@ contains
                          xpos = xlo(1) + (i-lo(1))*dx(1)
                          zpos = xlo(3) + (k-lo(3))*dx(3)
                          
-                         qb(i,j,k) = flux_peak*EXP( 	&
-                              -((xpos-flux_pos(1))**2)/(flux_width(1)**2)	&
-                              -((zpos-flux_pos(2))**2)/(flux_width(2)**2))/dx(2)
-
+                         ! qb(i,j,k) = flux_peak*EXP( 	&
+                         !      -((xpos-flux_pos(1))**2)/(flux_width(1)**2)	&
+                         !      -((zpos-flux_pos(2))**2)/(flux_width(2)**2))/dx(2)
+                         qb(i,j,k) = flux_peak
+                         
                          exit
                          
                       end if

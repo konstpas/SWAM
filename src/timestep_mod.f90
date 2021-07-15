@@ -74,7 +74,7 @@ contains
 
        ! Update coarse solution at coarse-fine interface via dPhidt = -div(+F) where F is stored flux (flux_reg)
        if (do_reflux) then
-          !call flux_reg(lev+1)%reflux(phi_new(lev), 1.0_amrex_real) 
+          call flux_reg(lev+1)%reflux(phi_new(lev), 1.0_amrex_real) 
        end if
        
        ! A problem occurs when mesh size in region containing free interface is changed 
@@ -124,9 +124,9 @@ contains
     call fillpatch(lev, time, phiborder)
     
     ! Propagate SW equations (only at max level)
-    if (lev.eq.amrex_max_level) then 
-       call increment_SW(time, amrex_geom(lev), dt)
-    end if
+    ! if (lev.eq.amrex_max_level) then 
+    !    call increment_SW(time, amrex_geom(lev), dt)
+    ! end if
 
     ! RE-distribute energy from 'lost and gained' domain points how
 
@@ -135,7 +135,7 @@ contains
     ! Since melt layer may span several tile boxes in y-direction (in mfiterator below), we cannot reset within each loop 
     ! Therefore we reset melt position after solving SW, and before propagating temperature 
     ! Melt position is then found after heat has been propagated 
-    call reset_melt_pos() 
+    !call reset_melt_pos() 
    
     
 
@@ -191,11 +191,11 @@ contains
        end if
        
 	! Find melt interface y position 
-       if (lev.eq.amrex_max_level) then
-          call get_melt_pos(bx%lo, bx%hi,                      	&
-                          ptemp, lbound(ptemp), ubound(ptemp), 	&
-			  amrex_geom(lev))
-	end if  
+       ! if (lev.eq.amrex_max_level) then
+       !    call get_melt_pos(bx%lo, bx%hi,                      	&
+       !                    ptemp, lbound(ptemp), ubound(ptemp), 	&
+       !  		  amrex_geom(lev))
+       !  end if  
 
     end do
 
