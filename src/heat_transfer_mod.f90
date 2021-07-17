@@ -54,11 +54,11 @@ contains
     ! Grid width 
     dx = geom%dx(1:3) ! grid width at level 
 
+    
     ! Get temperature
     call get_temp(ti_lo, ti_hi,             &	! tilebox indexes 
         	  ui_lo, ui_hi, uin, &	! Output enthalpy indexes and data array
                   ti_lo, ti_hi, tempin)	! Temperature indexes and data array    
-    
     
   
     ! Subroutine assigns logical arrays denoting free interface boundary 
@@ -76,7 +76,7 @@ contains
                           flxx, fx_lo, fx_hi,             &
                           flxy, fy_lo, fy_hi,             &
                           flxz, fz_lo, fz_hi,             &
-                          tempin, t_lo, t_hi)
+                          tempin, ti_lo, ti_hi)
   				  	
     ! Zero flux across surface boundary. Volumetric heat deposition in first internal cell constitutes absorbed boundary flux. 
     ! Incorporates all absorption and cooling terms 			

@@ -218,9 +218,7 @@ contains
     
 	
     ! Enthalpy given as integral phi = int_0^T rho(T')*Cp(T') dT'. When initializing problem, perform integral and create table 
-    ! Get temp interpolates temp(phi) for each point in the lo,hi box. 
-	
-
+    ! Get temp interpolates temp(phi) for each point in the lo,hi box.    
     do i = lo(1),hi(1)
        do j = lo(2),hi(2)
           do k = lo(3),hi(3)
@@ -231,6 +229,7 @@ contains
              if (e_ind.eq.phiT_table_n_points) STOP 'Temperature table exceeded' 
              alph = (phi(i,j,k)-enth_table(e_ind-1))/(enth_table(e_ind)-enth_table(e_ind-1))
              temp(i,j,k) = temp_table(e_ind-1) + alph*(temp_table(e_ind)-temp_table(e_ind-1))
+             !print *, i, j, k, phi(i,j,k), temp(i,j,k)
           end do
        end do
     end do

@@ -74,7 +74,7 @@ contains
 
        ! Update coarse solution at coarse-fine interface via dPhidt = -div(+F) where F is stored flux (flux_reg)
        if (do_reflux) then
-          !call flux_reg(lev+1)%reflux(phi_new(lev), 1.0_amrex_real) 
+          call flux_reg(lev+1)%reflux(phi_new(lev), 1.0_amrex_real) 
        end if
        
        ! A problem occurs when mesh size in region containing free interface is changed 
@@ -122,7 +122,7 @@ contains
     call amrex_multifab_build(tempborder, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, ngrow)
 
     call fillpatch(lev, time, phiborder)
-    
+
     ! Propagate SW equations (only at max level)
     ! if (lev.eq.amrex_max_level) then 
     !    call increment_SW(time, amrex_geom(lev), dt)

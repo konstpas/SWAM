@@ -123,13 +123,14 @@ contains
     !         end do
     !      end do
     !   end do
-
+    
     do i = lo(1), hi(1)+1
        do j = lo(2), hi(2)
           do k = lo(3), hi(3)
              
              temp_face = (temp(i,j,k) + temp(i-1,j,k))/2_amrex_real
              call get_ktherm(temp_face, ktherm)
+             !print *, i, j, k, temp(i,j,k), temp(i-1,j,k), temp(i,j-1,k), temp(i,j,k-1)
              flxx(i,j,k) = -ktherm*(temp(i,j,k)-temp(i-1,j,k))/dx(1)
              
           end do
