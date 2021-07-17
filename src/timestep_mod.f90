@@ -74,7 +74,7 @@ contains
 
        ! Update coarse solution at coarse-fine interface via dPhidt = -div(+F) where F is stored flux (flux_reg)
        if (do_reflux) then
-          call flux_reg(lev+1)%reflux(phi_new(lev), 1.0_amrex_real) 
+          !call flux_reg(lev+1)%reflux(phi_new(lev), 1.0_amrex_real) 
        end if
        
        ! A problem occurs when mesh size in region containing free interface is changed 
@@ -173,7 +173,9 @@ contains
                                pout,    lbound(pout),    ubound(pout),    &
                                ptempin, lbound(ptempin), ubound(ptempin), &
                                ptemp,   lbound(ptemp),   ubound(ptemp),   &
-                               pfx, pfy, pfz, &
+                               pfx, lbound(pfx), ubound(pfx), &
+                               pfy, lbound(pfy), ubound(pfy), &
+                               pfz, lbound(pfz), ubound(pfz), &
                                amrex_geom(lev), dt)
 
        if (do_reflux) then

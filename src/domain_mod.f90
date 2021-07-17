@@ -71,30 +71,28 @@ contains
   
 
   
-  ! Create enthalpy flux on edges in whole domain  
+  ! Create enthalpy flux on edges in whole domain
   subroutine create_face_flux(time, xlo, dx, lo, hi, 	        &
-  		              uin, uface, 			&
-                              xfluxflag,yfluxflag, 		&  
-                              fluxx, fluxy, 			&
-                              wface, zfluxflag, fluxz, 	        & 	
-                              ui_lo, ui_hi, 			& 
-                              temp, t_lo, t_hi)
+                                uin, ui_lo, ui_hi,              &
+                                flxx, fx_lo, fx_hi,             &
+                                flxy, fy_lo, fy_hi,             &
+                                flxz, fz_lo, fz_hi,             &
+                                temp, t_lo, t_hi)
   				
     use material_properties_module, only: get_ktherm
     
     real(amrex_real), intent(in   ) :: time, xlo(3), dx(3)				! time, lower corner physical location, and grid size
     integer         , intent(in   ) :: lo(3), hi(3)					! bounds of input tilebox	  
     integer         , intent(in   ) :: ui_lo(3), ui_hi(3)				! bounds of input tilebox
-    integer         , intent(in   ) :: t_lo(3), t_hi(3)				! bounds of input tilebox	
-    real(amrex_real), intent(in   ) :: uin      (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! phi (enthalpy)
-    real(amrex_real), intent(in   ) :: uface    (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! edge velocity x direction 
-    logical         , intent(in   ) :: xfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! surface flag for x-nodes 
-    logical         , intent(in   ) :: yfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! surface flag for y-nodes 		
-    real(amrex_real), intent(  out) :: fluxx    (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! flux x direction  			
-    real(amrex_real), intent(  out) :: fluxy    (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! flux y direction  	
-    real(amrex_real), intent(in   ) :: wface    (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! face velocity z direction 
-    logical         , intent(in   ) :: zfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! surface flag for z-nodes 
-    real(amrex_real), intent(  out) :: fluxz    (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! flux z direction				
+    integer         , intent(in   ) :: t_lo(3), t_hi(3)				! bounds of input tilebox
+    integer         , intent(in   ) :: fx_lo(3), fx_hi(3)				! bounds of input tilebox
+    integer         , intent(in   ) :: fy_lo(3), fy_hi(3)				! bounds of input tilebox
+    integer         , intent(in   ) :: fz_lo(3), fz_hi(3)				! bounds of input tilebox
+    
+    real(amrex_real), intent(in   ) :: uin      (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! phi (enthalpy)		
+    real(amrex_real), intent(  out) :: flxx    (fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) ! flux x direction  			
+    real(amrex_real), intent(  out) :: flxy    (fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) ! flux y direction
+    real(amrex_real), intent(  out) :: flxz    (fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3)) ! flux z direction				
     real(amrex_real), intent(in   ) :: temp     (t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))  ! temperature
     
     integer :: i,j,k 
@@ -112,56 +110,58 @@ contains
     ! index backwards 	!---!---!---!
     ! 			 i-1  i  i+1   
     ! Nodal enthalpy flux from temperature gradient and velocity field 	
-    do i = lo(1), hi(1)+1  
-       do j = lo(2), hi(2)+1 ! +1 because of staggering
-	  do k = lo(3), hi(3)+1 ! Needs rewrite for 2D.
-     
-               ! if (uface(i,j,k) > 0_amrex_real) then 
-               !    fluxx(i,j,k)  = uin(i-1,j,k)*uface(i,j,k)
-               ! else 
-               !    fluxx(i,j,k)  = uin(i  ,j,k)*uface(i,j,k)
-               ! end if
+    ! do i = lo(1), hi(1)+1  
+    !    do j = lo(2), hi(2)
+    !       do k = lo(3), hi(3)
    
-               ! x direction flux 	
-               temp_face = (temp(i,j,k) + temp(i-1,j,k))/2_amrex_real ! temperature on face 
-               call get_ktherm(temp_face,ktherm)
-               fluxx(i,j,k) = 0_amrex_real
-               fluxx(i,j,k) = fluxx(i,j,k) - ktherm*(temp(i,j,k)-temp(i-1,j  ,k))/dx(1)  ! x-velocity and temperature gradient 
+    !            ! x direction flux 	
+    !            temp_face = (temp(i,j,k) + temp(i-1,j,k))/2_amrex_real ! temperature on face 
+    !            call get_ktherm(temp_face,ktherm)
+    !            fluxx(i,j,k) = 0_amrex_real
+    !            fluxx(i,j,k) = fluxx(i,j,k) - ktherm*(temp(i,j,k)-temp(i-1,j  ,k))/dx(1)  ! x-velocity and temperature gradient 
                
-               ! y direction flux 
-               temp_face = (temp(i,j,k) + temp(i,j-1,k))/2_amrex_real ! temperature on face 
-               call get_ktherm(temp_face,ktherm)
-               fluxy(i,j,k) =              - ktherm*(temp(i,j,k)-temp(i  ,j-1,k))/dx(2)  ! no y-velocity, temperature gradient  
-               
-               ! if(xfluxflag(i,j,k)) then ! true if center on either side of node is empty 
-               !    fluxx(i,j,k) = 0_amrex_real ! 
-               ! end if
-               
-               ! if(yfluxflag(i,j,k)) then ! true if surface node 
-               !    fluxy(i,j,k) = 0_amrex_real ! 
-               ! end if
-               
-               ! if (wface(i,j,k) > 0_amrex_real) then 
-               !    fluxz(i,j,k)  = uin(i,j,k-1)*wface(i,j,k)
-               ! else 
-               !    fluxz(i,j,k)  = uin(i,j,k  )*wface(i,j,k)
-               ! end if
+    !         end do
+    !      end do
+    !   end do
 
-               ! z direction flux	
-               temp_face = (temp(i,j,k) + temp(i,j,k-1))/2_amrex_real ! temperature on face 
-               call get_ktherm(temp_face,ktherm)
-               fluxz(i,j,k) = 0_amrex_real               
-               fluxz(i,j,k) = fluxz(i,j,k) - ktherm*(temp(i,j,k)-temp(i,j,k-1))/dx(3)  ! x-velocity and temperature gradient 
-               
-               ! if(zfluxflag(i,j,k)) then ! true if surface node 
-               !    fluxz(i,j,k) = 0_amrex_real ! 
-               ! end if
-               
-            end do
-         end do
-      end do
+    do i = lo(1), hi(1)+1
+       do j = lo(2), hi(2)
+          do k = lo(3), hi(3)
+             
+             temp_face = (temp(i,j,k) + temp(i-1,j,k))/2_amrex_real
+             call get_ktherm(temp_face, ktherm)
+             flxx(i,j,k) = -ktherm*(temp(i,j,k)-temp(i-1,j,k))/dx(1)
+             
+          end do
+       end do
+    end do
 
-    end subroutine create_face_flux
+    do i = lo(1), hi(1)
+       do j = lo(2), hi(2)+1
+          do k = lo(3), hi(3)
+             
+             temp_face = (temp(i,j,k) + temp(i,j-1,k))/2_amrex_real
+             call get_ktherm(temp_face, ktherm)
+             flxy(i,j,k) = -ktherm*(temp(i,j,k)-temp(i,j-1,k))/dx(2)
+             
+          end do
+       end do
+    end do
+
+    do i = lo(1), hi(1)
+       do j = lo(2), hi(2)
+          do k = lo(3), hi(3)+1
+             
+             temp_face = (temp(i,j,k) + temp(i,j,k-1))/2_amrex_real
+             call get_ktherm(temp_face, ktherm)
+             flxz(i,j,k) = -ktherm*(temp(i,j,k)-temp(i,j,k-1))/dx(3)
+             
+          end do
+       end do
+    end do
+    
+    
+  end subroutine create_face_flux
 
 	
     subroutine surface_tag(time, xlo, dx, lo, hi, &
@@ -275,7 +275,8 @@ contains
        real(amrex_real), intent(in   ) :: time, xlo(3), dx(3)			! time, lower corner physical location, and grid size
        integer         , intent(in   ) :: lo(3), hi(3)			      	! bounds of input tilebox  
        integer         , intent(in   ) :: ui_lo(3), ui_hi(3)			      	! bounds of input tilebox (ghost points)
-       logical         , intent(in   ) :: yflux(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for y-nodes  
+       !logical         , intent(in   ) :: yflux(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for y-nodes
+       integer, intent(in) :: yflux ! DUMMY DECLARATION (NOT USED FOR NOW)
        real(amrex_real), intent(  out) :: qb(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))    ! Volumetric heating localized to boundary 	
        real(amrex_real) :: xpos, zpos, ypos
        integer :: i,j,k
