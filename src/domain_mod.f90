@@ -77,7 +77,9 @@ contains
                                 flxx, fx_lo, fx_hi,             &
                                 flxy, fy_lo, fy_hi,             &
                                 flxz, fz_lo, fz_hi,             &
-                                temp, t_lo, t_hi)
+                                temp, t_lo, t_hi,               &
+                                uface, wface,                   &
+                                xfluxflag, yfluxflag, zfluxflag)
   				
     use material_properties_module, only: get_ktherm
     
@@ -94,6 +96,11 @@ contains
     real(amrex_real), intent(  out) :: flxy    (fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) ! flux y direction
     real(amrex_real), intent(  out) :: flxz    (fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3)) ! flux z direction				
     real(amrex_real), intent(in   ) :: temp     (t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))  ! temperature
+    real(amrex_real), intent(in) :: uface (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! face velocity x direction (nodal)
+    real(amrex_real), intent(in) :: wface (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! face velocity z direction (nodal)
+    logical, intent(in) :: xfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for x-nodes 
+    logical, intent(in) :: yfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for y-nodes 
+    logical, intent(in) :: zfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for z-nodes   
     
     integer :: i,j,k 
     real(amrex_real) :: ktherm, temp_face
@@ -127,12 +134,21 @@ contains
     do i = lo(1), hi(1)+1
        do j = lo(2), hi(2)
           do k = lo(3), hi(3)
+
+             if (uface(i,j,k) > 0_amrex_real) then 
+                flxx(i,j,k)  = uin(i-1,j,k)*uface(i,j,k)
+             else 
+                flxx(i,j,k)  = uin(i  ,j,k)*uface(i,j,k)
+             end if
              
              temp_face = (temp(i,j,k) + temp(i-1,j,k))/2_amrex_real
              call get_ktherm(temp_face, ktherm)
-             !print *, i, j, k, temp(i,j,k), temp(i-1,j,k), temp(i,j-1,k), temp(i,j,k-1)
-             flxx(i,j,k) = -ktherm*(temp(i,j,k)-temp(i-1,j,k))/dx(1)
-             
+             flxx(i,j,k) = flxx(i,j,k) - ktherm*(temp(i,j,k)-temp(i-1,j,k))/dx(1)
+
+             if(xfluxflag(i,j,k)) then 
+                flxx(i,j,k) = 0_amrex_real 
+             end if
+  
           end do
        end do
     end do
@@ -144,7 +160,11 @@ contains
              temp_face = (temp(i,j,k) + temp(i,j-1,k))/2_amrex_real
              call get_ktherm(temp_face, ktherm)
              flxy(i,j,k) = -ktherm*(temp(i,j,k)-temp(i,j-1,k))/dx(2)
-             
+
+             if(yfluxflag(i,j,k)) then 
+                flxy(i,j,k) = 0_amrex_real 
+             end if
+  
           end do
        end do
     end do
@@ -152,11 +172,21 @@ contains
     do i = lo(1), hi(1)
        do j = lo(2), hi(2)
           do k = lo(3), hi(3)+1
+
+             if (wface(i,j,k) > 0_amrex_real) then 
+                flxz(i,j,k)  = uin(i,j,k-1)*wface(i,j,k)
+             else 
+                flxz(i,j,k)  = uin(i,j,k  )*wface(i,j,k)
+             end if
              
              temp_face = (temp(i,j,k) + temp(i,j,k-1))/2_amrex_real
              call get_ktherm(temp_face, ktherm)
-             flxz(i,j,k) = -ktherm*(temp(i,j,k)-temp(i,j,k-1))/dx(3)
-             
+             flxz(i,j,k) = flxz(i,j,k) - ktherm*(temp(i,j,k)-temp(i,j,k-1))/dx(3)
+
+             if(zfluxflag(i,j,k)) then 
+                flxz(i,j,k) = 0_amrex_real 
+             end if
+  
           end do
        end do
     end do
@@ -276,8 +306,8 @@ contains
        real(amrex_real), intent(in   ) :: time, xlo(3), dx(3)			! time, lower corner physical location, and grid size
        integer         , intent(in   ) :: lo(3), hi(3)			      	! bounds of input tilebox  
        integer         , intent(in   ) :: ui_lo(3), ui_hi(3)			      	! bounds of input tilebox (ghost points)
-       !logical         , intent(in   ) :: yflux(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for y-nodes
-       integer, intent(in) :: yflux ! DUMMY DECLARATION (NOT USED FOR NOW)
+       logical         , intent(in   ) :: yflux(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for y-nodes
+       !integer, intent(in) :: yflux ! DUMMY DECLARATION (NOT USED FOR NOW)
        real(amrex_real), intent(  out) :: qb(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))    ! Volumetric heating localized to boundary 	
        real(amrex_real) :: xpos, zpos, ypos
        integer :: i,j,k
@@ -285,64 +315,64 @@ contains
        qb = 0. 
     
        ! Boundary heating 
-       ! do   i = lo(1), hi(1) 
-       !    do  j = lo(2), hi(2)
-       !       do k = lo(3), hi(3)
-                
-       !          if (time.lt.exp_time) then
-                   
-       !             if(yflux(i,j+1,k)) then 
-                      
-       !                xpos = xlo(1) + (i-lo(1))*dx(1)
-       !                zpos = xlo(3) + (k-lo(3))*dx(3)
-                      
-       !                qb(i,j,k) = flux_peak*EXP( 	&
-       !                     -((xpos-flux_pos(1))**2)/(flux_width(1)**2)	&
-       !                     -((zpos-flux_pos(2))**2)/(flux_width(2)**2))/dx(2)   
-       !             end if
-                   
-       !          end if
-                
-       !       end do
-       !    end do
-       ! end do
-
-       ! Boundary heating 
        do   i = lo(1), hi(1) 
-          do  k = lo(3), hi(3)
-             do j = lo(2), hi(2)
-
-                if (xlo(2).lt.surf_pos(i,k)) then
-
-                   if (time.lt.exp_time) then
-
-                      ypos = xlo(2) + (j+1-lo(2))*dx(2)
+          do  j = lo(2), hi(2)
+             do k = lo(3), hi(3)
+                
+                if (time.lt.exp_time) then
                    
-                      if(ypos.gt.surf_pos(i,k)) then 
-                         
-                         xpos = xlo(1) + (i-lo(1))*dx(1)
-                         zpos = xlo(3) + (k-lo(3))*dx(3)
-                         
-                         qb(i,j,k) = flux_peak*EXP( 	&
-                              -((xpos-flux_pos(1))**2)/(flux_width(1)**2)	&
-                              -((zpos-flux_pos(2))**2)/(flux_width(2)**2))/dx(2)
-                         !qb(i,j,k) = flux_peak
-                         
-                         exit
-                         
-                      end if
-                   
+                   if(yflux(i,j+1,k)) then 
+                      
+                      xpos = xlo(1) + (i-lo(1))*dx(1)
+                      zpos = xlo(3) + (k-lo(3))*dx(3)
+                      
+                      qb(i,j,k) = flux_peak*EXP( 	&
+                           -((xpos-flux_pos(1))**2)/(flux_width(1)**2)	&
+                           -((zpos-flux_pos(2))**2)/(flux_width(2)**2))/dx(2)   
                    end if
-
-                else
-
-                   exit
-                 
+                   
                 end if
                 
              end do
           end do
        end do
+
+       ! ! Boundary heating 
+       ! do   i = lo(1), hi(1) 
+       !    do  k = lo(3), hi(3)
+       !       do j = lo(2), hi(2)
+
+       !          if (xlo(2).lt.surf_pos(i,k)) then
+
+       !             if (time.lt.exp_time) then
+
+       !                ypos = xlo(2) + (j+1-lo(2))*dx(2)
+                   
+       !                if(ypos.gt.surf_pos(i,k)) then 
+                         
+       !                   xpos = xlo(1) + (i-lo(1))*dx(1)
+       !                   zpos = xlo(3) + (k-lo(3))*dx(3)
+                         
+       !                   qb(i,j,k) = flux_peak*EXP( 	&
+       !                        -((xpos-flux_pos(1))**2)/(flux_width(1)**2)	&
+       !                        -((zpos-flux_pos(2))**2)/(flux_width(2)**2))/dx(2)
+       !                   !qb(i,j,k) = flux_peak
+                         
+       !                   exit
+                         
+       !                end if
+                   
+       !             end if
+
+       !          else
+
+       !             exit
+                 
+       !          end if
+                
+       !       end do
+       !    end do
+       ! end do
        
      end subroutine get_bound_heat
   

@@ -45,6 +45,13 @@ contains
     real(amrex_real), intent(  out) :: flxy    (fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) ! flux y direction
     real(amrex_real), intent(  out) :: flxz    (fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3)) ! flux z direction	
 
+    real(amrex_real) :: uface (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! face velocity x direction (nodal)
+    real(amrex_real) :: wface (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! face velocity z direction (nodal)
+    logical :: xfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for x-nodes 
+    logical :: yfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for y-nodes
+    logical :: zfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for z-nodes
+    
+    
     real(amrex_real) :: qbound(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))	! Volumetric heating (boundary)
     real(amrex_real) :: qheat (lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))	! Volumetric heating
     
@@ -62,12 +69,12 @@ contains
     
   
     ! Subroutine assigns logical arrays denoting free interface boundary 
-    ! call surface_tag(time, geom%get_physical_location(ui_lo), dx, lo, hi, &
-    !                  xfluxflag, yfluxflag, ui_lo, ui_hi, zfluxflag)	
+    call surface_tag(time, geom%get_physical_location(ui_lo), dx, lo, hi, &
+                     xfluxflag, yfluxflag, ui_lo, ui_hi, zfluxflag)	
   	
     ! Subroutine assigns tangential (x,z) velocity on grid edges in whole domain  
-    ! call get_face_velocity(time, geom%get_physical_location(lo), dx, lo, hi, &
-    !                        uface, wface, ui_lo, ui_hi ) 	
+    call get_face_velocity(time, geom%get_physical_location(lo), dx, lo, hi, &
+                           uface, wface, ui_lo, ui_hi ) 	
  			 	
 
     ! Subroutine assigns enthalpy flux on grid edges in whole domain 
@@ -76,11 +83,13 @@ contains
                           flxx, fx_lo, fx_hi,             &
                           flxy, fy_lo, fy_hi,             &
                           flxz, fz_lo, fz_hi,             &
-                          tempin, ti_lo, ti_hi)
+                          tempin, ti_lo, ti_hi,           &
+                          uface, wface,                   &
+                          xfluxflag, yfluxflag, zfluxflag)
   				  	
     ! Zero flux across surface boundary. Volumetric heat deposition in first internal cell constitutes absorbed boundary flux. 
     ! Incorporates all absorption and cooling terms 			
-    call get_bound_heat(time, geom%get_physical_location(lo), dx, lo, hi, ui_lo, ui_hi, 1, qbound) 	! domain module 			
+    call get_bound_heat(time, geom%get_physical_location(lo), dx, lo, hi, ui_lo, ui_hi, yfluxflag, qbound) 	! domain module 			
     !call volume_heating(time, geom%get_physical_location(ui_lo), dx, qheat) 
   	
 
