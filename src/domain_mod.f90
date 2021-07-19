@@ -281,12 +281,10 @@ contains
        real(amrex_real), intent(  out) :: qb(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))    ! Volumetric heating localized to boundary 	
        real(amrex_real) :: xpos, zpos, ypos
        integer :: i,j,k
-  
-  
+    
        qb = 0. 
-  
-  
-       ! ! Boundary heating 
+    
+       ! Boundary heating 
        ! do   i = lo(1), hi(1) 
        !    do  j = lo(2), hi(2)
        !       do k = lo(3), hi(3)
@@ -325,10 +323,10 @@ contains
                          xpos = xlo(1) + (i-lo(1))*dx(1)
                          zpos = xlo(3) + (k-lo(3))*dx(3)
                          
-                         ! qb(i,j,k) = flux_peak*EXP( 	&
-                         !      -((xpos-flux_pos(1))**2)/(flux_width(1)**2)	&
-                         !      -((zpos-flux_pos(2))**2)/(flux_width(2)**2))/dx(2)
-                         qb(i,j,k) = flux_peak
+                         qb(i,j,k) = flux_peak*EXP( 	&
+                              -((xpos-flux_pos(1))**2)/(flux_width(1)**2)	&
+                              -((zpos-flux_pos(2))**2)/(flux_width(2)**2))/dx(2)
+                         !qb(i,j,k) = flux_peak
                          
                          exit
                          
