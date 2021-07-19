@@ -13,7 +13,6 @@ domain.meltvel = 10
 domain.tempinit = 1.0 
 domain.surf_pos = 0.020
 domain.surfdist = 0.001  0.0005  0.0001 
-domain.material = Tungsten
 domain.flux_peak = 300e6 
 domain.flux_pos = 0.0 0.0
 domain.flux_width = 1.01 1.01 
