@@ -1,23 +1,106 @@
 module timestep_module
 
+  ! -----------------------------------------------------------------
+  ! This module is used to run the simulation, i.e. to coordinate
+  ! all the necessary calculations involved in the heat transfer,
+  ! phase change and melt motion
+  ! -----------------------------------------------------------------
+  
   use amrex_amr_module
 
   implicit none
   private
 
-  public :: timestep 
+  public :: run_simulation
 
 contains
 
+  ! run the simulation
+  subroutine run_simulation()
 
-  recursive subroutine timestep (lev, time, substep)
+    use amrex_amr_module 
+    use amr_data_module, only : t_new
+    use my_amr_module, only : max_step, stop_time, stepno, plot_int, dt
+    use compute_dt_module, only : compute_dt 
+    use plotfile_module, only: writeplotfile, write2dplotfile
+    use energy_module, only: sum_enthalpy
+   
+    integer :: last_plot_file_step, step, lev, substep
+    real(amrex_real) :: cur_time, total_enthalpy
+
+    ! Initialize time
+    cur_time = t_new(0)
+
+    ! Initialize counter for output
+    last_plot_file_step = 0;
+
+    ! Loop over time-steps
+    do step = stepno(0), max_step-1
+
+       ! Print timestep information on screen (start)
+       if (amrex_parallel_ioprocessor()) then
+          print *, ""
+          print *, "STEP", step+1, "starts ..."
+       end if
+
+       ! Compute time step size
+       call compute_dt()    
+		 
+       ! Advance all levels of one time step  
+       lev = 0
+       substep = 1
+       call advance_one_timestep(lev, cur_time, substep)
+
+       ! Get total enthalpy in the domain
+       call sum_enthalpy(total_enthalpy)
+ 	
+       ! Update time on all levels
+       cur_time = cur_time + dt(0)
+       do lev = 0, amrex_get_finest_level()
+          t_new(lev) = cur_time
+       end do
+
+       ! Print timestep information on screen (end)
+       if (amrex_parallel_ioprocessor()) then
+          print *, 'Enthalpy is', total_enthalpy 
+          print *, '' 
+          print *, "STEP", step+1, "end. TIME =", cur_time, "DT =", dt(0)
+       end if
+
+       ! Print output to file
+       if (plot_int .gt. 0 .and. mod(step+1,plot_int) .eq. 0) then
+          last_plot_file_step = step+1
+          call writeplotfile()
+          call write2dplotfile() 
+       end if
+
+       ! Stopping criteria
+       if (cur_time .ge. stop_time) exit
+
+    end do
+
+    ! NOT SURE WHY THIS PART IS HERE
+    ! if (plot_int .gt. 0 .and. stepno(0) .gt. last_plot_file_step) then
+    !    call writeplotfile()
+    !    call write2dplotfile() 
+    ! end if
+    
+  end subroutine run_simulation
+
+
+  ! Subroutine used to advance of one time step. Note that this subroutine is
+  ! recursive, which implies that it calls itself
+  recursive subroutine advance_one_timestep(lev, time, substep)
 
     use my_amr_module, only : regrid_int, stepno, nsubsteps, dt, do_reflux, verbose
     use amr_data_module, only : t_old, t_new, phi_old, phi_new, temp, flux_reg  
     use averagedown_module, only : averagedownto
 
+    ! Input and output variables
     integer, intent(in) :: lev, substep
-    real(amrex_real), intent(in) :: time    
+    real(amrex_real), intent(in) :: time
+
+    ! Local variables
     integer, allocatable, save :: last_regrid_step(:)
     integer :: k, old_finest_level, finest_level, fine_substep    
     
@@ -69,7 +152,7 @@ contains
     if (lev .lt. amrex_get_finest_level()) then
        
        do fine_substep = 1, nsubsteps(lev+1)
-          call timestep(lev+1, time+(fine_substep-1)*dt(lev+1), fine_substep) 
+          call advance_one_timestep(lev+1, time+(fine_substep-1)*dt(lev+1), fine_substep) 
        end do
 
        ! Update coarse solution at coarse-fine interface via dPhidt = -div(+F) where F is stored flux (flux_reg)
@@ -84,7 +167,7 @@ contains
         
     end if
   
-  end subroutine timestep
+  end subroutine advance_one_timestep
 
 
   subroutine advance(lev, time, dt, substep)
