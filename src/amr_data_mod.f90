@@ -52,7 +52,7 @@ contains
   ! ------------------------------------------------------------------
   ! Subroutine to allocate variables for physical solution
   ! ------------------------------------------------------------------ 
-  subroutine amr_data_init ()
+  subroutine amr_data_init()
     
     allocate(t_new(0:amrex_max_level))
     t_new = 0.0_rt ! This should be moved to where the variables are initialized
@@ -70,7 +70,7 @@ contains
   ! ------------------------------------------------------------------
   ! Subroutine to free multifab variables for physical solution
   ! ------------------------------------------------------------------
-  subroutine amr_data_finalize
+  subroutine amr_data_finalize()
     
     integer :: lev
     

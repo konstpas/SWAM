@@ -1,5 +1,11 @@
 module compute_dt_module
 
+  ! -----------------------------------------------------------------
+  ! This module is used to compute the timestep employed in the
+  ! solution of both the heat conduction equation and the shallow-
+  ! water equation
+  ! -----------------------------------------------------------------
+  
   use amrex_amr_module
 
   implicit none
@@ -9,22 +15,27 @@ module compute_dt_module
 
 contains
 
-  subroutine compute_dt ()
+  subroutine compute_dt()
+    
     use my_amr_module, only : t_new, dt, stop_time, nsubsteps
 
     integer :: lev, nlevs, n_factor
     real(amrex_real) :: dt_0, eps
     real(amrex_real), allocatable :: dt_tmp(:)
-    real(amrex_real), parameter :: change_max = 1.1_amrex_real
+    real(amrex_real), parameter :: change_max = 1.1_amrex_real ! This should be moved to input
 
     nlevs = amrex_get_numlevels()
     
     allocate(dt_tmp(0:nlevs-1))
+
+    ! Estimate timestep in order to avoid instabilities
     do lev = 0, nlevs-1
-       dt_tmp(lev) = est_timestep(lev, t_new(lev))
+       call est_timestep(lev, dt_tmp(lev))
     end do
     call amrex_parallel_reduce_min(dt_tmp, nlevs)
- 
+
+    ! Ensure that the timestep does not change too much
+    ! from one timestep to the next
     dt_0 = dt_tmp(0)
     n_factor = 1
     do lev = 0, nlevs-1
@@ -32,42 +43,36 @@ contains
        n_factor = n_factor * nsubsteps(lev)
        dt_0 = min(dt_0, n_factor*dt_tmp(lev))
     end do
-    
-    ! Limit dt's by the value of stop_time.
-    eps = 1.e-3_amrex_real * dt_0
-    if (t_new(0) + dt_0 .gt. stop_time - eps) then
-       dt_0 = (stop_time - t_new(0))/10.  
-    end if
 
+    ! Compute timestep for all levels
     dt(0) = dt_0
     do lev = 1, nlevs-1
        dt(lev) = dt(lev-1) / nsubsteps(lev)
     end do
+
+    
   end subroutine compute_dt
 
 
-  function est_timestep (lev, time) result(dt)
-    use my_amr_module, only : phi_new, temp, cfl !! input
+  subroutine est_timestep(lev, dt)
+
+    use my_amr_module, only : cfl
     use material_properties_module, only : max_diffus 
-    real(amrex_real) :: dt
+
+    ! Input and output variables 
     integer, intent(in) :: lev
-    real(amrex_real), intent(in) :: time
+    real(amrex_real), intent(out) :: dt
 
-    real(amrex_real) :: dt_est
-    real(amrex_real) :: dxsqr 
-    type(amrex_box) :: bx
-    type(amrex_fab) :: u
-    type(amrex_mfiter) :: mfi
-    real(amrex_real), contiguous, pointer :: p(:,:,:,:)
+    ! Local variables 
+    real(amrex_real) :: dxsqr
 
-    dt_est = huge(1._amrex_real)
+    ! Von Neumann stability criterion 
+    dxsqr= (1/amrex_geom(lev)%dx(1)**2 + &
+            1/amrex_geom(lev)%dx(2)**2 + &
+            1/amrex_geom(lev)%dx(3)**2) 
+    dt = 0.5/(dxsqr*max_diffus)
+    dt = dt * cfl
 
-    ! Von Neumann stability analysis dictates diff*dt*(1/dx2 + 1/dy2 + 1/dz2) .le. 0.5 
-    dxsqr= (1/amrex_geom(lev)%dx(1)**2 + 1/amrex_geom(lev)%dx(2)**2 + 1/amrex_geom(lev)%dx(3)**2) 
-    dt_est = 0.5/(dxsqr*max_diffus)
-
-    dt = dt_est * cfl
-
-  end function est_timestep
+  end subroutine est_timestep
 
 end module compute_dt_module
