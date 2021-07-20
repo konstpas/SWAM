@@ -102,46 +102,53 @@ contains
     ! Default parameters
     call set_default_values
     
-    ! Read parameters
+    ! Parameters for the simulation length
     call amrex_parmparse_build(pp, "length")
     call pp%query("max_step", max_step)
     call pp%query("stop_time", stop_time)
     call amrex_parmparse_destroy(pp)
     
-    ! Parameters amr.*
-    call amrex_parmparse_build(pp, "amr")
+    ! Parameters for the grid control
+    call amrex_parmparse_build(pp, "grid")
     call pp%query("regrid_int", regrid_int)
+    call pp%query("max_grid_size_2d", max_grid_size_2d)
+    call pp%getarr("surfdist", surfdist)
+    call amrex_parmparse_destroy(pp)
+
+    ! Parameters for the output
+    call amrex_parmparse_build(pp, "output")
     call pp%query("check_int", check_int)
     call pp%query("plot_int", plot_int)
     call pp%query("check_file", check_file)
     call pp%query("plot_file", plot_file)
+    call pp%query("verbose", verbose)
+    call amrex_parmparse_destroy(pp)
+
+    ! Parameters for the restart
+    call amrex_parmparse_build(pp, "restart")
     call pp%query("restart", restart)
-    call pp%query("max_grid_size_2d", max_grid_size_2d)
     call amrex_parmparse_destroy(pp)
    
-    ! Domain parameters 
-    call amrex_parmparse_build(pp, "domain")
-    call pp%query("meltvel", meltvel)  
-    call pp%query("tempinit", tempinit) 
+    ! Parameters for the heat solver
+    call amrex_parmparse_build(pp, "heat")
     call pp%query("surf_pos", surf_pos_init)   
-    call pp%getarr("surfdist", surfdist)
+    call pp%query("meltvel", meltvel)  
+    call pp%query("tempinit", tempinit)
     call pp%query("flux_peak", flux_peak) 
     call pp%getarr("flux_pos", flux_pos)
     call pp%getarr("flux_width", flux_width)
     call pp%query("exp_time", exp_time) 
     call amrex_parmparse_destroy(pp)
 
-    ! Material parameters
+    ! Parameters for the material
     call amrex_parmparse_build(pp, "material")
     call pp%query("material", material)
     call pp%query("phiT_max_T", phiT_table_max_T)
     call pp%query("phiT_n_points", phiT_table_n_points)
     call amrex_parmparse_destroy(pp)
     
-    ! Parameters myamr.*
-    call amrex_parmparse_build(pp, "myamr")
-    call pp%query("v", verbose)
-    call pp%query("verbose", verbose)
+    ! Parameters for the numerics
+    call amrex_parmparse_build(pp, "numerics")
     call pp%query("cfl", cfl)
     call pp%query("do_reflux", do_reflux)
     call amrex_parmparse_destroy(pp)
@@ -153,11 +160,13 @@ contains
   ! Default values for the input parameters
   subroutine set_default_values()
 
+    integer :: i
+        
     allocate(character(len=3)::check_file)
     allocate(character(len=8)::material)
     allocate(character(len=3)::plot_file)
     allocate(character(len=0)::restart)
-    allocate(surfdist(2))
+    allocate(surfdist(0:amrex_max_level))
     allocate(flux_pos(2))
     allocate(flux_width(2))
     
@@ -169,7 +178,7 @@ contains
     flux_peak = 300d6
     flux_pos = (/0.0,0.0/)
     flux_width = (/1.01,1.01/)
-    material = "tungsten"
+    material = "Tungsten"
     max_grid_size_2d = 16
     max_step = 10000
     phiT_table_max_T = 10000.0
@@ -178,7 +187,9 @@ contains
     plot_int = -1
     regrid_int = 2
     stop_time = 1.0
-    surfdist = (/0.001,0.0005/)
+    do i = 0, amrex_max_level
+       surfdist(i) = 0.0_amrex_real
+    end do
     surf_pos_init = 0.020
     verbose = 0
 
