@@ -2,8 +2,9 @@ module plotfile_module
 
   use amrex_amr_module
 !!  use amr_data_module, only : pc
-  use my_amr_module, only : plot_file, phi_new, temp, t_new, stepno
-
+  use amr_data_module, only : phi_new, temp, t_new, stepno
+  use read_input_module, only : plot_file
+  
   implicit none
 
   private

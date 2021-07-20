@@ -1,17 +1,17 @@
 module domain_module
 
   use amrex_amr_module
+  use read_input_module
   
   implicit none
+
   private
   
-  public :: tempinit, meltvel, surfdist, surf_pos_init, flux_peak, flux_pos, flux_width, exp_time
   public :: get_face_velocity, create_face_flux, surface_tag, get_bound_heat
   public :: get_surf_pos, get_melt_pos, reset_melt_pos, integrate_surf, get_idomain  
   
-  
-  real(amrex_real) :: tempinit, meltvel, surf_pos_init, flux_peak, exp_time   
-  real(amrex_real), allocatable :: surfdist(:), flux_pos(:), flux_width(:) 
+  !real(amrex_real) :: tempinit, meltvel, surf_pos_init, flux_peak, exp_time   
+  !real(amrex_real), allocatable :: surfdist(:), flux_pos(:), flux_width(:) 
   
 contains 
   

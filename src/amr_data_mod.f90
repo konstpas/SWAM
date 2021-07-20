@@ -14,25 +14,31 @@ module amr_data_module
   private
 
   ! ------------------------------------------------------------------
-  ! Variables pertaining to physical solution
+  ! Variables for the physical solution
   ! ------------------------------------------------------------------
-  public :: t_new, t_old ! Time 
+  public :: t_new, t_old ! Time
+  public :: dt ! Timestep
   public :: phi_new, phi_old ! Enthalpy
   public :: temp ! Temperature
   public :: idomain_new, idomain_old ! Indexes used to distinguish between material and background
   public :: surf_ind, surf_xlo, surf_dx ! 2D surface grid parameters 
   public :: melt_pos, surf_pos, melt_vel  ! Melt position, free surface position and melt velocity
   ! ------------------------------------------------------------------
-  ! Variables and subroutines pertaining to AMReX calculations
+  ! Variables for the AMReX calculations
   ! ------------------------------------------------------------------
-  public :: flux_reg 
+  public :: flux_reg
+  public :: stepno
+  public :: nsubsteps
   public :: amr_data_init, amr_data_finalize
 
 
   integer  :: surf_ind(2,2) = 0 ! fluid domain index bounds (x,z) (lo,hi)
+  integer, allocatable, save :: stepno(:)
+  integer, allocatable, save :: nsubsteps(:)
   
   real(rt), allocatable :: t_new(:)
   real(rt), allocatable :: t_old(:)
+  real(rt), allocatable, save :: dt(:)
   real(rt), allocatable :: surf_pos(:,:), melt_pos(:,:), melt_vel(:,:,:)
   real(rt) :: surf_xlo(2), surf_dx(2) 
 

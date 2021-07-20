@@ -1,10 +1,13 @@
 module material_properties_module  
 
   use amrex_amr_module
+  use read_input_module
   use material_properties_tungsten_module
   
   implicit none 
 
+  private
+  
   public :: init_mat_prop, get_ktherm, get_temp, get_enthalpy, get_maxdiffus
   public :: enth_at_melt, melt_point, max_diffus  
   
@@ -12,9 +15,6 @@ module material_properties_module
   real(amrex_real) 		:: m_A, melt_point, enth_fus, rho_melt 
   real(amrex_real)		:: enth_at_melt           ! enthalpy at onset of melting  
   real(amrex_real) 		:: max_diffus             ! Maximum thermal diffusivity 
-  character(len=:), allocatable	:: material		  ! Material name
-  real(amrex_real)              :: phiT_table_max_T       ! Maximum temperature for h-T table
-  integer 			:: phiT_table_n_points    ! Number of points for h-T  table
   
 contains 
   

@@ -19,8 +19,8 @@ contains
   subroutine run_simulation()
 
     use amrex_amr_module 
-    use amr_data_module, only : t_new
-    use my_amr_module, only : max_step, stop_time, stepno, plot_int, dt
+    use amr_data_module, only : t_new, stepno, dt
+    use read_input_module, only : max_step, stop_time, plot_int
     use compute_dt_module, only : compute_dt 
     use plotfile_module, only: writeplotfile, write2dplotfile
     use energy_module, only: sum_enthalpy
@@ -92,8 +92,8 @@ contains
   ! recursive, which implies that it calls itself
   recursive subroutine advance_one_timestep(lev, time, substep)
 
-    use my_amr_module, only : regrid_int, stepno, nsubsteps, dt, do_reflux, verbose
-    use amr_data_module, only : t_old, t_new, phi_old, phi_new, temp, flux_reg  
+    use read_input_module, only : regrid_int, do_reflux, verbose
+    use amr_data_module, only : t_old, t_new, phi_old, phi_new, temp, flux_reg, stepno, nsubsteps, dt  
     use averagedown_module, only : averagedownto
 
     ! Input and output variables
@@ -172,7 +172,7 @@ contains
 
   subroutine advance(lev, time, dt, substep)
 
-    use my_amr_module, only : do_reflux, verbose
+    use read_input_module, only : do_reflux, verbose
     use amr_data_module, only : phi_new, temp, surf_ind, flux_reg  
     use fillpatch_module, only : fillpatch
     use domain_module, only : get_melt_pos, reset_melt_pos 

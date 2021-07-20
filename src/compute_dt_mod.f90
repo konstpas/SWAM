@@ -17,8 +17,9 @@ contains
 
   subroutine compute_dt()
     
-    use my_amr_module, only : t_new, dt, stop_time, nsubsteps
-
+    use amr_data_module, only : t_new, dt, nsubsteps
+    use read_input_module, only : stop_time
+    
     integer :: lev, nlevs, n_factor
     real(amrex_real) :: dt_0, eps
     real(amrex_real), allocatable :: dt_tmp(:)
@@ -56,7 +57,7 @@ contains
 
   subroutine est_timestep(lev, dt)
 
-    use my_amr_module, only : cfl
+    use read_input_module, only : cfl
     use material_properties_module, only : max_diffus 
 
     ! Input and output variables 

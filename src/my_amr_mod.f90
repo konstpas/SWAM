@@ -6,41 +6,15 @@ module my_amr_module
 
   use amr_data_module
   implicit none
-
-  ! runtime parameters
-  integer :: verbose    = 0
-
-  integer :: max_step   = huge(1)
-  integer :: regrid_int = 2
-  integer :: check_int  = -1
-  integer :: plot_int   = -1
-  integer :: max_grid_size_2d   = 16
-  !
-  logical :: do_reflux  = .true.
-  !
-  real(rt) :: stop_time  = huge(1._rt)
-  real(rt) :: cfl        = 0.7_rt
-  !
-  character(len=:), allocatable, save :: check_file
-  character(len=:), allocatable, save :: plot_file
-  character(len=:), allocatable, save :: restart
-
-  integer, allocatable, save :: stepno(:)
-  integer, allocatable, save :: nsubsteps(:)
-
-  real(rt), allocatable, save :: dt(:)
-
-  integer, private, parameter :: ncomp = 1, nghost = 0
   
+  integer, private, parameter :: ncomp = 1, nghost = 0
   
 contains
 
   subroutine my_amr_init ()
     
     use bc_module, only : lo_bc, hi_bc
-    use domain_module 
-    use material_properties_module, only : init_mat_prop, material, &
-        &                                  phiT_table_max_T, phiT_table_n_points
+    use read_input_module
 
     type(amrex_parmparse) :: pp
     integer :: ilev
@@ -53,57 +27,57 @@ contains
          &                             my_clear_level,                 &
          &                             my_error_estimate)
 
-    ! some default parameters
-    allocate(character(len=3)::check_file)
-    check_file = "chk"
-    allocate(character(len=3)::plot_file)
-    plot_file = "plt"
-    allocate(character(len=0)::restart)
+    ! ! some default parameters
+    ! allocate(character(len=3)::check_file)
+    ! check_file = "chk"
+    ! allocate(character(len=3)::plot_file)
+    ! plot_file = "plt"
+    ! allocate(character(len=0)::restart)
 
-    ! Read parameters
-    call amrex_parmparse_build(pp)
-    call pp%query("max_step", max_step)
-    call pp%query("stop_time", stop_time)
-    call amrex_parmparse_destroy(pp)
+    ! ! Read parameters
+    ! call amrex_parmparse_build(pp)
+    ! call pp%query("max_step", max_step)
+    ! call pp%query("stop_time", stop_time)
+    ! call amrex_parmparse_destroy(pp)
     
-    ! Parameters amr.*
-    call amrex_parmparse_build(pp, "amr")
-    call pp%query("regrid_int", regrid_int)
-    call pp%query("check_int", check_int)
-    call pp%query("plot_int", plot_int)
-    call pp%query("check_file", check_file)
-    call pp%query("plot_file", plot_file)
-    call pp%query("restart", restart)
-    call pp%query("max_grid_size_2d", max_grid_size_2d)
-    call amrex_parmparse_destroy(pp)
+    ! ! Parameters amr.*
+    ! call amrex_parmparse_build(pp, "amr")
+    ! call pp%query("regrid_int", regrid_int)
+    ! call pp%query("check_int", check_int)
+    ! call pp%query("plot_int", plot_int)
+    ! call pp%query("check_file", check_file)
+    ! call pp%query("plot_file", plot_file)
+    ! call pp%query("restart", restart)
+    ! call pp%query("max_grid_size_2d", max_grid_size_2d)
+    ! call amrex_parmparse_destroy(pp)
    
-    ! Domain parameters 
-    call amrex_parmparse_build(pp, "domain")
-    call pp%query("meltvel", meltvel)  
-    call pp%query("tempinit", tempinit) 
-    call pp%query("surf_pos", surf_pos_init)   
-    call pp%getarr("surfdist", surfdist)
-    call pp%query("flux_peak", flux_peak) 
-    call pp%getarr("flux_pos", flux_pos)
-    call pp%getarr("flux_width", flux_width)
-    call pp%query("exp_time", exp_time) 
-    call amrex_parmparse_destroy(pp)
+    ! ! Domain parameters 
+    ! call amrex_parmparse_build(pp, "domain")
+    ! call pp%query("meltvel", meltvel)  
+    ! call pp%query("tempinit", tempinit) 
+    ! call pp%query("surf_pos", surf_pos_init)   
+    ! call pp%getarr("surfdist", surfdist)
+    ! call pp%query("flux_peak", flux_peak) 
+    ! call pp%getarr("flux_pos", flux_pos)
+    ! call pp%getarr("flux_width", flux_width)
+    ! call pp%query("exp_time", exp_time) 
+    ! call amrex_parmparse_destroy(pp)
 
-    ! Material parameters
-    call amrex_parmparse_build(pp, "material")
-    call pp%query("material", material)
-    call pp%query("phiT_max_T", phiT_table_max_T)
-    call pp%query("phiT_n_points", phiT_table_n_points)
-    call amrex_parmparse_destroy(pp)
-    call init_mat_prop ! Initialize material properties 
+    ! ! Material parameters
+    ! call amrex_parmparse_build(pp, "material")
+    ! call pp%query("material", material)
+    ! call pp%query("phiT_max_T", phiT_table_max_T)
+    ! call pp%query("phiT_n_points", phiT_table_n_points)
+    ! call amrex_parmparse_destroy(pp)
+    ! call init_mat_prop ! Initialize material properties 
     
-    ! Parameters myamr.*
-    call amrex_parmparse_build(pp, "myamr")
-    call pp%query("v", verbose)
-    call pp%query("verbose", verbose)
-    call pp%query("cfl", cfl)
-    call pp%query("do_reflux", do_reflux)
-    call amrex_parmparse_destroy(pp)
+    ! ! Parameters myamr.*
+    ! call amrex_parmparse_build(pp, "myamr")
+    ! call pp%query("v", verbose)
+    ! call pp%query("verbose", verbose)
+    ! call pp%query("cfl", cfl)
+    ! call pp%query("do_reflux", do_reflux)
+    ! call amrex_parmparse_destroy(pp)
 
     if (.not. amrex_is_all_periodic()) then
        lo_bc = amrex_bc_foextrap
@@ -164,7 +138,7 @@ contains
   ! Note that phi_old contains no valid data after this.
   subroutine my_make_new_level_from_scratch (lev, time, pba, pdm) bind(c)
     use initdomain_module, only : init_phi
-    use domain_module, only : tempinit, surf_pos_init
+    use read_input_module, only : tempinit, surf_pos_init, do_reflux
     use material_properties_module, only : get_temp 
     integer, intent(in), value :: lev
     real(amrex_real), intent(in), value :: time
@@ -222,7 +196,8 @@ contains
   ! Note tha phi_old contains no valid data after this.
   subroutine my_make_new_level_from_coarse (lev, time, pba, pdm) bind(c)
     use fillpatch_module, only : fillcoarsepatch
-    use domain_module, only : surf_pos_init, get_idomain
+    use read_input_module, only : surf_pos_init, do_reflux
+    use domain_module, only : get_idomain
     use material_properties_module, only : get_temp 
     integer, intent(in), value :: lev
     real(amrex_real), intent(in), value :: time
@@ -282,7 +257,7 @@ contains
   ! Note that phi_old contains no valid data after this.
   subroutine my_remake_level (lev, time, pba, pdm) bind(c)
     use fillpatch_module, only : fillpatch
-    use domain_module, only : surf_pos_init
+    use read_input_module, only : surf_pos_init, do_reflux
     use material_properties_module, only : get_temp     
     integer, intent(in), value :: lev
     real(amrex_real), intent(in), value :: time
@@ -348,7 +323,7 @@ contains
 
   subroutine my_error_estimate (lev, cp, t, settag, cleartag) bind(c)
     use tagging_module, only : tag_phi_error
-    use domain_module,  only : surfdist 
+    use read_input_module,  only : surfdist 
     integer, intent(in), value :: lev
     type(c_ptr), intent(in), value :: cp
     real(amrex_real), intent(in), value :: t

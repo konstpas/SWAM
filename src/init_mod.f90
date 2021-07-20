@@ -2,7 +2,7 @@ module initialize_module
 
   use amrex_amr_module
 
-  use my_amr_module, only : restart, plot_int
+  use read_input_module, only : restart, plot_int
   use plotfile_module, only : writeplotfile
   use averagedown_module, only : averagedown
 

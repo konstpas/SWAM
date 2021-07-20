@@ -97,7 +97,6 @@ contains
   subroutine read_input_file()
 
     type(amrex_parmparse) :: pp
-    integer :: ilev
     
     ! Default parameters
     call set_default_values
