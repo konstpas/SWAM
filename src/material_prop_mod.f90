@@ -245,7 +245,7 @@ contains
     real(amrex_real), intent(out) :: enth	
     real(amrex_real) :: alph 
 
-    !Linear interpolation of temperature by given enthalpy, from table 
+    !Linear interpolation of temperature by given enthalpy, from table
     do e_ind = 0,phiT_table_n_points 
        if (temp .le. temp_table(e_ind) ) exit 
     end do

@@ -15,7 +15,8 @@ contains
     
     use bc_module, only : lo_bc, hi_bc
     use read_input_module
-
+    use material_properties_module
+    
     type(amrex_parmparse) :: pp
     integer :: ilev
     
@@ -27,6 +28,7 @@ contains
          &                             my_clear_level,                 &
          &                             my_error_estimate)
 
+    call read_input_file
     ! ! some default parameters
     ! allocate(character(len=3)::check_file)
     ! check_file = "chk"
@@ -79,6 +81,8 @@ contains
     ! call pp%query("do_reflux", do_reflux)
     ! call amrex_parmparse_destroy(pp)
 
+    call init_mat_prop
+    
     if (.not. amrex_is_all_periodic()) then
        lo_bc = amrex_bc_foextrap
        hi_bc = amrex_bc_foextrap
@@ -123,8 +127,7 @@ contains
 	surf_ind(1,1) = amrex_geom(amrex_max_level)%domain%lo(1)
 	surf_ind(1,2) = amrex_geom(amrex_max_level)%domain%hi(1)
 	surf_ind(2,1) = amrex_geom(amrex_max_level)%domain%lo(3)
-	surf_ind(2,2) = amrex_geom(amrex_max_level)%domain%hi(3)
-	
+	surf_ind(2,2) = amrex_geom(amrex_max_level)%domain%hi(3) 
 	
     call amr_data_init()
   end subroutine my_amr_init
@@ -150,7 +153,6 @@ contains
     type(amrex_box) :: bx
     real(amrex_real), contiguous, pointer :: phi(:,:,:,:), ptemp(:,:,:,:)
     
-
     ba = pba
     dm = pdm
 
@@ -158,13 +160,12 @@ contains
     t_old(lev) = time - 1.e200_amrex_real
 
     call my_clear_level(lev)
-    
+
     call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, nghost)
     call amrex_imultifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
     call amrex_imultifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
-
 
 
    if (lev > 0 .and. do_reflux) then
@@ -173,7 +174,6 @@ contains
 
     call amrex_mfiter_build(mfi, phi_new(lev))
 	
-
     do while (mfi%next())
        bx = mfi%tilebox()
        phi => phi_new(lev)%dataptr(mfi)
@@ -182,10 +182,10 @@ contains
             amrex_geom(lev)%dx, amrex_problo)
        call get_temp(bx%lo, bx%hi, & 
        	lbound(phi),   ubound(phi),   phi, &
-       	lbound(ptemp), ubound(ptemp), ptemp)  
+       	lbound(ptemp), ubound(ptemp), ptemp)
+       
        ! call get domain integers 	
     end do
-
 
     call amrex_mfiter_destroy(mfi)
     
@@ -322,8 +322,10 @@ contains
   end subroutine my_clear_level
 
   subroutine my_error_estimate (lev, cp, t, settag, cleartag) bind(c)
+
     use tagging_module, only : tag_phi_error
     use read_input_module,  only : surfdist 
+
     integer, intent(in), value :: lev
     type(c_ptr), intent(in), value :: cp
     real(amrex_real), intent(in), value :: t
@@ -338,6 +340,7 @@ contains
     real(amrex_real), contiguous, pointer :: phiarr(:,:,:,:)
     character(kind=c_char), contiguous, pointer :: tagarr(:,:,:,:)
 
+    ! PART OF THE INPUT IS READ HERE!, REMOVE THIS!
     if (.not.allocated(phierr)) then
        call amrex_parmparse_build(pp, "myamr")
        call pp%getarr("phierr", phierr)
@@ -346,7 +349,7 @@ contains
 
     tag = cp
     geom = amrex_geom(lev) 
-    
+
 	
     !$omp parallel private(mfi, bx, phiarr, tagarr)
     call amrex_mfiter_build(mfi, phi_new(lev), tiling=.true.)

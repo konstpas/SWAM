@@ -97,16 +97,16 @@ contains
   subroutine read_input_file()
 
     type(amrex_parmparse) :: pp
-    
+
     ! Default parameters
     call set_default_values
-    
+
     ! Parameters for the simulation length
     call amrex_parmparse_build(pp, "length")
     call pp%query("max_step", max_step)
     call pp%query("stop_time", stop_time)
     call amrex_parmparse_destroy(pp)
-    
+
     ! Parameters for the grid control
     call amrex_parmparse_build(pp, "grid")
     call pp%query("regrid_int", regrid_int)
@@ -151,8 +151,7 @@ contains
     call pp%query("cfl", cfl)
     call pp%query("do_reflux", do_reflux)
     call amrex_parmparse_destroy(pp)
-	
- 
+	    
   end subroutine read_input_file
 
 

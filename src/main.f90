@@ -19,8 +19,8 @@ call amrex_init
 call amrex_amrcore_init 
 
 call my_amr_init() ! Read input file and the initialize multifabs (subr. amr_data_init in amr data mod)
-call initdata()    !Initialize multifab data from scratch (initdata mod) 
 
+call initdata()    !Initialize multifab data from scratch (initdata mod) 
 
 call run_simulation
 
