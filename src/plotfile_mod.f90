@@ -54,7 +54,7 @@ contains
   
   
   subroutine write2dplotfile ()
-  use heat_transfer_module, only : integrate_surf 
+  use domain_module, only : integrate_surf 
     integer :: nlevs 
     integer :: statio = 0 
     real(amrex_real) :: melt_vol 

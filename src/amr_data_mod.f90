@@ -23,22 +23,15 @@ module amr_data_module
   public :: idomain_new, idomain_old ! Indexes used to distinguish between material and background
   public :: surf_ind, surf_xlo, surf_dx ! 2D surface grid parameters 
   public :: melt_pos, surf_pos, melt_vel  ! Melt position, free surface position and melt velocity
-
   ! ------------------------------------------------------------------
   ! Variables for the AMReX calculations
   ! ------------------------------------------------------------------
   public :: flux_reg
   public :: stepno
   public :: nsubsteps
-
-  ! ------------------------------------------------------------------
-  ! Public subroutines
-  ! ------------------------------------------------------------------
   public :: amr_data_init, amr_data_finalize
-  
-  ! ------------------------------------------------------------------
-  ! Declare public variables
-  ! ------------------------------------------------------------------
+
+
   integer  :: surf_ind(2,2) = 0 ! fluid domain index bounds (x,z) (lo,hi)
   integer, allocatable, save :: stepno(:)
   integer, allocatable, save :: nsubsteps(:)
@@ -58,77 +51,26 @@ module amr_data_module
   type(amrex_multifab), allocatable :: phi_old(:)
   type(amrex_multifab), allocatable :: temp(:)
 
-
-  ! --------------------------------------------------------
-  ! Declare private constants
-  ! --------------------------------------------------------
-  integer, private, parameter :: ncomp = 1, nghost = 0
-  
   
 contains
 
-  ! -----------------------------------------------
-  ! Subroutine to allocate and initialize variables
-  ! -----------------------------------------------
+  ! ------------------------------------------------------------------
+  ! Subroutine to allocate variables for physical solution
+  ! ------------------------------------------------------------------ 
   subroutine amr_data_init()
-
-    use read_input_module
     
-    integer :: lo_x, hi_x, lo_z, hi_z, lev
-    
-    lo_x = amrex_geom(amrex_max_level)%domain%lo(1)
-    hi_x = amrex_geom(amrex_max_level)%domain%hi(1)
-    lo_z = amrex_geom(amrex_max_level)%domain%lo(3)
-    hi_z = amrex_geom(amrex_max_level)%domain%hi(3)
-
-    ! Allocate variables for physical solution
     allocate(t_new(0:amrex_max_level))
+    t_new = 0.0_rt ! This should be moved to where the variables are initialized
     allocate(t_old(0:amrex_max_level))
-    allocate(dt(0:amrex_max_level))
+    t_old = -1.0e100_rt ! This should be moved to where the variables are initialized
     allocate(phi_new(0:amrex_max_level))
     allocate(phi_old(0:amrex_max_level))
     allocate(temp(0:amrex_max_level))
     allocate(idomain_new(0:amrex_max_level))
     allocate(idomain_old(0:amrex_max_level))
-    allocate(surf_pos(lo_x:hi_x, lo_z:hi_z))
-    allocate(melt_pos(lo_x:hi_x, lo_z:hi_z))	
-    allocate(melt_vel(lo_x:hi_x+1, lo_z:hi_z+1, 1:amrex_spacedim-1))
-
-    ! Allocate variables for AMReX calculations
     allocate(flux_reg(0:amrex_max_level))
-    allocate(stepno(0:amrex_max_level))
-    allocate(nsubsteps(0:amrex_max_level))
-
-    ! Initialize variables for physical solution (CHECK IF THIS IS REALLY NECESSARY)
-    ! The multifabs are initialized when the levels are created.
-    ! This is done in the routines called my_make_new_level_...
-    t_new = 0.0_rt
-    t_old = -1.0e100_rt
-    dt = huge(1._rt)
-    surf_pos = surf_pos_init 	
-    melt_pos = surf_pos_init 
-    melt_vel = 0.0_rt 	 
-    surf_xlo(1) = amrex_problo(1) 
-    surf_xlo(2) = amrex_problo(3)
-    surf_dx(1) = amrex_geom(amrex_max_level)%dx(1)
-    surf_dx(2) = amrex_geom(amrex_max_level)%dx(3)
-    surf_ind(1,1) = lo_x
-    surf_ind(1,2) = hi_x
-    surf_ind(2,1) = lo_z
-    surf_ind(2,2) = hi_z
-    
-    ! Initialize variables for AMReX calculations (CHECK IF THIS IS REALLY NECESSARY)
-    ! The flux_registers are initialized when the levels are created
-    ! This is done in the routines called my_make_new_level_...
-    stepno = 0
-    nsubsteps(0) = 1
-    do lev = 1, amrex_max_level
-       nsubsteps(lev) = amrex_ref_ratio(lev-1)
-    end do        
-    
     
   end subroutine amr_data_init
-
 
   ! ------------------------------------------------------------------
   ! Subroutine to free multifab variables for physical solution
@@ -150,6 +92,5 @@ contains
     end do
     
   end subroutine amr_data_finalize
-
   
 end module amr_data_module
