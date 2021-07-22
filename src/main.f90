@@ -15,8 +15,7 @@ implicit none
     real(amrex_real) :: total_enthalpy     
     integer :: last_plot_file_step, step, lev, substep, finest_level
 
-call amrex_init 
-call amrex_amrcore_init 
+
 
 call my_amr_init() ! Read input file and the initialize multifabs (subr. amr_data_init in amr data mod)
 
