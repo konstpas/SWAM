@@ -17,7 +17,7 @@ contains
   !     settag, cleartag)
   subroutine tag_phi_error (level, time, lo, hi, xlo, dx, surfdist, phi, philo, phihi, tag, taglo, taghi, &
        settag, cleartag)  
-    use domain_module, only : get_surf_pos   
+    use heat_transfer_module, only : get_surf_pos   
     use material_properties_module, only : enth_at_melt  
     integer               , intent(in   ) :: level, lo(3), hi(3), philo(4), phihi(4), taglo(4), taghi(4)
     real(amrex_real)      , intent(in   ) :: phi(philo(1):phihi(1),philo(2):phihi(2),philo(3):phihi(3))

@@ -8,7 +8,8 @@ module domain_module
   private
   
   public :: get_face_velocity, create_face_flux, surface_tag, get_bound_heat
-  public :: get_surf_pos, get_melt_pos, reset_melt_pos, integrate_surf, get_idomain  
+  !public :: get_surf_pos, get_melt_pos, reset_melt_pos, integrate_surf, get_idomain  
+  public :: get_melt_pos, reset_melt_pos, integrate_surf, get_idomain
   
   !real(amrex_real) :: tempinit, meltvel, surf_pos_init, flux_peak, exp_time   
   !real(amrex_real), allocatable :: surfdist(:), flux_pos(:), flux_width(:) 
