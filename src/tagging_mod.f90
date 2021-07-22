@@ -13,7 +13,9 @@ module tagging_module
 contains
 
        
-  subroutine tag_phi_error (level, time, lo, hi, xlo, dx, surfdist, phi, philo, phihi, tag, taglo, taghi, phierr, &
+  !subroutine tag_phi_error (level, time, lo, hi, xlo, dx, surfdist, phi, philo, phihi, tag, taglo, taghi, phierr, &
+  !     settag, cleartag)
+  subroutine tag_phi_error (level, time, lo, hi, xlo, dx, surfdist, phi, philo, phihi, tag, taglo, taghi, &
        settag, cleartag)  
     use domain_module, only : get_surf_pos   
     use material_properties_module, only : enth_at_melt  
@@ -22,7 +24,8 @@ contains
     real(amrex_real)      , intent(in   ) :: xlo(3), dx(3)  ! Surface y-position (to be multifab on DIM-1) 
     real(amrex_real)      , intent(in   ) :: surfdist ! distance from interface to refine grid
     character(kind=c_char), intent(inout) :: tag(taglo(1):taghi(1),taglo(2):taghi(2),taglo(3):taghi(3))
-    real(amrex_real)      , intent(in   ) :: time, phierr
+    !real(amrex_real)      , intent(in   ) :: time, phierr
+    real(amrex_real)      , intent(in   ) :: time
     character(kind=c_char), intent(in   ) :: settag, cleartag
     real(amrex_real)                      :: surfpos(lo(1):hi(1),lo(3):hi(3))  ! Array surface position 
 

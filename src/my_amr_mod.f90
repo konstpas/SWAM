@@ -340,12 +340,12 @@ contains
     real(amrex_real), contiguous, pointer :: phiarr(:,:,:,:)
     character(kind=c_char), contiguous, pointer :: tagarr(:,:,:,:)
 
-    ! PART OF THE INPUT IS READ HERE!, REMOVE THIS!
-    if (.not.allocated(phierr)) then
-       call amrex_parmparse_build(pp, "myamr")
-       call pp%getarr("phierr", phierr)
-       call amrex_parmparse_destroy(pp)
-    end if
+    ! ! PART OF THE INPUT IS READ HERE!, REMOVE THIS!
+    ! if (.not.allocated(phierr)) then
+    !    call amrex_parmparse_build(pp, "myamr")
+    !    call pp%getarr("phierr", phierr)
+    !    call amrex_parmparse_destroy(pp)
+    ! end if
 
     tag = cp
     geom = amrex_geom(lev) 
@@ -357,11 +357,16 @@ contains
        bx = mfi%tilebox()
        phiarr => phi_new(lev)%dataptr(mfi)
        tagarr => tag%dataptr(mfi)
+       ! call tag_phi_error(lev, t, bx%lo, bx%hi, &
+       !      geom%get_physical_location(bx%lo), geom%dx, surfdist(lev+1), & 
+       !      phiarr, lbound(phiarr), ubound(phiarr), &
+       !      tagarr, lbound(tagarr), ubound(tagarr), &
+       !      phierr(lev+1), settag, cleartag)  ! +1 because level starts with 0, but phierr starts with 1
        call tag_phi_error(lev, t, bx%lo, bx%hi, &
             geom%get_physical_location(bx%lo), geom%dx, surfdist(lev+1), & 
             phiarr, lbound(phiarr), ubound(phiarr), &
             tagarr, lbound(tagarr), ubound(tagarr), &
-            phierr(lev+1), settag, cleartag)  ! +1 because level starts with 0, but phierr starts with 1
+            settag, cleartag)
     end do
     call amrex_mfiter_destroy(mfi)
     !$omp end parallel
