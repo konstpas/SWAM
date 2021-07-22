@@ -3,8 +3,7 @@ module my_amr_module
   use iso_c_binding
   use amrex_amr_module
   use amrex_fort_module, only : rt => amrex_real
-
-  use amr_data_module
+  
   implicit none
   
   !integer, private, parameter :: ncomp = 1, nghost = 0
@@ -16,6 +15,9 @@ contains
     use bc_module, only : lo_bc, hi_bc
     use read_input_module, only : read_input_file
     use material_properties_module, only : init_mat_prop
+    use regridding_module
+    use amr_data_module
+
     
     integer :: ilev
 

@@ -6,8 +6,11 @@ module heat_transfer_module
 
   private
 
-  public :: increment_enthalpy, get_surf_pos
-
+  public :: increment_enthalpy
+  public :: get_face_velocity, create_face_flux, surface_tag, get_bound_heat
+  public :: get_surf_pos, get_melt_pos, reset_melt_pos, integrate_surf
+  !public :: get_idomain
+  
 contains
 
   subroutine increment_enthalpy(time, lo, hi, &
@@ -145,50 +148,6 @@ contains
   	
     
   end subroutine increment_enthalpy
-
-
-       ! Subroutine to interpolate surface position as given by the fluid solver 
-     ! in order to construct the heat conduction free interface  
-     subroutine get_surf_pos(xlo, dx, ui_lo, ui_hi, surfpos)
-
-       use amr_data_module, only : surf_ind, surf_pos, surf_xlo, surf_dx  
-       
-       real(amrex_real), intent(in   ) :: xlo(3), dx(3)			                ! lower corner physical location, and grid size
-       integer         , intent(in   ) :: ui_lo(3), ui_hi(3)			      	 ! bounds of input tilebox  
-       real(amrex_real), intent(  out) :: surfpos(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3))     ! Surface position with x and z coordinates, at grid size   
-       integer :: i, k, xind, zind
-       real(amrex_real) :: xpos, zpos, x_alpha, z_alpha, valzp, valzm, valxp, valxm   
-  
-	  
-       do  i = ui_lo(1),ui_hi(1) 
-          do k = ui_lo(3),ui_hi(3)
-   
-             xpos = xlo(1) + (0.5 + i-ui_lo(1))*dx(1) 
-             zpos = xlo(3) + (0.5 + k-ui_lo(3))*dx(3)
-   
-             xind = ceiling( (xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)  ) ! -surf_dx(1)/2, and ceiling ceiling since staggered 'backwards' on faces w.r.t values which are centered. 
-             x_alpha = mod(xpos - surf_dx(1)/2 - surf_xlo(1), surf_dx(1))
-             zind = ceiling( (zpos - surf_dx(2)/2 - surf_xlo(2))/surf_dx(2)  ) !
-             z_alpha = mod(zpos - surf_dx(2)/2 - surf_xlo(2), surf_dx(2))
-   
-             if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
-             if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
-             if (zind.lt.surf_ind(2,1)) zind = surf_ind(2,1)
-             if (zind.ge.surf_ind(2,2)) zind = surf_ind(2,2)-1 
-   
-   
-             valzm = surf_pos(xind,zind  ) + x_alpha * (surf_pos(xind+1,zind  )-surf_pos(xind,zind  )) ! interpolated value at zind	
-             valzp = surf_pos(xind,zind+1) + x_alpha * (surf_pos(xind+1,zind+1)-surf_pos(xind,zind+1)) ! int value at zind+1 
-   
-             surfpos(i,k) = valzm + z_alpha*(valzp - valzm)  ! 2D linear interpolation 
-
-          end do
-       end do
- 
- 
- 
-     end subroutine get_surf_pos
-
 
 
   subroutine get_face_velocity(time, xlo, dx, lo, hi, uface, & 
@@ -464,6 +423,7 @@ contains
      subroutine get_bound_heat(time, xlo, dx, lo, hi, ui_lo, ui_hi, yflux, qb) 
 
        use amr_data_module, only : surf_pos
+       use read_input_module, only : exp_time, flux_peak, flux_width, flux_pos
        
        real(amrex_real), intent(in   ) :: time, xlo(3), dx(3)			! time, lower corner physical location, and grid size
        integer         , intent(in   ) :: lo(3), hi(3)			      	! bounds of input tilebox  
