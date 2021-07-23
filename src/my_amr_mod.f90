@@ -10,7 +10,6 @@ contains
 
   subroutine my_amr_init ()
     
-    use bc_module, only : lo_bc, hi_bc
     use read_input_module
     use material_properties_module
     use regrid_module

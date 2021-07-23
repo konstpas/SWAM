@@ -22,7 +22,7 @@ module read_input_module
   !        assume the default value:
   !            a) amr.v (default: 0)
   !            b) amr.ref_ratio (default: 2 for each level)
-  !            c) amr.blocking_facto (default: 8)
+  !            c) amr.blocking_factor (default: 8)
   !            d) amr.max_grid_size (default: 32)
   !
   !     2) Variables that are used from the rest of the code. Such
@@ -38,7 +38,9 @@ module read_input_module
 
   private
 
+  ! -----------------------------------------------------------------
   ! Public variables (read from input file)
+  ! -----------------------------------------------------------------
   public :: cfl
   public :: check_file
   public :: check_int
@@ -62,11 +64,15 @@ module read_input_module
   public :: surf_pos_init
   public :: tempinit
   public :: verbose
-  
+
+  ! -----------------------------------------------------------------
   ! Public subroutines
-  public :: read_input_file
-  
+  ! -----------------------------------------------------------------
+  public :: read_input_file, deallocate_input
+
+  ! -----------------------------------------------------------------
   ! Default values of public variables
+  ! -----------------------------------------------------------------
   character(len=:), allocatable, save :: check_file
   character(len=:), allocatable, save :: material
   character(len=:), allocatable, save :: plot_file
@@ -93,7 +99,11 @@ module read_input_module
   
 contains
 
-  ! Subroutine used to update the default value of the public variables 
+  ! ------------------------------------------------------------------
+  ! Subroutine used to read the input file. Note: part of the input
+  ! file is also read by the amrex initialization routines invoked
+  ! with amrex_init (see the initialization module)
+  ! ------------------------------------------------------------------
   subroutine read_input_file()
 
     type(amrex_parmparse) :: pp
@@ -194,5 +204,19 @@ contains
     
   end subroutine set_default_values
 
-  
+  ! ------------------------------------------------------------------
+  ! Subroutine used to free the memory related to the input variables
+  ! ------------------------------------------------------------------  
+  subroutine deallocate_input()
+    
+    deallocate(check_file)
+    deallocate(material)
+    deallocate(plot_file)
+    deallocate(restart)
+    deallocate(surfdist)
+    deallocate(flux_pos)
+    deallocate(flux_width)
+
+  end subroutine deallocate_input
+    
 end module read_input_module

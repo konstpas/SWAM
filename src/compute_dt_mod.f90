@@ -67,6 +67,10 @@ contains
     ! Local variables 
     real(amrex_real) :: dxsqr
 
+    ! NOTE: There are two stability criteria to take into
+    ! account, the von Neumann stability and the CFL
+    ! condition. The CFL is not yet implemented
+    
     ! Von Neumann stability criterion 
     dxsqr= (1/amrex_geom(lev)%dx(1)**2 + &
             1/amrex_geom(lev)%dx(2)**2 + &

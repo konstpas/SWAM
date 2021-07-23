@@ -24,9 +24,8 @@ contains
   ! Fill phi with data from phi_old and phi_new of current level and one level below.
   subroutine fillpatch (lev, time, phi)
 
-    use amr_data_module, only : t_old, t_new, phi_old, phi_new
-    use bc_module, only : lo_bc, hi_bc
-
+    use amr_data_module, only : t_old, t_new, phi_old, phi_new, lo_bc, hi_bc
+    
     ! Input and output variables
     integer, intent(in) :: lev
     real(amrex_real), intent(in) :: time
@@ -64,8 +63,7 @@ contains
   ! This is called when a new level is created from a coarser one.
   subroutine fillcoarsepatch (lev, time, phi)
 
-    use amr_data_module, only : t_old, t_new, phi_old, phi_new
-    use bc_module, only : lo_bc, hi_bc
+    use amr_data_module, only : t_old, t_new, phi_old, phi_new, lo_bc, hi_bc
 
     ! Input and output variables
     integer, intent(in) :: lev
@@ -93,7 +91,7 @@ contains
   subroutine fill_physbc(pmf, scomp, ncomp, time, pgeom) bind(c)
 
     use amrex_filcc_module, only : amrex_filcc
-    use bc_module, only : lo_bc, hi_bc
+    use amr_data_module, only : lo_bc, hi_bc
 
     ! Input and output variables
     type(c_ptr), value :: pmf, pgeom
