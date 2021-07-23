@@ -2,60 +2,84 @@ module amr_data_module
   
   ! -----------------------------------------------------------------
   ! This module is used to declare, allocate and destroy the global
-  ! variables employed in the rest of the code
+  ! variables employed in the AMReX calculations
   ! -----------------------------------------------------------------
   
   use iso_c_binding
   use amrex_amr_module
-  use amrex_fort_module, only : rt => amrex_real
   
   implicit none
 
   private
 
   ! ------------------------------------------------------------------
-  ! Variables for the physical solution
+  ! Public variables
   ! ------------------------------------------------------------------
-  public :: t_new, t_old ! Time
-  public :: dt ! Timestep
-  public :: phi_new, phi_old ! Enthalpy
-  public :: temp ! Temperature
-  public :: idomain_new, idomain_old ! Indexes used to distinguish between material and background
-  public :: surf_ind, surf_xlo, surf_dx ! 2D surface grid parameters 
-  public :: melt_pos, surf_pos, melt_vel  ! Melt position, free surface position and melt velocity
-  ! ------------------------------------------------------------------
-  ! Variables for the AMReX calculations
-  ! ------------------------------------------------------------------
+  ! Time step (one for each level)
+  public :: dt
+  ! Flux registers
   public :: flux_reg
+  ! Indexes used to label material and background
+  public :: idomain_new
+  public :: idomain_old
+  ! Bottom of the melt pool (2D)
+  public :: melt_pos
+  ! Melt velocity (2D)
+  public :: melt_vel 
+  ! Enthalpy
+  public :: phi_new
+  public :: phi_old
+  ! Grid parameters for the 2D grid used in shallow water
+  public :: surf_ind
+  public :: surf_xlo
+  public :: surf_dx
+  ! Position of the free surface (2D)
+  public :: surf_pos
+  ! Temperature
+  public :: temp
+  ! Time
+  public :: t_new
+  public :: t_old
+  ! Parameters used by AMReX during subcycling
   public :: stepno
   public :: nsubsteps
+
+  ! ------------------------------------------------------------------
+  ! Public subroutines
+  ! ------------------------------------------------------------------
   public :: amr_data_init, amr_data_finalize
 
-
-  integer  :: surf_ind(2,2) = 0 ! fluid domain index bounds (x,z) (lo,hi)
+  
+  ! ------------------------------------------------------------------
+  ! Declare public variables
+  ! ------------------------------------------------------------------
+  integer, save  :: surf_ind(2,2) = 0 ! fluid domain index bounds (x,z) (lo,hi)
   integer, allocatable, save :: stepno(:)
-  integer, allocatable, save :: nsubsteps(:)
-  
-  real(rt), allocatable :: t_new(:)
-  real(rt), allocatable :: t_old(:)
-  real(rt), allocatable, save :: dt(:)
-  real(rt), allocatable :: surf_pos(:,:), melt_pos(:,:), melt_vel(:,:,:)
-  real(rt) :: surf_xlo(2), surf_dx(2) 
-
-  type(amrex_fluxregister), allocatable :: flux_reg(:)
-  
-  type(amrex_imultifab), allocatable :: idomain_new(:)
-  type(amrex_imultifab), allocatable :: idomain_old(:)
-  
-  type(amrex_multifab), allocatable :: phi_new(:)
-  type(amrex_multifab), allocatable :: phi_old(:)
-  type(amrex_multifab), allocatable :: temp(:)
+  integer, allocatable, save :: nsubsteps(:)  
+  real(amrex_real), allocatable, save :: dt(:)
+  real(amrex_real), allocatable, save :: melt_pos(:,:)
+  real(amrex_real), allocatable, save :: melt_vel(:,:,:)
+  real(amrex_real), allocatable, save :: t_new(:)
+  real(amrex_real), allocatable, save :: t_old(:)
+  real(amrex_real), allocatable, save :: surf_pos(:,:)
+  real(amrex_real), save :: surf_xlo(2)
+  real(amrex_real), save :: surf_dx(2)
+  type(amrex_fluxregister), allocatable, save :: flux_reg(:)
+  type(amrex_imultifab), allocatable, save :: idomain_new(:)
+  type(amrex_imultifab), allocatable, save :: idomain_old(:)
+  type(amrex_multifab), allocatable, save :: phi_new(:)
+  type(amrex_multifab), allocatable, save :: phi_old(:)
+  type(amrex_multifab), allocatable, save :: temp(:)
 
   
 contains
 
   ! ------------------------------------------------------------------
-  ! Subroutine to allocate variables for physical solution
+  ! Subroutine to allocate and initialize the global variables.
+  ! Note: this subroutine initializes all the variables that are not
+  ! Multifabs or flux registers. Multifabs and flux registers are 
+  ! initialized whenever a new level is created and this is done with
+  ! some specific subroutines given in the regrid module.
   ! ------------------------------------------------------------------ 
   subroutine amr_data_init()
     
@@ -63,63 +87,56 @@ contains
     use read_input_module, only : surf_pos_init
     
     integer ::  lev
+    integer ::  lo_x
+    integer ::  hi_x
+    integer ::  lo_z
+    integer ::  hi_z
+
+    lo_x = amrex_geom(amrex_max_level)%domain%lo(1)
+    hi_x = amrex_geom(amrex_max_level)%domain%hi(1)
+    lo_z = amrex_geom(amrex_max_level)%domain%lo(3)
+    hi_z = amrex_geom(amrex_max_level)%domain%hi(3)
     
-    allocate(t_new(0:amrex_max_level))
-    allocate(t_old(0:amrex_max_level))
-    allocate(phi_new(0:amrex_max_level))
-    allocate(phi_old(0:amrex_max_level))
-    allocate(temp(0:amrex_max_level))
+    ! Allocate
+    allocate(dt(0:amrex_max_level))
+    allocate(flux_reg(0:amrex_max_level))
     allocate(idomain_new(0:amrex_max_level))
     allocate(idomain_old(0:amrex_max_level))
-    allocate(flux_reg(0:amrex_max_level))
+    allocate(melt_pos(lo_x:hi_x, lo_z:hi_z))
+    allocate(melt_vel(lo_x:hi_x+1,lo_z:hi_z+1, 1:amrex_spacedim-1))
+    allocate(phi_new(0:amrex_max_level))
+    allocate(phi_old(0:amrex_max_level))
+    allocate(surf_pos(lo_x:hi_x,lo_z:hi_z))
+    allocate(temp(0:amrex_max_level))
+    allocate(t_new(0:amrex_max_level))
+    allocate(t_old(0:amrex_max_level))
+    allocate(stepno(0:amrex_max_level))
+    allocate(nsubsteps(0:amrex_max_level))
 
-    t_old = -1.0e100_rt ! This should be moved to where the variables are initialized
-    t_new = 0.0_rt ! This should be moved to where the variables are initialized
-
+    ! Initialize
+    t_old = -1.0e100_amrex_real
+    t_new = 0.0_amrex_real
     if (.not. amrex_is_all_periodic()) then
        lo_bc = amrex_bc_foextrap
        hi_bc = amrex_bc_foextrap
     end if
-
-    allocate(stepno(0:amrex_max_level))
     stepno = 0
-
-    allocate(nsubsteps(0:amrex_max_level))
     nsubsteps(0) = 1
     do lev = 1, amrex_max_level
        nsubsteps(lev) = amrex_ref_ratio(lev-1)
     end do
-
-    allocate(dt(0:amrex_max_level))
-    dt = huge(1._rt)
-
-	
-    ! 2D domain initialized 
+    dt = huge(1._amrex_real)
     surf_xlo(1) = amrex_problo(1) 
     surf_xlo(2) = amrex_problo(3) ! 2nd dimension in fluid is z direction, 3rd dimension in 3d. 
-    
     surf_dx(1) = amrex_geom(amrex_max_level)%dx(1)!
     surf_dx(2) = amrex_geom(amrex_max_level)%dx(3)!
-    
-    ! Initiate surface position array (y-position as function of x and z)
-    allocate(surf_pos(amrex_geom(amrex_max_level)%domain%lo(1):amrex_geom(amrex_max_level)%domain%hi(1), &
-         amrex_geom(amrex_max_level)%domain%lo(3):amrex_geom(amrex_max_level)%domain%hi(3)))
-    ! Initiate melt interface position array (y-position as function of x and z)
-    allocate(melt_pos(amrex_geom(amrex_max_level)%domain%lo(1):amrex_geom(amrex_max_level)%domain%hi(1), &
-         amrex_geom(amrex_max_level)%domain%lo(3):amrex_geom(amrex_max_level)%domain%hi(3)))	
-    ! Initiate melt velocity array (2D velocity, index 1 x, index 2 z)
-    allocate(melt_vel(amrex_geom(amrex_max_level)%domain%lo(1):amrex_geom(amrex_max_level)%domain%hi(1)+1, &
-         amrex_geom(amrex_max_level)%domain%lo(3):amrex_geom(amrex_max_level)%domain%hi(3)+1, & 
-         1:amrex_spacedim-1))	
-    
     surf_pos = surf_pos_init  ! Initial value of surface array 	
     melt_pos = surf_pos_init     ! Initial value of melt position array (no melting) 
     melt_vel = 0 		! Initial value of melt velocity array 
-    
-    surf_ind(1,1) = amrex_geom(amrex_max_level)%domain%lo(1)
-    surf_ind(1,2) = amrex_geom(amrex_max_level)%domain%hi(1)
-    surf_ind(2,1) = amrex_geom(amrex_max_level)%domain%lo(3)
-    surf_ind(2,2) = amrex_geom(amrex_max_level)%domain%hi(3) 
+    surf_ind(1,1) = lo_x
+    surf_ind(1,2) = hi_x
+    surf_ind(2,1) = lo_z
+    surf_ind(2,2) = hi_z 
     
   end subroutine amr_data_init
 

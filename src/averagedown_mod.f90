@@ -36,7 +36,7 @@ contains
   ! ------------------------------------------------------------------
   ! Subroutine to average one level down
   ! ------------------------------------------------------------------ 
-  subroutine averagedownto (clev)
+  subroutine averagedownto(clev)
     
     integer, intent(in) :: clev
 
