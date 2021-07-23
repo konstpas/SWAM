@@ -11,6 +11,9 @@ module compute_dt_module
   implicit none
   private
 
+  ! ------------------------------------------------------------------
+  ! Public subroutines
+  ! ------------------------------------------------------------------
   public :: compute_dt
 
 contains

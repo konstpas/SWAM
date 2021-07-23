@@ -70,7 +70,6 @@ contains
   ! Make a new level from coarse level and put the data in phi_new.
   ! Note tha phi_old contains no valid data after this.
   subroutine my_make_new_level_from_coarse (lev, time, pba, pdm) bind(c)
-    use fillpatch_module, only : fillcoarsepatch
     use read_input_module, only : surf_pos_init, do_reflux
     use heat_transfer_module, only : get_idomain
     use material_properties_module, only : get_temp 
@@ -131,7 +130,7 @@ contains
   ! Remake a level from current and coarse levels and put the data in phi_new.
   ! Note that phi_old contains no valid data after this.
   subroutine my_remake_level (lev, time, pba, pdm) bind(c)
-    use fillpatch_module, only : fillpatch
+
     use read_input_module, only : surf_pos_init, do_reflux
     use material_properties_module, only : get_temp     
     integer, intent(in), value :: lev
@@ -346,5 +345,127 @@ contains
     
     
   end subroutine tag_phi_error
+
+
+    ! Fill phi with data from phi_old and phi_new of current level and one level below.
+  subroutine fillpatch (lev, time, phi)
+
+    use amr_data_module, only : t_old, t_new, phi_old, phi_new, lo_bc, hi_bc
+    
+    ! Input and output variables
+    integer, intent(in) :: lev
+    real(amrex_real), intent(in) :: time
+    type(amrex_multifab), intent(inout) :: phi
+
+    ! Local variables
+    integer, parameter :: src_comp=1, dst_comp=1, num_comp=1  ! for this test code
+
+
+    if (lev .eq. 0) then
+
+       call amrex_fillpatch(phi, t_old(lev), phi_old(lev), &
+                            t_new(lev), phi_new(lev), &
+                            amrex_geom(lev), fill_physbc , &
+                            time, src_comp, dst_comp, num_comp)
+       
+    else
+       
+       call amrex_fillpatch(phi, t_old(lev-1), phi_old(lev-1), &
+                            t_new(lev-1), phi_new(lev-1), &
+                            amrex_geom(lev-1), fill_physbc   , &
+                            t_old(lev  ), phi_old(lev  ), &
+                            t_new(lev  ), phi_new(lev  ), &
+                            amrex_geom(lev  ), fill_physbc   , &
+                            time, src_comp, dst_comp, num_comp, &
+                            amrex_ref_ratio(lev-1), amrex_interp_cell_cons, &
+                            lo_bc, hi_bc)
+
+    end if
+    
+  end subroutine fillpatch
+
+
+  
+  ! This is called when a new level is created from a coarser one.
+  subroutine fillcoarsepatch (lev, time, phi)
+
+    use amr_data_module, only : t_old, t_new, phi_old, phi_new, lo_bc, hi_bc
+
+    ! Input and output variables
+    integer, intent(in) :: lev
+    real(amrex_real), intent(in) :: time
+    type(amrex_multifab), intent(inout) :: phi
+
+    ! Local variables
+    integer, parameter :: src_comp=1, dst_comp=1, num_comp=1
+    
+    
+    call amrex_fillcoarsepatch(phi, t_old(lev-1), phi_old(lev-1),  &
+                               t_new(lev-1), phi_new(lev-1),  &
+                               amrex_geom(lev-1),    fill_physbc,  &
+                               amrex_geom(lev  ),    fill_physbc,  &
+                               time, src_comp, dst_comp, num_comp, &
+                               amrex_ref_ratio(lev-1), amrex_interp_cell_cons, &
+                               lo_bc, hi_bc)
+    
+  end subroutine fillcoarsepatch
+
+
+  ! Apply the boundary conditions (this needs to be passed to
+  ! the underlying c++ code, see the arguments of amrex_fillpatch,
+  ! and this is why the bind(c) is necessary) 
+  subroutine fill_physbc(pmf, scomp, ncomp, time, pgeom) bind(c)
+
+    use amrex_filcc_module, only : amrex_filcc
+    use amr_data_module, only : lo_bc, hi_bc
+
+    ! Input and output variables
+    type(c_ptr), value :: pmf, pgeom
+    integer(c_int), value :: scomp, ncomp
+    real(amrex_real), value :: time
+
+    ! Local variables
+    type(amrex_geometry) :: geom
+    type(amrex_multifab) :: mf
+    type(amrex_mfiter) :: mfi
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: p
+    integer :: plo(4), phi(4)
+
+    ! Pointers to the geometry and multifab to which the boundary
+    ! conditions must be applied
+    geom = pgeom
+    mf = pmf
+	
+	
+    !$omp parallel private(mfi,p,plo,phi)
+
+    call amrex_mfiter_build(mfi, mf, tiling=.false.)
+    
+    do while(mfi%next())
+
+       p => mf%dataptr(mfi)
+
+       if (.not. geom%domain%contains(p)) then ! part of this box is outside the domain
+
+          plo = lbound(p)
+          phi = ubound(p)
+          call amrex_filcc(p, plo, phi,         & 
+                           geom%domain%lo, geom%domain%hi,  & 
+                           geom%dx,                         & 
+                           geom%get_physical_location(plo), & 
+                           lo_bc, hi_bc)                      
+       
+          
+       end if
+       
+    end do
+    
+    !$omp end parallel
+
+ 
+  end subroutine fill_physbc 
+
+
+
   
 end module regrid_module

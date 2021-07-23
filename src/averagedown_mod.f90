@@ -13,7 +13,10 @@ module averagedown_module
   implicit none
   
   private
-  
+
+  ! ------------------------------------------------------------------
+  ! Public subroutines
+  ! ------------------------------------------------------------------
   public :: averagedown, averagedownto
 
 contains

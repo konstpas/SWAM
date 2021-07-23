@@ -153,33 +153,29 @@ contains
   ! ------------------------------------------------------------------
   subroutine amr_data_finalize()
 
-    use read_input_file, only : deallocate_input
+    use read_input_module, only : deallocate_input
     
     integer :: lev
     
     deallocate(dt)
-    deallocate(flux_reg)
-    deallocate(idomain_new)
-    deallocate(idomain_old)
     deallocate(lo_bc)
     deallocate(hi_bc)
     deallocate(melt_pos)
     deallocate(melt_vel)
-    deallocate(phi_new)
-    deallocate(phi_old)
     deallocate(surf_pos)
-    deallocate(temp)
     deallocate(t_new)
     deallocate(t_old)
     deallocate(stepno)
     deallocate(nsubsteps)
     
     do lev = 0, amrex_max_level
+
+       call amrex_imultifab_destroy(idomain_new(lev))
+       call amrex_imultifab_destroy(idomain_old(lev))
        call amrex_multifab_destroy(phi_new(lev))
        call amrex_multifab_destroy(phi_old(lev))
        call amrex_multifab_destroy(temp(lev))
-       call amrex_imultifab_destroy(idomain_new(lev))
-       call amrex_imultifab_destroy(idomain_old(lev))
+      
     end do
     
     do lev = 1, amrex_max_level

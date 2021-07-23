@@ -8,7 +8,10 @@ module energy_module
    
    implicit none
    private 
-   
+
+   ! ------------------------------------------------------------------
+   ! Public subroutines
+   ! ------------------------------------------------------------------
    public :: sum_enthalpy
    
 contains 
