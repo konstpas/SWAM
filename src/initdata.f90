@@ -4,7 +4,7 @@ module initdata_module
 
   use read_input_module, only : restart, plot_int
   use plotfile_module, only : writeplotfile
-  use averagedown_module, only : averagedown
+  use regrid_module, only : averagedown
 
   implicit none
 

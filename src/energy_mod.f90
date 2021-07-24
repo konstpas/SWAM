@@ -16,7 +16,9 @@ module energy_module
    
 contains 
 
-  ! Obtain total enthalpy in the domain
+  ! ------------------------------------------------------------------
+  ! Subroutine to compute the total enthalpy in the domain
+  ! ------------------------------------------------------------------
   subroutine sum_enthalpy(enth_tot) 
 
      use amr_data_module, only : phi_new

@@ -1,109 +1,135 @@
 module heat_transfer_module
-
+  
+  ! -----------------------------------------------------------------
+  ! This module is used to perform all the calculations relative
+  ! to the heat transfer part of the code.
+  ! NOTE: As of July 24, 2021 there are several parts of this module
+  ! that have to be updated. The main changes have to do with:
+  ! 1) Implementing the get_idomain routine
+  ! 2) Implementing the get_face_velocity routine
+  ! 3) Implementing appropriate bounds for the velocities that
+  !    do not depend on the enthalpy
+  ! -----------------------------------------------------------------
+  
   use amrex_amr_module
   
   implicit none
 
   private
 
-  public :: increment_enthalpy, integrate_surf, get_idomain, get_surf_pos, get_melt_pos, reset_melt_pos
- ! public :: get_face_velocity, create_face_flux, surface_tag, get_bound_heat
-  ! public :: get_surf_pos, get_melt_pos, reset_melt_pos, integrate_surf, get_idomain  
+  ! -----------------------------------------------------------------
+  ! Public subroutines
+  ! -----------------------------------------------------------------
+  public :: get_idomain
+  public :: get_melt_pos
+  public :: get_surf_pos
+  public :: increment_enthalpy
+  public :: integrate_surf
+  public :: reset_melt_pos
+  
 contains
 
+  ! -----------------------------------------------------------------
+  ! Subroutine used to compute the enthalpy at a new time step
+  ! -----------------------------------------------------------------
   subroutine increment_enthalpy(time, lo, hi, &
-                                uin,    ui_lo, ui_hi, &
-                                uout,   uo_lo, uo_hi, & 
+                                uin,  ui_lo, ui_hi, &
+                                uout, uo_lo, uo_hi, & 
   			        tempin, ti_lo, ti_hi, & 
-  			        temp,   t_lo , t_hi , &
+  			        temp, t_lo , t_hi , &
                                 flxx, fx_lo, fx_hi, &
                                 flxy, fy_lo, fy_hi, &
                                 flxz, fz_lo, fz_hi, &
   			        geom, dt)
   
-  			
-    use material_properties_module, only : get_temp, get_maxdiffus  		
-    integer, intent(in) :: lo(3), hi(3)  		! bounds of current tile box
-    real(amrex_real), intent(in) :: dt, time		! sub time step, and time 
-    type(amrex_geometry), intent(in) :: geom  	! geometry at level
-    integer, intent(in) :: ui_lo(3), ui_hi(3)		! bounds of input enthalpy box 
-    integer, intent(in) :: uo_lo(3), uo_hi(3)		! bounds of output enthalpy box  
-    integer, intent(in) :: ti_lo(3), ti_hi(3)		! bounds of temperature box  
-    integer, intent(in) :: t_lo (3), t_hi (3)		! bounds of temperature box
-    integer         , intent(in   ) :: fx_lo(3), fx_hi(3)				! bounds of input tilebox
-    integer         , intent(in   ) :: fy_lo(3), fy_hi(3)				! bounds of input tilebox
-    integer         , intent(in   ) :: fz_lo(3), fz_hi(3)				! bounds of input tilebox
+    
+    use material_properties_module, only : get_temp, get_maxdiffus
+
+    ! NOTE: for consistency, the face velocities should have their own bounds and the flux flags should have the same
+    ! bounds of the fluxes. This must be adjusted
+    
+    ! Input and output variables
+    integer, intent(in) :: lo(3), hi(3) ! bounds of current tile box
+    integer, intent(in) :: ui_lo(3), ui_hi(3) ! bounds of input enthalpy box 
+    integer, intent(in) :: uo_lo(3), uo_hi(3) ! bounds of output enthalpy box  
+    integer, intent(in) :: ti_lo(3), ti_hi(3) ! bounds of input temperature box  
+    integer, intent(in) :: t_lo (3), t_hi (3) ! bounds of output temperature box
+    integer, intent(in) :: fx_lo(3), fx_hi(3) ! bounds of the enthalpy flux along x
+    integer, intent(in) :: fy_lo(3), fy_hi(3) ! bounds of the enthalpy flux along y
+    integer, intent(in) :: fz_lo(3), fz_hi(3) ! bounds of the enthalpy flux along z
+    real(amrex_real), intent(in) :: dt ! time step
+    real(amrex_real), intent(in) :: time ! time
+    real(amrex_real), intent(in) :: uin (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Input enthalpy 
+    real(amrex_real), intent(inout) :: uout(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3)) ! Output enthalpy
+    real(amrex_real), intent(inout) :: tempin(ti_lo(1):ti_hi(1),ti_lo(2):ti_hi(2),ti_lo(3):ti_hi(3)) ! Input temperature
+    real(amrex_real), intent(inout) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3)) ! Output temperature
+    real(amrex_real), intent(out) :: flxx(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) ! flux along the x direction  			
+    real(amrex_real), intent(out) :: flxy(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) ! flux along the y direction
+    real(amrex_real), intent(out) :: flxz(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3)) ! flux along the z direction	
+    type(amrex_geometry), intent(in) :: geom ! geometry
+    
+    ! Local variables
+    integer :: i,j,k
+    logical :: flxx_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))	! Flags used to suppress the flux along x at the free surface
+    logical :: flxy_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Flags used to suppress the flux along y at the free surface
+    logical :: flxz_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Flags used to suppress the flux along z at the free surface
+    real(amrex_real) :: dx(3) ! Grid size
+    real(amrex_real) :: lo_phys(3) ! Physical location of the lowest corner of the tile box
+    real(amrex_real) :: ui_lo_phys(3) ! Physical location of the lowest corner of the enthalpy box
+    real(amrex_real) :: uface(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Face velocity along the x direction (nodal)
+    real(amrex_real) :: wface(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Face velocity along the z direction (nodal)
+    real(amrex_real) :: qbound(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3)) ! Volumetric heating (boundary)
 
     
-    real(amrex_real) :: dx(3) 			! Grid size 
-
-    real(amrex_real), intent(in   ) :: uin (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Enthalpy in 
-    real(amrex_real), intent(inout) :: uout(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3)) ! Enthalpy out 
-    real(amrex_real), intent(inout) :: tempin(ti_lo(1):ti_hi(1),ti_lo(2):ti_hi(2),ti_lo(3):ti_hi(3)) ! Temperature on enthalpy in-box
-    real(amrex_real), intent(inout) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3)) ! Temperature out 
-    real(amrex_real), intent(  out) :: flxx    (fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) ! flux x direction  			
-    real(amrex_real), intent(  out) :: flxy    (fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) ! flux y direction
-    real(amrex_real), intent(  out) :: flxz    (fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3)) ! flux z direction	
-
-    real(amrex_real) :: uface (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! face velocity x direction (nodal)
-    real(amrex_real) :: wface (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! face velocity z direction (nodal)
-    logical :: xfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for x-nodes 
-    logical :: yfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for y-nodes
-    logical :: zfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for z-nodes
-    
-    
-    real(amrex_real) :: qbound(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))	! Volumetric heating (boundary)
-    real(amrex_real) :: qheat (lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))	! Volumetric heating
-    
-    integer :: i,j,k  
-
-    
-    ! Grid width 
+    ! Get grid size
     dx = geom%dx(1:3) ! grid width at level 
 
+    ! Get physical location of the lowest corners
+    lo_phys = geom%get_physical_location(lo)
+    ui_lo_phys = geom%get_physical_location(ui_lo)
     
-    ! Get temperature
-    call get_temp(ti_lo, ti_hi,             &	! tilebox indexes 
-        	  ui_lo, ui_hi, uin, &	! Output enthalpy indexes and data array
-                  ti_lo, ti_hi, tempin)	! Temperature indexes and data array    
+    ! Get temperature corresponding to the input enthalpy
+    call get_temp(ti_lo, ti_hi, & 
+        	  ui_lo, ui_hi, uin, &
+                  ti_lo, ti_hi, tempin)
     
-  
-    ! Subroutine assigns logical arrays denoting free interface boundary 
-    call surface_tag(time, geom%get_physical_location(ui_lo), dx, lo, hi, &
-                     xfluxflag, yfluxflag, ui_lo, ui_hi, zfluxflag)	
+    ! Get flags to suppress the flux at the free surface
+    call surface_tag(time, ui_lo_phys, &
+                     dx, lo, hi, &
+                     flxx_flag, flxy_flag, &
+                     ui_lo, ui_hi, flxz_flag)	
   	
-    ! Subroutine assigns tangential (x,z) velocity on grid edges in whole domain  
-    call get_face_velocity(time, geom%get_physical_location(lo), dx, lo, hi, &
+    ! Construct 3D melt velocity profile from the 2D shallow water solution  
+    call get_face_velocity(time, lo_phys, &
+                           dx, lo, hi, &
                            uface, wface, ui_lo, ui_hi ) 	
  			 	
-
-    ! Subroutine assigns enthalpy flux on grid edges in whole domain 
-    call create_face_flux(time, geom%get_physical_location(ui_lo), dx, lo, hi, 	        &
-                          uin, ui_lo, ui_hi,              &
-                          flxx, fx_lo, fx_hi,             &
-                          flxy, fy_lo, fy_hi,             &
-                          flxz, fz_lo, fz_hi,             &
-                          tempin, ti_lo, ti_hi,           &
-                          uface, wface,                   &
-                          xfluxflag, yfluxflag, zfluxflag)
+    ! Get enthalpy flux 
+    call create_face_flux(time, ui_lo_phys, &
+                          dx, lo, hi, &
+                          uin, ui_lo, ui_hi, &
+                          flxx, fx_lo, fx_hi, &
+                          flxy, fy_lo, fy_hi, &
+                          flxz, fz_lo, fz_hi, &
+                          tempin, ti_lo, ti_hi, &
+                          uface, wface, &
+                          flxx_flag, flxy_flag, flxz_flag)
   				  	
-    ! Zero flux across surface boundary. Volumetric heat deposition in first internal cell constitutes absorbed boundary flux. 
-    ! Incorporates all absorption and cooling terms 			
-    call get_bound_heat(time, geom%get_physical_location(lo), dx, lo, hi, ui_lo, ui_hi, yfluxflag, qbound) 	! domain module 			
-    !call volume_heating(time, geom%get_physical_location(ui_lo), dx, qheat) 
+    ! Prescribe external heat flux on the free surface
+    call get_bound_heat(time, lo_phys, &
+                        dx, lo, hi, &
+                        ui_lo, ui_hi, &
+                        flxy_flag, qbound) 			
   	
-
-
-  	
-    ! Increment enthalpy 
+    ! Compute output enthalpy, i.e. compute enthalpy at the next timestep
     do   i = lo(1),hi(1)
        do  j = lo(2),hi(2) 
           do k = lo(3),hi(3)
              uout(i,j,k) = uin(i,j,k) &
-                  - dt/dx(1)      * (flxx(i+1,j  ,k  )-flxx(i,j,k))	&		! flux divergence x-direction 
-                  - dt/dx(2)      * (flxy(i  ,j+1,k  )-flxy(i,j,k))	& 		! flux divergence y-direction 
-                  - dt/dx(3)      * (flxz(i  ,j  ,k+1)-flxz(i,j,k))	&		! flux divergence z-direction
-                  + dt*qbound(i,j,k)	                                                ! 'boundary volumetric' source
+                  - dt/dx(1) * (flxx(i+1,j,k) - flxx(i,j,k)) &	! flux divergence x-direction 
+                  - dt/dx(2) * (flxy(i,j+1,k) - flxy(i,j,k)) &	! flux divergence y-direction 
+                  - dt/dx(3) * (flxz(i,j,k+1) - flxz(i,j,k)) &	! flux divergence z-direction
+                  + dt*qbound(i,j,k) ! 'boundary volumetric' source
           end do
        end do
     end do
@@ -133,151 +159,129 @@ contains
        end do
     end do
     
-    ! Find temperature 
+    ! Get temperature corresponding to the output enthalpy
     call get_temp(lo, hi,             &
                   uo_lo, uo_hi, uout, &
                   t_lo , t_hi , temp) 
 
+    ! THIS MUST BE UPDATED
     ! find maximum diffusivity for time step determination 
     ! Not called noe, constant max possible diffusivity used.	      
     !call get_maxdiffus(lo, hi, & 
-    !		    t_lo, t_hi, temp)
-  	
-  	
+    !		    t_lo, t_hi, temp)  	
     
   end subroutine increment_enthalpy
 
 
-    subroutine get_idomain(lo, hi, & 
-   			id_lo, id_hi, idom) 
+  ! -----------------------------------------------------------------
+  ! Subroutine used to obtain the integer field used to distinguish
+  ! between material and background
+  ! -----------------------------------------------------------------
+  subroutine get_idomain(lo, hi, id_lo, id_hi, idom)
+
+    ! Input and output variables
     integer, intent(in) :: lo(3), hi(3) 
     integer, intent(in) :: id_lo(3), id_hi(3) 				
-    integer, intent(inout) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2), id_lo(3):id_hi(3)) 
+    integer, intent(inout) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2), id_lo(3):id_hi(3))
+
+    ! Local variables
     real(amrex_real) :: surfpos(id_lo(1):id_hi(1),id_lo(3):id_hi(3))				
-    
+
+    ! THIS MUST BE UPDATED
     idom = 0 
     
   end subroutine get_idomain
   
   
-  
-  subroutine get_face_velocity(time, xlo, dx, lo, hi, uface, & 
-                               wface, ui_lo, ui_hi )
-    
-    real(amrex_real), intent(in) :: dx(3), time, xlo(3) 					! grid size, time, and lower corner physical location 
-    integer, intent(in) :: lo(3), hi(3)						! bounds of input tilebox       
-    integer, intent(in) :: ui_lo(3), ui_hi(3)					! bounds of input box 
-    real(amrex_real), intent(inout) :: uface(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! face velocity 
-    real(amrex_real), intent(inout) :: wface(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! face velocity 
-    integer 		:: i,j,k, yhigh, ylow  							! indexes and bounds 
-    real(amrex_real)	:: yhighpos(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3)), ylowpos (ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3))
+  ! -----------------------------------------------------------------
+  ! Subroutine used to the velocity on the faces of each grid cell.
+  ! This subroutine translates to 3D the 2D velocity field obtained
+  ! from the solution of the shallow water equations
+  ! -----------------------------------------------------------------  
+  subroutine get_face_velocity(time, xlo, &
+                               dx, lo, hi, &
+                               uface, wface, ui_lo, ui_hi)
+
+    ! Input and output variables
+    integer, intent(in) :: lo(3), hi(3)      
+    integer, intent(in) :: ui_lo(3), ui_hi(3) 
+    real(amrex_real), intent(in) :: dx(3)
+    real(amrex_real), intent(in) :: time
+    real(amrex_real), intent(in) :: xlo(3)
+    real(amrex_real), intent(inout) :: uface(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 
+    real(amrex_real), intent(inout) :: wface(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))
+
+    ! Local variables
+    integer :: i,j,k
+    integer :: yhigh
+    integer :: ylow  
+    real(amrex_real) :: yhighpos(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3)), ylowpos (ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3))
     real(amrex_real) :: ypos 
-    
+
+    ! THIS MUST BE UPDATED
     uface = 0_amrex_real 
     wface = 0_amrex_real 
     
-    ! Some test velocity allocated 
-    !      yhighpos = 0.90_amrex_real
-    !      ylowpos = 0.70_amrex_real
-    
-    !      do i = lo(1), hi(1)+1  ! +1 because of staggering 
-    !      do k = lo(3), hi(3)+1  ! +1 because of staggering 
-    
-    !      	do j = lo(2), hi(2) 
-    !      						! stagger		x   x   x  	
-    !      	ypos = xlo(2) + (j-lo(2))*dx(2)  	! index backwards 	!---!---!---!
-    ! for now		 j-1  j  j+1   
-    !      	if ((ypos < yhighpos(i,k)).and.(ypos > ylowpos(i,k))) then 
-    !      		uface(i,j,k) = -10_amrex_real 
-    !      		wface(i,j,k) = -10_amrex_real 
-    !      	end if 
-    
-    !      	end do 
-    
-    !      end do 
-    !      end do 
-    
   end subroutine get_face_velocity
-  
-  
-  
-
-  
-  ! Create enthalpy flux on edges in whole domain
-  subroutine create_face_flux(time, xlo, dx, lo, hi, 	        &
-                                uin, ui_lo, ui_hi,              &
-                                flxx, fx_lo, fx_hi,             &
-                                flxy, fy_lo, fy_hi,             &
-                                flxz, fz_lo, fz_hi,             &
-                                temp, t_lo, t_hi,               &
-                                uface, wface,                   &
-                                xfluxflag, yfluxflag, zfluxflag)
+    
+    
+  ! -----------------------------------------------------------------
+  ! Subroutine used to the enthalpy fluxes on the edges of the grid
+  ! -----------------------------------------------------------------  
+  subroutine create_face_flux(time, xlo, dx, lo, hi, &
+                                uin, ui_lo, ui_hi, &
+                                flxx, fx_lo, fx_hi, &
+                                flxy, fy_lo, fy_hi, &
+                                flxz, fz_lo, fz_hi, &
+                                temp, t_lo, t_hi, &
+                                uface, wface, &
+                                flxx_flag, flxy_flag, flxz_flag)
   				
     use material_properties_module, only: get_ktherm
-    
-    real(amrex_real), intent(in   ) :: time, xlo(3), dx(3)				! time, lower corner physical location, and grid size
-    integer         , intent(in   ) :: lo(3), hi(3)					! bounds of input tilebox	  
-    integer         , intent(in   ) :: ui_lo(3), ui_hi(3)				! bounds of input tilebox
-    integer         , intent(in   ) :: t_lo(3), t_hi(3)				! bounds of input tilebox
-    integer         , intent(in   ) :: fx_lo(3), fx_hi(3)				! bounds of input tilebox
-    integer         , intent(in   ) :: fy_lo(3), fy_hi(3)				! bounds of input tilebox
-    integer         , intent(in   ) :: fz_lo(3), fz_hi(3)				! bounds of input tilebox
-    
-    real(amrex_real), intent(in   ) :: uin      (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! phi (enthalpy)		
-    real(amrex_real), intent(  out) :: flxx    (fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) ! flux x direction  			
-    real(amrex_real), intent(  out) :: flxy    (fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) ! flux y direction
-    real(amrex_real), intent(  out) :: flxz    (fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3)) ! flux z direction				
-    real(amrex_real), intent(in   ) :: temp     (t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))  ! temperature
-    real(amrex_real), intent(in) :: uface (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! face velocity x direction (nodal)
-    real(amrex_real), intent(in) :: wface (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! face velocity z direction (nodal)
-    logical, intent(in) :: xfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for x-nodes 
-    logical, intent(in) :: yfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for y-nodes 
-    logical, intent(in) :: zfluxflag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for z-nodes   
+
+    ! Input and output variables
+    integer, intent(in) :: lo(3), hi(3)						  
+    integer, intent(in) :: ui_lo(3), ui_hi(3)				
+    integer, intent(in) :: t_lo(3), t_hi(3)				
+    integer, intent(in) :: fx_lo(3), fx_hi(3)				
+    integer, intent(in) :: fy_lo(3), fy_hi(3)				
+    integer, intent(in) :: fz_lo(3), fz_hi(3)				
+    logical, intent(in) :: flxx_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 
+    logical, intent(in) :: flxy_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 
+    logical, intent(in) :: flxz_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))  
+    real(amrex_real), intent(in) :: time
+    real(amrex_real), intent(in) :: xlo(3)
+    real(amrex_real), intent(in) :: dx(3)    
+    real(amrex_real), intent(in) :: uin(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 		
+    real(amrex_real), intent(out) :: flxx(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3))
+    real(amrex_real), intent(out) :: flxy(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3))
+    real(amrex_real), intent(out) :: flxz(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3))				
+    real(amrex_real), intent(in) :: temp (t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))
+    real(amrex_real), intent(in) :: uface(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))
+    real(amrex_real), intent(in) :: wface(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))
     
     integer :: i,j,k 
     real(amrex_real) :: ktherm, temp_face
-    
-    
-    ! create face flux
-    ! problems may arise since 2d or 1d flow not incompressible if vertical component neglected. 
-    ! Also need to treat advection on empty-adjacent cells once surface is variable 
-    
-    ! construct logical array for edges bounding domain (true if edge constitutes boundary)
-    !call surface_tag(time, xlo, dx, ui_lo, ui_hi, xfluxflag, yfluxflag)
-    
-    ! stagger		x   x   x  	
-    ! index backwards 	!---!---!---!
-    ! 			 i-1  i  i+1   
-    ! Nodal enthalpy flux from temperature gradient and velocity field 	
-    ! do i = lo(1), hi(1)+1  
-    !    do j = lo(2), hi(2)
-    !       do k = lo(3), hi(3)
-   
-    !            ! x direction flux 	
-    !            temp_face = (temp(i,j,k) + temp(i-1,j,k))/2_amrex_real ! temperature on face 
-    !            call get_ktherm(temp_face,ktherm)
-    !            fluxx(i,j,k) = 0_amrex_real
-    !            fluxx(i,j,k) = fluxx(i,j,k) - ktherm*(temp(i,j,k)-temp(i-1,j  ,k))/dx(1)  ! x-velocity and temperature gradient 
-               
-    !         end do
-    !      end do
-    !   end do
-    
+        
+    ! Flux along the x direction
     do i = lo(1), hi(1)+1
        do j = lo(2), hi(2)
           do k = lo(3), hi(3)
 
+             ! Advective component
              if (uface(i,j,k) > 0_amrex_real) then 
                 flxx(i,j,k)  = uin(i-1,j,k)*uface(i,j,k)
              else 
                 flxx(i,j,k)  = uin(i  ,j,k)*uface(i,j,k)
              end if
-             
+
+             ! Diffusive component
              temp_face = (temp(i,j,k) + temp(i-1,j,k))/2_amrex_real
              call get_ktherm(temp_face, ktherm)
              flxx(i,j,k) = flxx(i,j,k) - ktherm*(temp(i,j,k)-temp(i-1,j,k))/dx(1)
 
-             if(xfluxflag(i,j,k)) then 
+             ! Suppress flux at the free surface
+             if(flxx_flag(i,j,k)) then 
                 flxx(i,j,k) = 0_amrex_real 
              end if
   
@@ -285,15 +289,18 @@ contains
        end do
     end do
 
+    ! Flux along the y direction
     do i = lo(1), hi(1)
        do j = lo(2), hi(2)+1
           do k = lo(3), hi(3)
-             
+
+             ! Diffusive component (there is no advection in the y direction)
              temp_face = (temp(i,j,k) + temp(i,j-1,k))/2_amrex_real
              call get_ktherm(temp_face, ktherm)
              flxy(i,j,k) = -ktherm*(temp(i,j,k)-temp(i,j-1,k))/dx(2)
 
-             if(yfluxflag(i,j,k)) then 
+             ! Suppress flux at the free surface
+             if(flxy_flag(i,j,k)) then 
                 flxy(i,j,k) = 0_amrex_real 
              end if
   
@@ -301,21 +308,25 @@ contains
        end do
     end do
 
+    ! Flux along the z direction
     do i = lo(1), hi(1)
        do j = lo(2), hi(2)
           do k = lo(3), hi(3)+1
 
+             ! Advective component
              if (wface(i,j,k) > 0_amrex_real) then 
                 flxz(i,j,k)  = uin(i,j,k-1)*wface(i,j,k)
              else 
                 flxz(i,j,k)  = uin(i,j,k  )*wface(i,j,k)
              end if
-             
+
+             ! Diffusive component
              temp_face = (temp(i,j,k) + temp(i,j,k-1))/2_amrex_real
              call get_ktherm(temp_face, ktherm)
              flxz(i,j,k) = flxz(i,j,k) - ktherm*(temp(i,j,k)-temp(i,j,k-1))/dx(3)
 
-             if(zfluxflag(i,j,k)) then 
+             ! Suppress flux at the free surface
+             if(flxz_flag(i,j,k)) then 
                 flxz(i,j,k) = 0_amrex_real 
              end if
   
@@ -326,303 +337,309 @@ contains
     
   end subroutine create_face_flux
 
-	
-    subroutine surface_tag(time, xlo, dx, lo, hi, &
- 		           xflux, yflux, ui_lo, ui_hi, & 
-                           zflux)
+  ! -----------------------------------------------------------------
+  ! Subroutine used to get the flags to supress the enthalpy fluxes
+  ! at the free surface
+  ! -----------------------------------------------------------------  
+  subroutine surface_tag(time, xlo, dx, lo, hi, &
+ 		           flxx_flag, flxy_flag, ui_lo, ui_hi, & 
+                           flxz_flag)
  
-      real(amrex_real), intent(in   ) :: time, xlo(3), dx(3)			! time, lower corner physical location, and grid size
-      integer, intent(in   ) :: lo(3), hi(3)			      		! bounds of input tilebox  
-      integer, intent(in   ) :: ui_lo(3), ui_hi(3)			      	! bounds of input box
-      logical, intent(  out) :: xflux(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for x-nodes 
-      logical, intent(  out) :: yflux(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for y-nodes 
-      logical, intent(  out) :: zflux(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for z-nodes
-      real(amrex_real) :: surfpos(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3)) ! 
-      integer          :: surfind(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3)) 
-      integer :: i,j,k, jsurf
-      
-      ! Inefficient as of now, since it fills whole box for every called tile (every box has several tiles) 
-      call get_surf_pos(xlo, dx, ui_lo, ui_hi, surfpos)  
-      
-      xflux = .false. 
-      yflux = .false. 
-      zflux = .false. 
-      
-      
-      ! Preliminary flux application on surface 
-      ! valid for single valued height as function of tangential coordinate 
-      ! step-wise approximation
-      
-      
-      ! Find surface index and flag surface edge for flux y-direction
-      
-      do i = lo(1)-1, hi(1)+1 ! Including ghost points 
-         do k = lo(3)-1, hi(3)+1 ! Including ghost points (needs rewrite for 2D) 
+    ! Input and output variables
+    integer, intent(in) :: lo(3), hi(3)
+    integer, intent(in) :: ui_lo(3), ui_hi(3)
+    logical, intent(out) :: flxx_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 
+    logical, intent(out) :: flxy_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 
+    logical, intent(out) :: flxz_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))
+    real(amrex_real), intent(in) :: time
+    real(amrex_real), intent(in) :: xlo(3)
+    real(amrex_real), intent(in) :: dx(3)			
 
-            jsurf = ui_lo(2) + floor(  (surfpos(i, k)-xlo(2))/dx(2) ) 
-            surfind(i,k) = jsurf 		! y-index of surface element
-            
-            if (jsurf >= lo(2)) then 	! if surface is contained within this box
+    ! Local variables
+    real(amrex_real) :: surfpos(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3)) ! Free surface position
+    integer :: surfind(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3)) ! Indexes corresponding to the free surface position
+    integer :: i,j,k
+    integer :: jsurf
+    
+    ! Inefficient as of now, since it fills whole box for every called tile (every box has several tiles) 
+    call get_surf_pos(xlo, dx, ui_lo, ui_hi, surfpos)  
 
-               if (jsurf <= hi(2)+1) then 	! if surface is contained within this box. +1 because of staggering 
-                  yflux(i, jsurf, k) = .true. 	! no diffusion across surface 
-               end if
-               
-            end if
-            
-         end do
-      end do
+    ! Initialize flags
+    flxx_flag = .false. 
+    flxy_flag = .false. 
+    flxz_flag = .false. 
+    
+      
+    ! Find surface index and flag surface edge for flux y-direction
+    do i = lo(1)-1, hi(1)+1 ! Including ghost points 
+       do k = lo(3)-1, hi(3)+1 ! Including ghost points (needs rewrite for 2D) 
 
-
-
-      ! Flag surface edge for x-direction flux 
-      do i = lo(1),hi(1)+1  ! +1 because of grid staggering 
-         do k = lo(3),hi(3)
-            
-            if	(surfind(i,k) .gt. surfind(i-1,k)) then
-               
-               do j = 	max(surfind(i-1,k),lo(2)), & ! max, min since interface may be outside box 
-                    min(surfind(i,k)-1,hi(2)) ! surfind(i)-1 because surfind(i) edge is outside domain
- 		  xflux(i,j,k) = .true. 
-               end do
-  
-            elseif	(surfind(i,k) .lt. surfind(i-1,k)) then
-               
- 		do j = 	max(surfind(i,k),lo(2)), & ! max, min since interface may be outside box 
- 				min(surfind(i-1,k)-1,hi(2)) ! -1 because surfind(i-1) edge is outside domain
- 		  xflux(i,j,k) = .true. 
-                end do
-  
-            end if
+          jsurf = ui_lo(2) + floor(  (surfpos(i, k)-xlo(2))/dx(2) ) 
+          surfind(i,k) = jsurf 		! y-index of surface element
+          
+          if (jsurf >= lo(2)) then 	! if surface is contained within this box
              
-         end do
-      end do
+             if (jsurf <= hi(2)+1) then 	! if surface is contained within this box. +1 because of staggering 
+                flxy_flag(i, jsurf, k) = .true. 	! no diffusion across surface 
+             end if
+             
+          end if
+            
+       end do
+    end do
+
+    ! Flag surface edge for x-direction flux 
+    do i = lo(1),hi(1)+1  ! +1 because of grid staggering 
+       do k = lo(3),hi(3)
+          
+          if	(surfind(i,k) .gt. surfind(i-1,k)) then
+             
+             do j = 	max(surfind(i-1,k),lo(2)), & ! max, min since interface may be outside box 
+                  min(surfind(i,k)-1,hi(2)) ! surfind(i)-1 because surfind(i) edge is outside domain
+                flxx_flag(i,j,k) = .true. 
+             end do
+             
+          elseif	(surfind(i,k) .lt. surfind(i-1,k)) then
+             
+             do j = 	max(surfind(i,k),lo(2)), & ! max, min since interface may be outside box 
+                  min(surfind(i-1,k)-1,hi(2)) ! -1 because surfind(i-1) edge is outside domain
+                flxx_flag(i,j,k) = .true. 
+             end do
+             
+          end if
+          
+       end do
+    end do
+
+    
+    ! Flag surface edge for z-direction flux 
+    do i = lo(1),hi(1)
+       do k = lo(3),hi(3)+1   ! +1 because of grid staggering
+          
+          if (surfind(i,k) .gt. surfind(i,k-1)) then
+             
+             do j = max(surfind(i,k-1),lo(2)), & 
+                  min(surfind(i,k)-1,hi(2)) 
+                flxz_flag(i,j,k) = .true. 
+             end do
+             
+          elseif(surfind(i,k) .lt. surfind(i,k-1)) then
+                
+             do j = max(surfind(i,k),lo(2)), & 
+                  min(surfind(i,k-1)-1,hi(2)) 
+                flxz_flag(i,j,k) = .true. 
+             end do
+  
+          end if
+             
+       end do
+    end do
   
 
+  end subroutine surface_tag
   
-      ! Flag surface edge for z-direction flux 
-      do i = lo(1),hi(1)
-         do k = lo(3),hi(3)+1   ! +1 because of grid staggering
-            
-            if	(surfind(i,k) .gt. surfind(i,k-1)) then
-               
- 		do j = 	max(surfind(i,k-1),lo(2)), & 
- 				min(surfind(i,k)-1,hi(2)) 
- 		  zflux(i,j,k) = .true. 
-                end do
   
-             elseif	(surfind(i,k) .lt. surfind(i,k-1)) then
+  ! -----------------------------------------------------------------
+  ! Subroutine used to prescribe the boundary heating on the free
+  ! surface. Note that the incoming heat flux is assigned to the
+  ! first node under the free surface in the form of a volumetric
+  ! heating (after an appropriate dimensionality correction)
+  ! -----------------------------------------------------------------   
+  subroutine get_bound_heat(time, xlo, &
+                            dx, lo, hi, &
+                            ui_lo, ui_hi, &
+                            flxy_flag, qb) 
+
+    use amr_data_module, only : surf_pos
+    use read_input_module, only : flux_peak, flux_width, flux_pos, exp_time
+
+    ! Input and output variables
+    integer, intent(in) :: lo(3), hi(3)  
+    integer, intent(in) :: ui_lo(3), ui_hi(3)
+    logical, intent(in) :: flxy_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))
+    real(amrex_real), intent(in) :: time
+    real(amrex_real), intent(in) :: xlo(3)
+    real(amrex_real), intent(in) :: dx(3)		
+    real(amrex_real), intent(out) :: qb(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))
+
+    ! Local variables
+    real(amrex_real) :: xpos, zpos, ypos
+    integer :: i,j,k
+
+    ! Initialize the heat flux
+    qb = 0. 
+    
+    ! Prescribe boundary heating
+    do   i = lo(1), hi(1) 
+       do  j = lo(2), hi(2)
+          do k = lo(3), hi(3)
+             
+             if (time.lt.exp_time) then
                 
- 		do j = 	max(surfind(i,k),lo(2)), & 
- 				min(surfind(i,k-1)-1,hi(2)) 
- 		  zflux(i,j,k) = .true. 
-                end do
-  
+                if(flxy_flag(i,j+1,k)) then 
+                   
+                   xpos = xlo(1) + (i-lo(1))*dx(1)
+                   zpos = xlo(3) + (k-lo(3))*dx(3)
+
+                   ! Note: the term /dx(2) converts a surface heat flux [W/m^2]
+                   ! into a volumetric heat flux [W/m^3]
+                   qb(i,j,k) = flux_peak &
+                               *EXP(-((xpos-flux_pos(1))**2)/(flux_width(1)**2) &
+                                   -((zpos-flux_pos(2))**2)/(flux_width(2)**2)) &
+                               /dx(2)   
+                end if
+                
              end if
              
           end do
        end do
-  
+    end do
 
-     end subroutine surface_tag
-  
-  
- 
- 
- 
- 
-     subroutine get_bound_heat(time, xlo, dx, lo, hi, ui_lo, ui_hi, yflux, qb) 
-
-       use amr_data_module, only : surf_pos
-       use read_input_module, only : flux_peak, flux_width, flux_pos, exp_time
        
-       real(amrex_real), intent(in   ) :: time, xlo(3), dx(3)			! time, lower corner physical location, and grid size
-       integer         , intent(in   ) :: lo(3), hi(3)			      	! bounds of input tilebox  
-       integer         , intent(in   ) :: ui_lo(3), ui_hi(3)			      	! bounds of input tilebox (ghost points)
-       logical         , intent(in   ) :: yflux(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 	! surface flag for y-nodes
-       !integer, intent(in) :: yflux ! DUMMY DECLARATION (NOT USED FOR NOW)
-       real(amrex_real), intent(  out) :: qb(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))    ! Volumetric heating localized to boundary 	
-       real(amrex_real) :: xpos, zpos, ypos
-       integer :: i,j,k
+  end subroutine get_bound_heat
+  
+  
+  ! -----------------------------------------------------------------
+  ! Subroutine used to interpolate the free surface position as given
+  ! by the fluid solver in order to construct the heat conduction
+  ! free interface
+  ! -----------------------------------------------------------------     
+  subroutine get_surf_pos(xlo, dx, ui_lo, ui_hi, surfpos)
+
+    use amr_data_module, only : surf_ind, surf_pos, surf_xlo, surf_dx  
+
+    ! Input and output variables
+    integer, intent(in) :: ui_lo(3), ui_hi(3) 
+    real(amrex_real), intent(in) :: xlo(3), dx(3)
+    real(amrex_real), intent(out) :: surfpos(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3))
+
+    ! Local variables
+    integer :: i, k
+    integer :: xind, zind
+    real(amrex_real) :: xpos, zpos
+    real(amrex_real) :: x_alpha, z_alpha
+    real(amrex_real) :: valzp
+    real(amrex_real) :: valzm
+    real(amrex_real) :: valxp
+    real(amrex_real) :: valxm   
     
-       qb = 0. 
     
-       ! Boundary heating 
-       do   i = lo(1), hi(1) 
-          do  j = lo(2), hi(2)
-             do k = lo(3), hi(3)
+    do  i = ui_lo(1),ui_hi(1) 
+       do k = ui_lo(3),ui_hi(3)
+   
+          xpos = xlo(1) + (0.5 + i-ui_lo(1))*dx(1) 
+          zpos = xlo(3) + (0.5 + k-ui_lo(3))*dx(3)
+   
+          xind = ceiling( (xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)  ) ! -surf_dx(1)/2, and ceiling ceiling since staggered 'backwards' on faces w.r.t values which are centered. 
+          x_alpha = mod(xpos - surf_dx(1)/2 - surf_xlo(1), surf_dx(1))
+          zind = ceiling( (zpos - surf_dx(2)/2 - surf_xlo(2))/surf_dx(2)  ) !
+          z_alpha = mod(zpos - surf_dx(2)/2 - surf_xlo(2), surf_dx(2))
+          
+          if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
+          if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
+          if (zind.lt.surf_ind(2,1)) zind = surf_ind(2,1)
+          if (zind.ge.surf_ind(2,2)) zind = surf_ind(2,2)-1 
+   
+   
+          valzm = surf_pos(xind,zind  ) + x_alpha * (surf_pos(xind+1,zind  )-surf_pos(xind,zind  )) ! interpolated value at zind	
+          valzp = surf_pos(xind,zind+1) + x_alpha * (surf_pos(xind+1,zind+1)-surf_pos(xind,zind+1)) ! int value at zind+1 
+          
+          surfpos(i,k) = valzm + z_alpha*(valzp - valzm)  ! 2D linear interpolation 
+
+       end do
+    end do
+   
+  end subroutine get_surf_pos
+ 
+ 
+  ! -----------------------------------------------------------------
+  ! Subroutine used to reset the position of the bottom of the melt
+  ! pool to the position of the free surface. This routine is
+  ! necessary to avoid problems during the re-solidification phase
+  ! -----------------------------------------------------------------      
+  subroutine reset_melt_pos()	
+    
+    use amr_data_module, only : surf_pos, melt_pos, surf_ind
+    
+    integer :: i,k 
+  
+    do i =  surf_ind(1,1), surf_ind(1,2) 
+       do k = surf_ind(2,1), surf_ind(2,2)
+          melt_pos(i,k) = surf_pos(i,k)
+       end do
+    end do
+ 
+  end subroutine reset_melt_pos
+
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to get the position of the bottom of the melt
+  ! pool
+  ! -----------------------------------------------------------------
+  subroutine get_melt_pos(lo, hi, temp, t_lo, t_hi, geom)
+       
+    use amr_data_module, only : surf_pos, melt_pos
+    use material_properties_module, only : melt_point
+       
+    ! Input and output variables
+    integer, intent(in) :: lo(3), hi(3) 
+    integer, intent(in) :: t_lo(3), t_hi(3)    
+    real(amrex_real),     intent(in) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3)) 
+    type(amrex_geometry), intent(in) :: geom
+    
+    ! Local variables
+    integer :: i,j,k
+    integer :: it(1:3) 
+    real(amrex_real) :: grid_pos(1:3)
+    
+    
+    do i = lo(1), hi(1)  ! x-direction
+       do k = lo(3), hi(3)  ! z-direction 	
+          do j = lo(2), hi(2) 
+             
+             if (temp(i,j,k).gt.melt_point) then
                 
-                if (time.lt.exp_time) then
-                   
-                   if(yflux(i,j+1,k)) then 
-                      
-                      xpos = xlo(1) + (i-lo(1))*dx(1)
-                      zpos = xlo(3) + (k-lo(3))*dx(3)
-                      
-                      qb(i,j,k) = flux_peak*EXP( 	&
-                           -((xpos-flux_pos(1))**2)/(flux_width(1)**2)	&
-                           -((zpos-flux_pos(2))**2)/(flux_width(2)**2))/dx(2)   
-                   end if
-                   
+                it(1) = i
+                it(2) = j
+                it(3) = k 
+                grid_pos = geom%get_physical_location(it)
+                if (grid_pos(2).lt.melt_pos(i,k)) then    
+                   melt_pos(i,k) = grid_pos(2) 
                 end if
                 
-             end do
+             end if
+             
           end do
        end do
+    end do
+    
+  end subroutine get_melt_pos
+ 
 
-       ! ! Boundary heating 
-       ! do   i = lo(1), hi(1) 
-       !    do  k = lo(3), hi(3)
-       !       do j = lo(2), hi(2)
+  ! -----------------------------------------------------------------
+  ! Subroutine used to get the total volume of molten material
+  ! -----------------------------------------------------------------
+  subroutine integrate_surf(melt_vol)	
 
-       !          if (xlo(2).lt.surf_pos(i,k)) then
+    use amr_data_module, only : surf_pos, melt_pos, surf_ind, surf_dx
 
-       !             if (time.lt.exp_time) then
+    ! Input and output variables
+    real(amrex_real), intent(out) :: melt_vol ! Integrated melt volume [mm3]
 
-       !                ypos = xlo(2) + (j+1-lo(2))*dx(2)
-                   
-       !                if(ypos.gt.surf_pos(i,k)) then 
-                         
-       !                   xpos = xlo(1) + (i-lo(1))*dx(1)
-       !                   zpos = xlo(3) + (k-lo(3))*dx(3)
-                         
-       !                   qb(i,j,k) = flux_peak*EXP( 	&
-       !                        -((xpos-flux_pos(1))**2)/(flux_width(1)**2)	&
-       !                        -((zpos-flux_pos(2))**2)/(flux_width(2)**2))/dx(2)
-       !                   !qb(i,j,k) = flux_peak
-                         
-       !                   exit
-                         
-       !                end if
-                   
-       !             end if
-
-       !          else
-
-       !             exit
-                 
-       !          end if
-                
-       !       end do
-       !    end do
-       ! end do
-       
-     end subroutine get_bound_heat
-  
-  
-  
-     ! Subroutine to interpolate surface position as given by the fluid solver 
-     ! in order to construct the heat conduction free interface  
-     subroutine get_surf_pos(xlo, dx, ui_lo, ui_hi, surfpos)
-
-       use amr_data_module, only : surf_ind, surf_pos, surf_xlo, surf_dx  
-       
-       real(amrex_real), intent(in   ) :: xlo(3), dx(3)			                ! lower corner physical location, and grid size
-       integer         , intent(in   ) :: ui_lo(3), ui_hi(3)			      	 ! bounds of input tilebox  
-       real(amrex_real), intent(  out) :: surfpos(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3))     ! Surface position with x and z coordinates, at grid size   
-       integer :: i, k, xind, zind
-       real(amrex_real) :: xpos, zpos, x_alpha, z_alpha, valzp, valzm, valxp, valxm   
-  
-	  
-       do  i = ui_lo(1),ui_hi(1) 
-          do k = ui_lo(3),ui_hi(3)
-   
-             xpos = xlo(1) + (0.5 + i-ui_lo(1))*dx(1) 
-             zpos = xlo(3) + (0.5 + k-ui_lo(3))*dx(3)
-   
-             xind = ceiling( (xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)  ) ! -surf_dx(1)/2, and ceiling ceiling since staggered 'backwards' on faces w.r.t values which are centered. 
-             x_alpha = mod(xpos - surf_dx(1)/2 - surf_xlo(1), surf_dx(1))
-             zind = ceiling( (zpos - surf_dx(2)/2 - surf_xlo(2))/surf_dx(2)  ) !
-             z_alpha = mod(zpos - surf_dx(2)/2 - surf_xlo(2), surf_dx(2))
-   
-             if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
-             if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
-             if (zind.lt.surf_ind(2,1)) zind = surf_ind(2,1)
-             if (zind.ge.surf_ind(2,2)) zind = surf_ind(2,2)-1 
-   
-   
-             valzm = surf_pos(xind,zind  ) + x_alpha * (surf_pos(xind+1,zind  )-surf_pos(xind,zind  )) ! interpolated value at zind	
-             valzp = surf_pos(xind,zind+1) + x_alpha * (surf_pos(xind+1,zind+1)-surf_pos(xind,zind+1)) ! int value at zind+1 
-   
-             surfpos(i,k) = valzm + z_alpha*(valzp - valzm)  ! 2D linear interpolation 
-
-          end do
+    ! Local variables
+    integer :: i,k 
+ 
+    melt_vol = 0 
+    
+    do i =  surf_ind(1,1), surf_ind(1,2) 
+       do k = surf_ind(2,1), surf_ind(2,2)
+          melt_vol = melt_vol +  surf_pos(i,k) - melt_pos(i,k)
        end do
- 
- 
- 
-     end subroutine get_surf_pos
- 
- 
- 
-     subroutine reset_melt_pos()	
+    end do
+    
+    melt_vol = melt_vol*surf_dx(1)*surf_dx(2)*1E9  
 
-       use amr_data_module, only : surf_pos, melt_pos, surf_ind    ! 2D array of melt position 
-       integer :: i,k 
-  
-       do i =  surf_ind(1,1), surf_ind(1,2) 
-          do k = surf_ind(2,1), surf_ind(2,2)
-             melt_pos(i,k) = surf_pos(i,k)
-          end do
-       end do
- 
-     end subroutine reset_melt_pos
- 
-     subroutine get_melt_pos(lo, hi, temp, t_lo, t_hi, geom)
-       
-       use amr_data_module, only : surf_pos, melt_pos   ! 2D array of melt position 
-       use material_properties_module, only : melt_point
-
-       integer,              intent(in) :: lo(3), hi(3)  		! bounds of current tile box
-       integer,              intent(in) :: t_lo(3), t_hi(3)		! bounds of temperature box    
-       real(amrex_real),     intent(in) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3)) ! Temperature out 
-       type(amrex_geometry), intent(in) :: geom  	! geometry at level
-       integer :: i,j,k, it(1:3) 
-       real(amrex_real) :: grid_pos(1:3)
-
-       
-       do i = lo(1), hi(1)  ! x-direction
-          do k = lo(3), hi(3)  ! z-direction 	
-             do j = lo(2), hi(2) 
-
-		if (temp(i,j,k).gt.melt_point) then
-     
-                   it(1) = i
-		   it(2) = j
-		   it(3) = k 
- 		   grid_pos = geom%get_physical_location(it)
-                   if (grid_pos(2).lt.melt_pos(i,k)) then    
-                      melt_pos(i,k) = grid_pos(2) 
-                   end if
-                   
-		end if
-	
-             end do
-          end do
-       end do
-
-     end subroutine get_melt_pos
- 
-	  
-     subroutine integrate_surf(melt_vol)	
-
-       use amr_data_module, only : surf_pos, melt_pos, surf_ind, surf_dx   ! 2D array of surface position, melt position. Index space for surface and grid size for surface 
-       real(amrex_real), intent(out) :: melt_vol ! Integrated melt volume [mm3] 
-       integer :: i,k 
- 
-       melt_vol = 0 
-       
-       do i =  surf_ind(1,1), surf_ind(1,2) 
-          do k = surf_ind(2,1), surf_ind(2,2)
-             melt_vol = melt_vol +  surf_pos(i,k) - melt_pos(i,k)
-          end do
-       end do
- 
-       melt_vol = melt_vol*surf_dx(1)*surf_dx(2)*1E9  
-
-
-     end subroutine integrate_surf
-
+  end subroutine integrate_surf
 
   
 end module heat_transfer_module
