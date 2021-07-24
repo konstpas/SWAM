@@ -49,7 +49,8 @@ module amr_data_module
   ! ------------------------------------------------------------------
   ! Public subroutines
   ! ------------------------------------------------------------------
-  public :: amr_data_init, amr_data_finalize
+  public :: amr_data_init
+  public :: amr_data_finalize
 
   
   ! ------------------------------------------------------------------

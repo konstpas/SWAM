@@ -1,20 +1,15 @@
 program SWAM
 
   use amrex_amr_module 
-  use amr_data_module 
-  use initdata_module 
-  use my_amr_module 
-  use timestep_module
+  use init_module, only : run_init, run_finalize
+  use timestep_module, only : run_simulation
   
   implicit none
   
-  call my_amr_init  
-  call initdata 
-
-  call run_simulation
+  call run_init
   
-  call amr_data_finalize 
-  call amrex_amrcore_finalize 
-  call amrex_finalize 
+  call run_simulation
+
+  call run_finalize
  
 end program SWAM         

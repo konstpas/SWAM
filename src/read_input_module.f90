@@ -77,22 +77,22 @@ module read_input_module
   character(len=:), allocatable, save :: material
   character(len=:), allocatable, save :: plot_file
   character(len=:), allocatable, save :: restart
-  integer :: check_int
-  integer :: max_grid_size_2d
-  integer :: max_step
-  integer :: phiT_table_n_points
-  integer :: plot_int
-  integer :: regrid_int
-  integer :: verbose
-  logical :: do_reflux
-  real(amrex_real) :: cfl
-  real(amrex_real) :: exp_time
-  real(amrex_real) :: flux_peak
-  real(amrex_real) :: meltvel
-  real(amrex_real) :: phiT_table_max_T
-  real(amrex_real) :: stop_time
-  real(amrex_real) :: surf_pos_init
-  real(amrex_real) :: tempinit
+  integer, save :: check_int
+  integer, save :: max_grid_size_2d
+  integer, save :: max_step
+  integer, save  :: phiT_table_n_points
+  integer, save  :: plot_int
+  integer, save  :: regrid_int
+  integer, save  :: verbose
+  logical, save  :: do_reflux
+  real(amrex_real), save  :: cfl
+  real(amrex_real), save  :: exp_time
+  real(amrex_real), save  :: flux_peak
+  real(amrex_real), save  :: meltvel
+  real(amrex_real), save  :: phiT_table_max_T
+  real(amrex_real), save  :: stop_time
+  real(amrex_real), save  :: surf_pos_init
+  real(amrex_real), save  :: tempinit
   real(amrex_real), allocatable, save :: surfdist(:)
   real(amrex_real), allocatable, save :: flux_pos(:)
   real(amrex_real), allocatable, save :: flux_width(:)

@@ -33,6 +33,9 @@ contains
     ! Initialize counter for output
     last_plot_file_step = 0;
 
+    ! Output initial configuration
+    if (plot_int .gt. 0) call writeplotfile
+    
     ! Loop over time-steps
     do step = stepno(0), max_step-1
 
@@ -69,8 +72,8 @@ contains
        ! Print output to file
        if (plot_int .gt. 0 .and. mod(step+1,plot_int) .eq. 0) then
           last_plot_file_step = step+1
-          call writeplotfile()
-          call write2dplotfile() 
+          call writeplotfile
+          call write2dplotfile
        end if
 
        ! Stopping criteria

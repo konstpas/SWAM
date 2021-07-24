@@ -1,24 +1,68 @@
 module material_properties_module  
 
+  ! -----------------------------------------------------------------
+  ! This module is used to compute the material properties.
+  ! NOTE: As of July 24, 2021 the maximum diffusivity is set in
+  ! init_mat_prop and never changed again. This should probably
+  ! be changed
+  ! -----------------------------------------------------------------
+  
   use amrex_amr_module
-  use read_input_module
-  use material_properties_tungsten_module
+  use read_input_module, only : material, &
+                                phiT_table_max_T, &
+                                phiT_table_n_points
+  use material_properties_tungsten_module, only : get_ktherm_tungsten, &
+                                                  get_rho_tungsten, &
+                                                  get_Cp_tungsten, &
+                                                  get_m_A_tungsten, &
+                                                  get_melting_point_tungsten
+
   
   implicit none 
 
   private
+
+  ! -----------------------------------------------------------------
+  ! Public variables
+  ! -----------------------------------------------------------------
+  ! Enthalpy at the onset of melting
+  public :: enth_at_melt
+  ! Temperature at the melting point
+  public :: melt_point
+  ! Maximum diffusivity
+  public :: max_diffus  
   
-  public :: init_mat_prop, get_ktherm, get_temp, get_enthalpy, get_maxdiffus
-  public :: enth_at_melt, melt_point, max_diffus  
+  ! -----------------------------------------------------------------
+  ! Public subroutines
+  ! -----------------------------------------------------------------  
+  public :: init_mat_prop
+  public :: get_ktherm
+  public :: get_temp
+  public :: get_enthalpy
+  public :: get_maxdiffus
+
+  ! -----------------------------------------------------------------
+  ! Declare public variables
+  ! -----------------------------------------------------------------
+  real(amrex_real), save :: enth_at_melt
+  real(amrex_real), save :: melt_point
+  real(amrex_real), save :: max_diffus
   
-  real(amrex_real), allocatable	:: temp_table(:), enth_table(:)
-  real(amrex_real) 		:: m_A, melt_point, enth_fus, rho_melt 
-  real(amrex_real)		:: enth_at_melt           ! enthalpy at onset of melting  
-  real(amrex_real) 		:: max_diffus             ! Maximum thermal diffusivity 
-  
+  ! -----------------------------------------------------------------
+  ! Declare private variables shared by all subroutines
+  ! -----------------------------------------------------------------
+  real(amrex_real), save :: enth_fus
+  real(amrex_real), save :: m_A
+  real(amrex_real), save :: rho_melt   
+  real(amrex_real), allocatable, save :: enth_table(:)
+  real(amrex_real), allocatable, save :: temp_table(:)
+
 contains 
   
-  ! --- Thermal conductivity ---
+
+  ! ------------------------------------------------------------------
+  ! Subroutine used to compute the thermal conductivity
+  ! ------------------------------------------------------------------ 
   subroutine get_ktherm(temp,ktherm)
     
     real(amrex_real), intent(in) :: temp    ! Temperature [K]
@@ -33,7 +77,9 @@ contains
   end subroutine get_ktherm
 
   
-  ! --- Mass density ---
+  ! ------------------------------------------------------------------
+  ! Subroutine used to compute the mass density
+  ! ------------------------------------------------------------------ 
   subroutine get_rho(temp,rho)
     
     real(amrex_real), intent(in) :: temp   ! Temperature [K]
@@ -46,8 +92,11 @@ contains
     end if
     
   end subroutine get_rho
-	
-  ! --- Heat capacity ---
+
+  
+  ! ------------------------------------------------------------------
+  ! Subroutine used to compute the heat capacity
+  ! ------------------------------------------------------------------ 
   subroutine get_Cp(temp,Cp)
     
     real(amrex_real), intent(in) :: temp  ! Temperature [K]
@@ -62,7 +111,9 @@ contains
   end subroutine get_Cp
 		
 
-  ! --- Atomic mass ---
+  ! ------------------------------------------------------------------
+  ! Subroutine used to compute the atomic mass
+  ! ------------------------------------------------------------------ 
   subroutine get_m_A()
 
     if (material.eq.'Tungsten') then 
@@ -73,7 +124,10 @@ contains
     
   end subroutine get_m_A
   
-  ! --- Thermodynamic properties at the melting point ---
+
+  ! ------------------------------------------------------------------
+  ! Subroutine used to compute the properties at the melting point
+  ! ------------------------------------------------------------------ 
   subroutine get_melting_point()
 
     if (material.eq.'Tungsten') then 
@@ -86,22 +140,29 @@ contains
 
   
   
-  ! Initializes table for temperature as function of enthalpy 
+  ! ------------------------------------------------------------------
+  ! Subroutine used to compute the tables that relate the enthalpy
+  ! and the temperature
+  ! ------------------------------------------------------------------ 
   subroutine init_mat_prop()
 
+    integer :: i
+    integer :: imelt
+    logical :: isolid = .true.  ! for enthalpy table, true before phase transfer
+    real(amrex_real) :: Cp
+    real(amrex_real) :: diffus
+    real(amrex_real) :: ktherm 
     real(amrex_real) :: phiT_table_dT 	! end of temperature interval (decided in input), and temperature increment size  
-    real(amrex_real) :: rho, Cp, ktherm 
-    integer :: i, imelt 
-    real(amrex_real) :: rhocp_i, rhocp_im1, diffus   
-    logical :: isolid = .true.  ! for enthalpy table, true before phase transfer  
+    real(amrex_real) :: rho
+    real(amrex_real) :: rhocp_i
+    real(amrex_real) :: rhocp_im1
 
     ! Initialize maximum diffusivity
     max_diffus = 0.
     
     ! Atomic mass and thermodynamic properties at the melting point
-    call get_m_A()
-    call get_melting_point()
-    
+    call get_m_A
+    call get_melting_point
     
     ! give end temperature point and data points in input file? 
     ! now called several times, move call to initdata later 
@@ -153,7 +214,7 @@ contains
              
           elseif(imelt.ne.i) then
              
-             rhocp_im1 = rhocp_i            ! Product of density and heat capacity at previous temperature 
+             rhocp_im1 = rhocp_i ! Product of density and heat capacity at previous temperature 
              call get_rho(temp_table(i),rho) 
              call get_Cp(temp_table(i),Cp)  
              rhocp_i = rho*Cp ! product of density and heat capacity at temperature       
@@ -180,9 +241,8 @@ contains
        
    
     end do
-	
-	
-    ! Output employed material properties in table 
+		
+    ! Output employed material properties to file
     open (2, file = 'Employed_'//TRIM(material)//'_properties.txt', status = 'unknown') 
      write(2,*) 'Material properties employed' 
      write(2,*) 'Temperature, Cp [J/kgK], rho [kg/m3], k [W/mk]' 
@@ -196,18 +256,22 @@ contains
 
   end subroutine init_mat_prop
   
-  
-	
-	
-  subroutine get_temp(lo, hi, 		 &
-       uo_lo, uo_hi, phi, & 
-       t_lo , t_hi , temp) 
+ 
+  ! ------------------------------------------------------------------
+  ! Subroutine used to obtain the temperature given the enthalpy
+  ! ------------------------------------------------------------------ 
+  subroutine get_temp(lo, hi, &
+                      uo_lo, uo_hi, phi, & 
+                      t_lo , t_hi , temp) 
 
+    ! Input and output variables
     integer         , intent(in   ) :: lo(3), hi(3)
     integer         , intent(in   ) :: uo_lo(3), uo_hi(3)
     integer         , intent(in   ) :: t_lo(3), t_hi(3)
     real(amrex_real), intent(in   ) :: phi (uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3))  ! Enthalpy     [j/m3]
-    real(amrex_real), intent(  out) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))  ! Temperature  [K] 	 
+    real(amrex_real), intent(  out) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))  ! Temperature  [K]
+
+    ! Local variables
     real(amrex_real) :: rho, Cp  ! Mass density [kg/m3], Specific heat capacity [j/kgK]
     integer :: i,j,k
     integer :: e_ind 
@@ -237,7 +301,11 @@ contains
   end subroutine get_temp
 
 
-  ! Get enthalpy for a given temperature (only used in the initialization phase)
+  ! ------------------------------------------------------------------
+  ! Subroutine used to obtain the enthalpy given the temperature. It
+  ! is only used during the initialization phase when the temperature
+  ! passed in input should be translated into an enthalpy
+  ! ------------------------------------------------------------------ 
   subroutine get_enthalpy(temp,enth) 
 
     integer :: e_ind 
