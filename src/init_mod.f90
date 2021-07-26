@@ -27,9 +27,14 @@ contains
   ! -----------------------------------------------------------------
   subroutine run_init()
     
-    use read_input_module
-    use material_properties_module
-    use regrid_module
+    use read_input_module, only : read_input_file, restart
+    use material_properties_module, only : init_mat_prop
+    use regrid_module, only : averagedown, &
+                              my_make_new_level_from_scratch, &
+                              my_make_new_level_from_coarse, &
+                              my_remake_level, &
+                              my_clear_level, &
+                              my_error_estimate
 
     ! Initialize amrex 
     call amrex_init 
@@ -54,7 +59,7 @@ contains
     ! Start new simulation or read restart file
     if (len_trim(restart) .eq. 0) then
        call amrex_init_from_scratch(0.0_amrex_real)
-       call averagedown()
+       call averagedown
     else
        call amrex_abort("init from checkpoint not implemented yet")
     end if

@@ -168,7 +168,7 @@ contains
     ! find maximum diffusivity for time step determination 
     ! Not called noe, constant max possible diffusivity used.	      
     !call get_maxdiffus(lo, hi, & 
-    !		    t_lo, t_hi, temp)  	
+    !		        temp, t_lo, t_hi)  	
     
   end subroutine increment_enthalpy
 

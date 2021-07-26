@@ -336,7 +336,7 @@ contains
   ! ------------------------------------------------------------------  
   ! If used, called at timestep_mod, subr. increment after second get_temp. diff has to be reset before call to timestep (main)
   subroutine get_maxdiffus(lo, hi, &
-                           t_lo , t_hi , temp) ! Revert the order oof t_lo, t_hi and temp
+                           temp, t_lo , t_hi) ! Revert the order of t_lo, t_hi and temp
 
     ! Input and output variables
     integer, intent(in) :: lo(3), hi(3)				

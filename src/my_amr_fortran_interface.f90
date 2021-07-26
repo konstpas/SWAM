@@ -1,5 +1,11 @@
 module my_amr_fortran_interface_module
 
+  ! -----------------------------------------------------------------
+  ! This module is used to add functionalities to the amrex fortran
+  ! interface which are not available in the interface given with
+  ! the amrex library
+  ! -----------------------------------------------------------------
+  
   use amrex_amr_module
 
   implicit none
@@ -11,8 +17,10 @@ module my_amr_fortran_interface_module
 contains
 
   subroutine amrex_imultifab_move (dst, src)
+
     class(amrex_imultifab), intent(inout) :: dst
     type (amrex_imultifab), intent(inout) :: src
+    
     call amrex_imultifab_destroy(dst)
     dst%owner = src%owner
     dst%p     = src%p
@@ -22,12 +30,15 @@ contains
     call dst%dm%move(src%dm)
     src%owner = .false.
     src%p     = c_null_ptr
+    
   end subroutine amrex_imultifab_move
 
   
   subroutine amrex_imultifab_swap(mf1, mf2)
+
     type(amrex_imultifab), intent(inout) :: mf1, mf2
     type(amrex_imultifab) :: mftmp
+    
     call amrex_imultifab_move(mftmp, mf1)
     call amrex_imultifab_move(mf1, mf2)
     call amrex_imultifab_move(mf2, mftmp)
