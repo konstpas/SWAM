@@ -1,4 +1,4 @@
-module timestep_module
+module simulation_module
 
   ! -----------------------------------------------------------------
   ! This module is used to run the simulation, i.e. to coordinate
@@ -382,4 +382,4 @@ contains
  end subroutine advance
 
 
-end module timestep_module
+end module simulation_module

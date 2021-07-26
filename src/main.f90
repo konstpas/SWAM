@@ -2,7 +2,7 @@ program SWAM
 
   use amrex_amr_module 
   use init_module, only : run_init, run_finalize
-  use timestep_module, only : run_simulation
+  use simulation_module, only : run_simulation
   
   implicit none
   
