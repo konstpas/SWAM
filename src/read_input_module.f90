@@ -200,7 +200,6 @@ contains
     end do
     surf_pos_init = 0.020
     verbose = 0
-
     
   end subroutine set_default_values
 

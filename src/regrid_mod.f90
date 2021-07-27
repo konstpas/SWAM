@@ -64,7 +64,7 @@ contains
     type(amrex_distromap) :: dm
     type(amrex_mfiter) :: mfi
     type(amrex_box) :: bx
-    
+
     ! Pointers for box array and distribution mapping
     ba = pba
     dm = pdm
@@ -100,18 +100,16 @@ contains
        ! Enthalpy
        call init_phi(bx%lo, bx%hi, tempinit, &
                       phi, lbound(phi), ubound(phi))
-
        ! Temperature
        call get_temp(bx%lo, bx%hi, & 
        	             lbound(phi),   ubound(phi),   phi, &
                      lbound(ptemp), ubound(ptemp), ptemp)
-
        ! Idomain 
        ! Add here a call to fill the idomain multifabs
        
     end do
     call amrex_mfiter_destroy(mfi)
-    
+
   end subroutine my_make_new_level_from_scratch
 
   ! -----------------------------------------------------------------
@@ -120,7 +118,6 @@ contains
   subroutine init_phi(lo, hi, tempinit, &
                       phi, phi_lo, phi_hi)
 
-    !use amrex_fort_module, only : amrex_spacedim, amrex_real
     use material_properties_module, only : get_enthalpy
 
     ! Input and output variables
@@ -173,7 +170,7 @@ contains
     type(amrex_distromap) :: dm
     type(amrex_mfiter) :: mfi
     type(amrex_box) :: bx
-
+    
     ! Pointers for box array and distribution mapping
     ba = pba
     dm = pdm

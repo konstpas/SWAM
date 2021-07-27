@@ -35,7 +35,7 @@ contains
 
     ! Output initial configuration
     if (plot_int .gt. 0) call writeplotfile
-    
+
     ! Loop over time-steps
     do step = stepno(0), max_step-1
 
@@ -319,7 +319,7 @@ contains
        pfy => flux(2)%dataptr()
        pfz => flux(3)%dataptr()
        
-       ! Increment solution at given mfi tilebox 
+       ! Increment solution at given mfi tilebox
        call increment_enthalpy(time, bx%lo, bx%hi, &
                                pin, lbound(pin),     ubound(pin),     &
                                pout,    lbound(pout),    ubound(pout),    &

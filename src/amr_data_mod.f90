@@ -137,7 +137,7 @@ contains
     surf_ind(2,2) = hi_z 
     surf_pos = surf_pos_init 
     surf_xlo(1) = amrex_problo(1) 
-    surf_xlo(2) = amrex_problo(3) 
+    surf_xlo(2) = amrex_problo(3)
     t_new = 0.0_amrex_real
     t_old = -1.0_amrex_real
     stepno = 0 
@@ -145,7 +145,6 @@ contains
     do lev = 1, amrex_max_level
        nsubsteps(lev) = amrex_ref_ratio(lev-1)
     end do
-
     
   end subroutine amr_data_init
 

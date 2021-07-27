@@ -1,6 +1,9 @@
 # Compiler
 COMP_NAME = gfortran
 
+# Compiler options
+#COMP_OPT = -Wall -O2
+
 # Linker
 LINK_NAME = g++
 
@@ -8,8 +11,8 @@ LINK_NAME = g++
 AMREX_LIBRARY_HOME ?= /home/federico/amrex_local
 LIBDIR := $(AMREX_LIBRARY_HOME)/lib
 INCDIR := $(AMREX_LIBRARY_HOME)/include
-CFLAGS := -I$(INCDIR) 
-LFLAGS := -L$(LIBDIR) -lamrex -lgfortran
+COMP_FLAGS := -I$(INCDIR) 
+LINK_FLAGS := -L$(LIBDIR) -lamrex -lgfortran
 
 # Files                                                                                              
 SRCf90 = $(wildcard *.f90)
@@ -28,11 +31,11 @@ include .depend
 
 # Compiling rules
 %.o: %.f90
-	$(COMP_NAME) $(CFLAGS) -c $<
+	$(COMP_NAME) $(COMP_OPT) $(COMP_FLAGS) -c $<
 
 # Link                                                                                               
 $(EXECUTABLE): $(OBJS)
-	$(LINK_NAME) -fopenmp $^ -o $@ $(LFLAGS)
+	$(LINK_NAME) -fopenmp $^ -o $@ $(LINK_FLAGS)
 
 # Generate dependencies
 depend .depend:

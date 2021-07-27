@@ -5,7 +5,7 @@ program SWAM
   use simulation_module, only : run_simulation
   
   implicit none
-  
+
   call run_init
   
   call run_simulation
