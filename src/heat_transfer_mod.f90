@@ -98,21 +98,14 @@ contains
                      dx, lo, hi, &
                      flxx_flag, flxy_flag, &
                      ui_lo, ui_hi, flxz_flag)	
-  	
-    ! Construct 3D melt velocity profile from the 2D shallow water solution  
-    call get_face_velocity(time, lo_phys, &
-                           dx, lo, hi, &
-                           uface, wface, ui_lo, ui_hi ) 	
  			 	
     ! Get enthalpy flux 
-    call create_face_flux(time, ui_lo_phys, &
-                          dx, lo, hi, &
+    call create_face_flux(dx, lo, hi, &
                           uin, ui_lo, ui_hi, &
                           flxx, fx_lo, fx_hi, &
                           flxy, fy_lo, fy_hi, &
                           flxz, fz_lo, fz_hi, &
                           tempin, ti_lo, ti_hi, &
-                          uface, wface, &
                           flxx_flag, flxy_flag, flxz_flag)
   				  	
     ! Prescribe external heat flux on the free surface
@@ -191,51 +184,17 @@ contains
     idom = 0 
     
   end subroutine get_idomain
-  
-  
-  ! -----------------------------------------------------------------
-  ! Subroutine used to the velocity on the faces of each grid cell.
-  ! This subroutine translates to 3D the 2D velocity field obtained
-  ! from the solution of the shallow water equations
-  ! -----------------------------------------------------------------  
-  subroutine get_face_velocity(time, xlo, &
-                               dx, lo, hi, &
-                               uface, wface, ui_lo, ui_hi)
 
-    ! Input and output variables
-    integer, intent(in) :: lo(3), hi(3)      
-    integer, intent(in) :: ui_lo(3), ui_hi(3) 
-    real(amrex_real), intent(in) :: dx(3)
-    real(amrex_real), intent(in) :: time
-    real(amrex_real), intent(in) :: xlo(3)
-    real(amrex_real), intent(inout) :: uface(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 
-    real(amrex_real), intent(inout) :: wface(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))
-
-    ! Local variables
-    integer :: i,j,k
-    integer :: yhigh
-    integer :: ylow  
-    real(amrex_real) :: yhighpos(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3)), ylowpos (ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3))
-    real(amrex_real) :: ypos 
-
-    ! THIS MUST BE UPDATED
-    uface = 0_amrex_real 
-    wface = 0_amrex_real 
-    
-  end subroutine get_face_velocity
-    
-    
   ! -----------------------------------------------------------------
   ! Subroutine used to the enthalpy fluxes on the edges of the grid
   ! -----------------------------------------------------------------  
-  subroutine create_face_flux(time, xlo, dx, lo, hi, &
-                                uin, ui_lo, ui_hi, &
-                                flxx, fx_lo, fx_hi, &
-                                flxy, fy_lo, fy_hi, &
-                                flxz, fz_lo, fz_hi, &
-                                temp, t_lo, t_hi, &
-                                uface, wface, &
-                                flxx_flag, flxy_flag, flxz_flag)
+  subroutine create_face_flux(dx, lo, hi, &
+                              uin, ui_lo, ui_hi, &
+                              flxx, fx_lo, fx_hi, &
+                              flxy, fy_lo, fy_hi, &
+                              flxz, fz_lo, fz_hi, &
+                              temp, t_lo, t_hi, &
+                              flxx_flag, flxy_flag, flxz_flag)
   				
     use material_properties_module, only: get_ktherm
 
@@ -249,30 +208,35 @@ contains
     logical, intent(in) :: flxx_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 
     logical, intent(in) :: flxy_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 
     logical, intent(in) :: flxz_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))  
-    real(amrex_real), intent(in) :: time
-    real(amrex_real), intent(in) :: xlo(3)
     real(amrex_real), intent(in) :: dx(3)    
     real(amrex_real), intent(in) :: uin(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 		
     real(amrex_real), intent(out) :: flxx(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3))
     real(amrex_real), intent(out) :: flxy(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3))
     real(amrex_real), intent(out) :: flxz(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3))				
     real(amrex_real), intent(in) :: temp (t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))
-    real(amrex_real), intent(in) :: uface(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))
-    real(amrex_real), intent(in) :: wface(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))
-    
+
+    ! Local variables
     integer :: i,j,k 
-    real(amrex_real) :: ktherm, temp_face
-        
+    real(amrex_real) :: ktherm
+    real(amrex_real) :: temp_face
+    real(amrex_real) :: vx(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3))
+    real(amrex_real) :: vz(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3))
+
+    ! Construct 3D melt velocity profile from the 2D shallow water solution  
+    call get_face_velocity(lo, hi, &
+                           vx, fx_lo, fx_hi, &
+                           vz, fz_lo, fz_hi )
+    
     ! Flux along the x direction
     do i = lo(1), hi(1)+1
        do j = lo(2), hi(2)
           do k = lo(3), hi(3)
 
              ! Advective component
-             if (uface(i,j,k) > 0_amrex_real) then 
-                flxx(i,j,k)  = uin(i-1,j,k)*uface(i,j,k)
+             if (vx(i,j,k) > 0_amrex_real) then 
+                flxx(i,j,k)  = uin(i-1,j,k)*vx(i,j,k)
              else 
-                flxx(i,j,k)  = uin(i  ,j,k)*uface(i,j,k)
+                flxx(i,j,k)  = uin(i,j,k)*vx(i,j,k)
              end if
 
              ! Diffusive component
@@ -314,10 +278,10 @@ contains
           do k = lo(3), hi(3)+1
 
              ! Advective component
-             if (wface(i,j,k) > 0_amrex_real) then 
-                flxz(i,j,k)  = uin(i,j,k-1)*wface(i,j,k)
+             if (vz(i,j,k) > 0_amrex_real) then 
+                flxz(i,j,k)  = uin(i,j,k-1)*vz(i,j,k)
              else 
-                flxz(i,j,k)  = uin(i,j,k  )*wface(i,j,k)
+                flxz(i,j,k)  = uin(i,j,k)*vz(i,j,k)
              end if
 
              ! Diffusive component
@@ -336,6 +300,30 @@ contains
     
     
   end subroutine create_face_flux
+  
+  
+  ! -----------------------------------------------------------------
+  ! Subroutine used to the velocity on the faces of each grid cell.
+  ! This subroutine translates to 3D the 2D velocity field obtained
+  ! from the solution of the shallow water equations
+  ! -----------------------------------------------------------------  
+  subroutine get_face_velocity(lo, hi, &
+                               vx, vx_lo, vx_hi, &
+                               vz, vz_lo, vz_hi)
+
+    ! Input and output variables
+    integer, intent(in) :: lo(3), hi(3)      
+    integer, intent(in) :: vx_lo(3), vx_hi(3) 
+    integer, intent(in) :: vz_lo(3), vz_hi(3)
+    real(amrex_real) :: vx(vx_lo(1):vx_hi(1),vx_lo(2):vx_hi(2),vx_lo(3):vx_hi(3))
+    real(amrex_real) :: vz(vz_lo(1):vz_hi(1),vz_lo(2):vz_hi(2),vz_lo(3):vz_hi(3))
+
+    ! THIS MUST BE UPDATED
+    vx = 0_amrex_real 
+    vz = 0_amrex_real 
+    
+  end subroutine get_face_velocity
+    
 
   ! -----------------------------------------------------------------
   ! Subroutine used to get the flags to supress the enthalpy fluxes
