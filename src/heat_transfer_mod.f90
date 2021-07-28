@@ -66,12 +66,10 @@ contains
     
     !Local variables
     integer :: i,j,k
-    ! logical :: flxx_flag(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) ! Flags used to suppress the flux along x at the free surface 
-    ! logical :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) ! Flags used to suppress the flux along y at the free surface
-    ! logical :: flxz_flag(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3)) ! Flags used to suppress the flux along z at the free surface
-    logical :: flxx_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Flags used to suppress the flux along x at the free surface
-    logical :: flxy_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Flags used to suppress the flux along y at the free surface
-    logical :: flxz_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Flags used to suppress the flux along z at the free surface
+    logical :: flxx_flag(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) ! Flags used to suppress the flux along x at the free surface 
+    logical :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) ! Flags used to suppress the flux along y at the free surface
+    !logical :: flxy_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Flags used to suppress the flux along y at the free surface
+    logical :: flxz_flag(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3)) ! Flags used to suppress the flux along z at the free surface
     real(amrex_real) :: dx(3) ! Grid size
     real(amrex_real) :: lo_phys(3) ! Physical location of the lowest corner of the tile box
     real(amrex_real) :: ui_lo_phys(3) ! Physical location of the lowest corner of the enthalpy box
@@ -109,9 +107,9 @@ contains
     ! Prescribe external heat flux on the free surface
     call get_bound_heat(time, lo_phys, &
                         dx, lo, hi, &
-                        ui_lo, ui_hi, &
-                        flxy_flag, qbound) 			
-  	
+                        flxy_flag, fy_lo, fy_hi, &
+                        qbound)   	
+
     ! Compute output enthalpy, i.e. compute enthalpy at the next timestep
     do   i = lo(1),hi(1)
        do  j = lo(2),hi(2) 
@@ -203,12 +201,10 @@ contains
     integer, intent(in) :: fx_lo(3), fx_hi(3)				
     integer, intent(in) :: fy_lo(3), fy_hi(3)				
     integer, intent(in) :: fz_lo(3), fz_hi(3)				
-    ! logical, intent(in) :: flxx_flag(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) 
-    ! logical, intent(in) :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) 
-    ! logical, intent(in) :: flxz_flag(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3))
-    logical :: flxx_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Flags used to suppress the flux along x at the free surface
-    logical :: flxy_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Flags used to suppress the flux along y at the free surface
-    logical :: flxz_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Flags used to suppress the flux along z at the free surface
+    logical, intent(in) :: flxx_flag(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) 
+    logical, intent(in) :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3))
+    !logical, intent(in) :: flxy_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))
+    logical, intent(in) :: flxz_flag(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3))
     real(amrex_real), intent(in) :: dx(3)    
     real(amrex_real), intent(in) :: uin(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 		
     real(amrex_real), intent(out) :: flxx(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3))
@@ -249,7 +245,7 @@ contains
              if(flxx_flag(i,j,k)) then 
                 flxx(i,j,k) = 0_amrex_real 
              end if
-  
+             
           end do
        end do
     end do
@@ -265,10 +261,10 @@ contains
              flxy(i,j,k) = -ktherm*(temp(i,j,k)-temp(i,j-1,k))/dx(2)
 
              ! Suppress flux at the free surface
-             if(flxy_flag(i,j,k)) then 
+             if(flxy_flag(i,j,k)) then
                 flxy(i,j,k) = 0_amrex_real 
              end if
-  
+             
           end do
        end do
     end do
@@ -294,7 +290,7 @@ contains
              if(flxz_flag(i,j,k)) then 
                 flxz(i,j,k) = 0_amrex_real 
              end if
-  
+             
           end do
        end do
     end do
@@ -342,27 +338,22 @@ contains
     integer, intent(in) :: fx_lo(3), fx_hi(3)
     integer, intent(in) :: fy_lo(3), fy_hi(3)
     integer, intent(in) :: fz_lo(3), fz_hi(3)
-    ! logical, intent(out) :: flxx_flag(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) 
-    ! logical, intent(out) :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) 
-    ! logical, intent(out) :: flxz_flag(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3))
-    logical, intent(out) :: flxx_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 
-    logical, intent(out) :: flxy_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 
-    logical, intent(out) :: flxz_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))
+    logical, intent(out) :: flxx_flag(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3))
+    logical, intent(out) :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3))
+    !logical, intent(out) :: flxy_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))
+    logical, intent(out) :: flxz_flag(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3))
     real(amrex_real), intent(in) :: xlo(3)
     real(amrex_real), intent(in) :: dx(3)
     
     ! Local variables
     integer :: i,j,k
     integer :: jsurf
-    ! ! Indexes corresponding to the free surface position in the heat solver domain
-    ! integer :: surf_ind_heat_domain(lo(1)-1:hi(1)+1,lo(3)-1:hi(3)+1)
-    ! ! Free surface position in the heat solver domain
-    ! real(amrex_real) :: surf_pos_heat_domain(lo(1)-1:hi(1)+1,lo(3)-1:hi(3)+1)
     ! Indexes corresponding to the free surface position in the heat solver domain
-    integer :: surf_ind_heat_domain(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3))
+    integer :: surf_ind_heat_domain(lo(1)-1:hi(1)+1,lo(3)-1:hi(3)+1)
     ! Free surface position in the heat solver domain
-    real(amrex_real) :: surf_pos_heat_domain(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3))
-    
+    real(amrex_real) :: surf_pos_heat_domain(lo(1)-1:hi(1)+1,lo(3)-1:hi(3)+1)
+   
+  
     ! Inefficient as of now, since it fills whole box for every called tile (every box has several tiles)
     ! xlo is the physical location of the domain tile box with ghost points (passed as the physical location in the enthalpy box, fix this) 
     call get_surf_pos(xlo, dx, ui_lo, ui_hi, surf_pos_heat_domain)
@@ -377,8 +368,8 @@ contains
     do i = lo(1)-1, hi(1)+1
        do k = lo(3)-1, hi(3)+1 
 
-          ! y indenx of the surface element
-          jsurf =  ui_lo(2) + floor((surf_pos_heat_domain(i,k) - xlo(2))/dx(2))
+          ! y index of the surface element
+          jsurf =  ui_lo(2) + floor((surf_pos_heat_domain(i,k) - xlo(2))/dx(2)) 
           surf_ind_heat_domain(i,k) = jsurf
           
           ! Set flag to suppress flux if the surface has been identified
@@ -438,8 +429,8 @@ contains
              
        end do
     end do
-  
 
+    
   end subroutine surface_tag
 
   
@@ -575,16 +566,16 @@ contains
   ! -----------------------------------------------------------------   
   subroutine get_bound_heat(time, xlo, &
                             dx, lo, hi, &
-                            ui_lo, ui_hi, &
-                            flxy_flag, qb) 
+                            flxy_flag, fy_lo, fy_hi, &
+                            qb) 
 
     use amr_data_module, only : surf_pos
     use read_input_module, only : flux_peak, flux_width, flux_pos, exp_time
 
     ! Input and output variables
     integer, intent(in) :: lo(3), hi(3)  
-    integer, intent(in) :: ui_lo(3), ui_hi(3)
-    logical, intent(in) :: flxy_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))
+    integer, intent(in) :: fy_lo(3), fy_hi(3)
+    logical, intent(in) :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3))
     real(amrex_real), intent(in) :: time
     real(amrex_real), intent(in) :: xlo(3)
     real(amrex_real), intent(in) :: dx(3)		
@@ -604,7 +595,7 @@ contains
              
              if (time.lt.exp_time) then
                 
-                if(flxy_flag(i,j+1,k)) then 
+                if(flxy_flag(i,j,k)) then 
                    
                    xpos = xlo(1) + (i-lo(1))*dx(1)
                    zpos = xlo(3) + (k-lo(3))*dx(3)
