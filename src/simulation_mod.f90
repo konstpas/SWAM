@@ -297,11 +297,11 @@ contains
        call flux(idim)%reset_omp_private()
     end do
     
-    call amrex_mfiter_build(mfi, phi_new(lev), tiling=.true.) ! Tiling splits validbox into several tile boxes 
+    call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.) ! Tiling splits validbox into several tile boxes 
     								! could be useful depending on parallelization approach 
     do while(mfi%next())
 
-       bx = mfi%tilebox()   
+       bx = mfi%validbox()   
    
        pin     => phiborder%dataptr(mfi)
        pout    => phi_new(lev)%dataptr(mfi)

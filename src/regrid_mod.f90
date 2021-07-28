@@ -453,10 +453,10 @@ contains
 
     ! Get error estimate
     !$omp parallel private(mfi, bx, phiarr, tagarr)
-    call amrex_mfiter_build(mfi, phi_new(lev), tiling=.true.)
+    call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
     do while(mfi%next())
        
-       bx = mfi%tilebox()
+       bx = mfi%validbox()
        phiarr => phi_new(lev)%dataptr(mfi)
        tagarr => tag%dataptr(mfi)
        

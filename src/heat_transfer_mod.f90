@@ -66,12 +66,12 @@ contains
     
     !Local variables
     integer :: i,j,k
-    logical :: flxx_flag(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) ! Flags used to suppress the flux along x at the free surface 
-    logical :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) ! Flags used to suppress the flux along y at the free surface
-    logical :: flxz_flag(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3)) ! Flags used to suppress the flux along z at the free surface
-    ! logical :: flxx_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Flags used to suppress the flux along x at the free surface
-    ! logical :: flxy_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Flags used to suppress the flux along y at the free surface
-    ! logical :: flxz_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Flags used to suppress the flux along z at the free surface
+    ! logical :: flxx_flag(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) ! Flags used to suppress the flux along x at the free surface 
+    ! logical :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) ! Flags used to suppress the flux along y at the free surface
+    ! logical :: flxz_flag(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3)) ! Flags used to suppress the flux along z at the free surface
+    logical :: flxx_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Flags used to suppress the flux along x at the free surface
+    logical :: flxy_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Flags used to suppress the flux along y at the free surface
+    logical :: flxz_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Flags used to suppress the flux along z at the free surface
     real(amrex_real) :: dx(3) ! Grid size
     real(amrex_real) :: lo_phys(3) ! Physical location of the lowest corner of the tile box
     real(amrex_real) :: ui_lo_phys(3) ! Physical location of the lowest corner of the enthalpy box
@@ -203,14 +203,17 @@ contains
     integer, intent(in) :: fx_lo(3), fx_hi(3)				
     integer, intent(in) :: fy_lo(3), fy_hi(3)				
     integer, intent(in) :: fz_lo(3), fz_hi(3)				
-    logical, intent(in) :: flxx_flag(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) 
-    logical, intent(in) :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) 
-    logical, intent(in) :: flxz_flag(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3))
+    ! logical, intent(in) :: flxx_flag(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) 
+    ! logical, intent(in) :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) 
+    ! logical, intent(in) :: flxz_flag(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3))
+    logical :: flxx_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Flags used to suppress the flux along x at the free surface
+    logical :: flxy_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Flags used to suppress the flux along y at the free surface
+    logical :: flxz_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Flags used to suppress the flux along z at the free surface
     real(amrex_real), intent(in) :: dx(3)    
     real(amrex_real), intent(in) :: uin(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 		
     real(amrex_real), intent(out) :: flxx(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3))
     real(amrex_real), intent(out) :: flxy(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3))
-    real(amrex_real), intent(out) :: flxz(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3))				
+    real(amrex_real), intent(out) :: flxz(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3))
     real(amrex_real), intent(in) :: temp (t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))
 
     ! Local variables
@@ -339,25 +342,25 @@ contains
     integer, intent(in) :: fx_lo(3), fx_hi(3)
     integer, intent(in) :: fy_lo(3), fy_hi(3)
     integer, intent(in) :: fz_lo(3), fz_hi(3)
-    logical, intent(out) :: flxx_flag(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) 
-    logical, intent(out) :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) 
-    logical, intent(out) :: flxz_flag(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3))
-    ! logical, intent(out) :: flxx_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 
-    ! logical, intent(out) :: flxy_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 
-    ! logical, intent(out) :: flxz_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))
+    ! logical, intent(out) :: flxx_flag(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) 
+    ! logical, intent(out) :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) 
+    ! logical, intent(out) :: flxz_flag(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3))
+    logical, intent(out) :: flxx_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 
+    logical, intent(out) :: flxy_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 
+    logical, intent(out) :: flxz_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))
     real(amrex_real), intent(in) :: xlo(3)
     real(amrex_real), intent(in) :: dx(3)
     
     ! Local variables
     integer :: i,j,k
     integer :: jsurf
-    !  ! Indexes corresponding to the free surface position in the heat solver domain
+    ! ! Indexes corresponding to the free surface position in the heat solver domain
     ! integer :: surf_ind_heat_domain(lo(1)-1:hi(1)+1,lo(3)-1:hi(3)+1)
-    !  ! Free surface position in the heat solver domain
+    ! ! Free surface position in the heat solver domain
     ! real(amrex_real) :: surf_pos_heat_domain(lo(1)-1:hi(1)+1,lo(3)-1:hi(3)+1)
-     ! Indexes corresponding to the free surface position in the heat solver domain
+    ! Indexes corresponding to the free surface position in the heat solver domain
     integer :: surf_ind_heat_domain(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3))
-     ! Free surface position in the heat solver domain
+    ! Free surface position in the heat solver domain
     real(amrex_real) :: surf_pos_heat_domain(ui_lo(1):ui_hi(1),ui_lo(3):ui_hi(3))
     
     ! Inefficient as of now, since it fills whole box for every called tile (every box has several tiles)
