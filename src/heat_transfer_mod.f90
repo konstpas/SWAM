@@ -68,11 +68,9 @@ contains
     integer :: i,j,k
     logical :: flxx_flag(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) ! Flags used to suppress the flux along x at the free surface 
     logical :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) ! Flags used to suppress the flux along y at the free surface
-    !logical :: flxy_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) ! Flags used to suppress the flux along y at the free surface
     logical :: flxz_flag(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3)) ! Flags used to suppress the flux along z at the free surface
     real(amrex_real) :: dx(3) ! Grid size
     real(amrex_real) :: lo_phys(3) ! Physical location of the lowest corner of the tile box
-    real(amrex_real) :: ui_lo_phys(3) ! Physical location of the lowest corner of the enthalpy box
     real(amrex_real) :: qbound(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3)) ! Volumetric heating (boundary)
 
     
@@ -81,7 +79,6 @@ contains
 
     ! Get physical location of the lowest corner of the tile box
     lo_phys = geom%get_physical_location(lo)
-    ui_lo_phys = geom%get_physical_location(ui_lo)
     
     ! Get temperature corresponding to the input enthalpy
     call get_temp(ti_lo, ti_hi, & 
@@ -89,7 +86,7 @@ contains
                   ti_lo, ti_hi, tempin)
     
     ! Get flags to suppress the flux at the free surface	
-    call surface_tag(ui_lo_phys, dx, lo, hi, &
+    call surface_tag(lo_phys, dx, lo, hi, &
                      flxx_flag, fx_lo, fx_hi, &
                      flxy_flag, fy_lo, fy_hi, & 
                      flxz_flag, fz_lo, fz_hi, &
@@ -203,7 +200,6 @@ contains
     integer, intent(in) :: fz_lo(3), fz_hi(3)				
     logical, intent(in) :: flxx_flag(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) 
     logical, intent(in) :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3))
-    !logical, intent(in) :: flxy_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))
     logical, intent(in) :: flxz_flag(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3))
     real(amrex_real), intent(in) :: dx(3)    
     real(amrex_real), intent(in) :: uin(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 		
@@ -340,45 +336,35 @@ contains
     integer, intent(in) :: fz_lo(3), fz_hi(3)
     logical, intent(out) :: flxx_flag(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3))
     logical, intent(out) :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3))
-    !logical, intent(out) :: flxy_flag(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))
     logical, intent(out) :: flxz_flag(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3))
     real(amrex_real), intent(in) :: xlo(3)
     real(amrex_real), intent(in) :: dx(3)
     
     ! Local variables
     integer :: i,j,k
-    integer :: jsurf
-    ! Indexes corresponding to the free surface position in the heat solver domain
+    integer :: surf_lo(3)
+    integer :: surf_hi(3)
     integer :: surf_ind_heat_domain(lo(1)-1:hi(1)+1,lo(3)-1:hi(3)+1)
-    ! Free surface position in the heat solver domain
     real(amrex_real) :: surf_pos_heat_domain(lo(1)-1:hi(1)+1,lo(3)-1:hi(3)+1)
-   
+    real(amrex_real) :: surf_xlo(3)
   
-    ! Inefficient as of now, since it fills whole box for every called tile (every box has several tiles)
-    ! xlo is the physical location of the domain tile box with ghost points (passed as the physical location in the enthalpy box, fix this) 
-    call get_surf_pos(xlo, dx, ui_lo, ui_hi, surf_pos_heat_domain)
+    ! Get location of the free surface in the heat solver domain
+    surf_lo = lo - 1
+    surf_hi = hi + 1
+    surf_xlo = xlo - dx
+    call get_surf_pos(surf_xlo, dx, surf_lo, surf_hi, surf_pos_heat_domain)
     
     ! Initialize flags
     flxx_flag = .false. 
     flxy_flag = .false. 
     flxz_flag = .false. 
     
-    ! Find surface index and set flag to suppress flux in the y direction
-    ! across the free surface
+    ! Get indexes corresponding to the free surface position
     do i = lo(1)-1, hi(1)+1
        do k = lo(3)-1, hi(3)+1 
-
-          ! y index of the surface element
-          jsurf =  ui_lo(2) + floor((surf_pos_heat_domain(i,k) - xlo(2))/dx(2)) 
-          surf_ind_heat_domain(i,k) = jsurf
-          
-          ! Set flag to suppress flux if the surface has been identified
-          if (jsurf >= lo(2) .and. jsurf <= hi(2)+1 .and. &
-              i >= lo(1) .and. i <= hi(1) .and. &
-              k >= lo(3) .and. k <= hi(3)) then
-             flxy_flag(i,jsurf,k) = .true.
-          end if
-            
+          surf_ind_heat_domain(i,k)  =  surf_lo(2) + &
+                                        floor((surf_pos_heat_domain(i,k) - &
+                                               surf_xlo(2))/dx(2))  
        end do
     end do
     
@@ -405,7 +391,18 @@ contains
           
        end do
     end do
-
+    
+    ! Set flag to suppress flux in the y direction across the free surface
+    do i = lo(1), hi(1)
+       do k = lo(3), hi(3)
+          
+          if (surf_ind_heat_domain(i,k) >= lo(2) .and. &
+              surf_ind_heat_domain(i,k) <= hi(2)+1) then
+             flxy_flag(i,surf_ind_heat_domain(i,k),k) = .true.
+          end if
+            
+       end do
+    end do
     
     ! Set flag to suppress flux in the x direction across the free surface
     do i = lo(1),hi(1)
@@ -595,7 +592,7 @@ contains
              
              if (time.lt.exp_time) then
                 
-                if(flxy_flag(i,j,k)) then 
+                if(flxy_flag(i,j+1,k)) then 
                    
                    xpos = xlo(1) + (i-lo(1))*dx(1)
                    zpos = xlo(3) + (k-lo(3))*dx(3)
