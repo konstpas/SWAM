@@ -93,12 +93,11 @@ contains
     subroutine compute_dt()
     
     use amr_data_module, only : t_new, dt, nsubsteps
-    use read_input_module, only : stop_time
+    use read_input_module, only : stop_time, dt_change_max
     
     integer :: lev, nlevs, n_factor
     real(amrex_real) :: dt_0, eps
     real(amrex_real), allocatable :: dt_tmp(:)
-    real(amrex_real), parameter :: change_max = 1.1_amrex_real ! This should be moved to input
 
     nlevs = amrex_get_numlevels()
     
@@ -115,7 +114,7 @@ contains
     dt_0 = dt_tmp(0)
     n_factor = 1
     do lev = 0, nlevs-1
-       dt_tmp(lev) = min(dt_tmp(lev), change_max*dt(lev))
+       dt_tmp(lev) = min(dt_tmp(lev), dt_change_max*dt(lev))
        n_factor = n_factor * nsubsteps(lev)
        dt_0 = min(dt_0, n_factor*dt_tmp(lev))
     end do

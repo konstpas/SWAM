@@ -1,0 +1,46 @@
+# SIMULATION LENGTH
+length.max_step  = 442
+length.stop_time = 0.5
+
+# MESH GENERATION
+geometry.is_periodic =  0  0  0
+geometry.coord_sys   =  0       # 0 => cart
+geometry.prob_lo     =  0.00  0.00  0.00 
+geometry.prob_hi     =  0.02  0.025  0.02
+amr.n_cell           =  16   64   16
+amr.max_level       = 1       # maximum level number allowed
+amr.ref_ratio       = 2 2 2 2 # refinement ratio
+amr.blocking_factor = 8       # block factor in grid generation
+amr.max_grid_size   = 16
+amr.v               = 1       # verbosity in Amr
+
+# GRID CONTROL
+grid.regrid_int      =  2       # how often to regrid
+grid.max_grid_size_2d = 16	# for fluid domain mesh
+grid.surfdist = 0.001  0.0005  0.0001 
+
+# HEAT SOLVER
+heat.meltvel = 10
+heat.tempinit = 293.0
+heat.surf_pos = 0.020
+heat.flux_peak = 300e6 
+heat.flux_pos = 0.0 0.0
+heat.flux_width = 1.01 1.01 
+heat.exp_time = 0.4
+
+# MATERIAL
+material.material = Tungsten
+material.phiT_max_T = 8000
+material.phiT_n_points = 10000
+
+# OUTPUT
+output.plot_file  = plt    # root name of plot file
+output.plot_int   = 10     # number of timesteps between plot files
+output.check_file = chk
+output.check_int = 10
+output.verbose   = 1
+
+# NUMERICS
+numerics.cfl       = 0.95
+numerics.do_reflux = 1
+numerics.dt_change_max = 1.1 # Maximum fractional change of the time step between 2 time steps

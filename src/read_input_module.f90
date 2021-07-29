@@ -45,6 +45,7 @@ module read_input_module
   public :: check_file
   public :: check_int
   public :: do_reflux
+  public :: dt_change_max
   public :: exp_time
   public :: flux_peak
   public :: flux_pos
@@ -86,6 +87,7 @@ module read_input_module
   integer, save  :: verbose
   logical, save  :: do_reflux
   real(amrex_real), save  :: cfl
+  real(amrex_real), save  :: dt_change_max  
   real(amrex_real), save  :: exp_time
   real(amrex_real), save  :: flux_peak
   real(amrex_real), save  :: meltvel
@@ -160,6 +162,7 @@ contains
     call amrex_parmparse_build(pp, "numerics")
     call pp%query("cfl", cfl)
     call pp%query("do_reflux", do_reflux)
+    call pp%query("dt_change_max", dt_change_max)
     call amrex_parmparse_destroy(pp)
 	    
   end subroutine read_input_file
@@ -182,6 +185,7 @@ contains
     check_file = "chk"
     check_int = -1
     do_reflux = .true.
+    dt_change_max = 1.1
     exp_time = 1.0
     flux_peak = 300d6
     flux_pos = (/0.0,0.0/)
