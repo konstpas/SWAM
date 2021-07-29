@@ -40,6 +40,7 @@ contains
     character(len=127) :: name
     character(len=16)  :: current_step
     type(amrex_string) :: varname(1)
+    
 
     ! Time step output
     if      (stepno(0) .lt. 1000000) then
@@ -83,12 +84,7 @@ contains
     
     use heat_transfer_module, only : integrate_surf
     
-    integer :: nlevs 
-    integer :: statio = 0 
     real(amrex_real) :: melt_vol 
-    character(len=127) :: name
-    character(len=16)  :: current_step
-    type(amrex_string) :: varname(1)
 
     ! Get total volume of molten pool
     call integrate_surf(melt_vol) 

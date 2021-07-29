@@ -148,12 +148,12 @@ contains
   subroutine init_mat_prop()
 
     integer :: i
-    integer :: imelt
+    integer :: imelt = 0
     logical :: isolid = .true.  ! for enthalpy table, true before phase transfer
     real(amrex_real) :: Cp
     real(amrex_real) :: diffus
     real(amrex_real) :: ktherm 
-    real(amrex_real) :: phiT_table_dT 	! end of temperature interval (decided in input), and temperature increment size  
+    real(amrex_real) :: phiT_table_dT  
     real(amrex_real) :: rho
     real(amrex_real) :: rhocp_i
     real(amrex_real) :: rhocp_im1
@@ -266,14 +266,14 @@ contains
   ! Subroutine used to obtain the temperature given the enthalpy
   ! ------------------------------------------------------------------ 
   subroutine get_temp(lo, hi, &
-                      uo_lo, uo_hi, phi, & 
-                      t_lo , t_hi , temp) 
+                      ui, uo_lo, uo_hi, & 
+                      temp, t_lo , t_hi) 
 
     ! Input and output variables
     integer, intent(in) :: lo(3), hi(3)
     integer, intent(in) :: uo_lo(3), uo_hi(3)
     integer, intent(in) :: t_lo(3), t_hi(3)
-    real(amrex_real), intent(in) :: phi (uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3))
+    real(amrex_real), intent(in) :: ui (uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3))
     real(amrex_real), intent(out) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))
 
     ! Local variables
@@ -287,12 +287,12 @@ contains
           do k = lo(3),hi(3)
              
              do e_ind = 0,phiT_table_n_points 
-                if (phi(i,j,k) .le. enth_table(e_ind) ) exit 
+                if (ui(i,j,k) .le. enth_table(e_ind) ) exit 
              end do
 
              if (e_ind.eq.phiT_table_n_points) STOP 'Temperature table exceeded' 
 
-             int_coeff = (phi(i,j,k)-enth_table(e_ind-1))/ &
+             int_coeff = (ui(i,j,k)-enth_table(e_ind-1))/ &
                     (enth_table(e_ind)-enth_table(e_ind-1))
              temp(i,j,k) = temp_table(e_ind-1) + &
                            int_coeff*(temp_table(e_ind)-temp_table(e_ind-1))
@@ -313,8 +313,8 @@ contains
 
     integer :: e_ind 
     real(amrex_real), intent(in) :: temp
-    real(amrex_real), intent(out) :: enth	
-    real(amrex_real) :: int_coeff 
+    real(amrex_real), intent(out) :: enth
+    real(amrex_real) :: int_coeff
 
     ! Obtain the enthalpy from linear interpolation of the enthalpy-temperature tables
     do e_ind = 0,phiT_table_n_points 
@@ -339,8 +339,8 @@ contains
                            temp, t_lo , t_hi) ! Revert the order of t_lo, t_hi and temp
 
     ! Input and output variables
-    integer, intent(in) :: lo(3), hi(3)				
-    integer, intent(in) :: t_lo(3), t_hi(3)			
+    integer, intent(in) :: lo(3), hi(3)
+    integer, intent(in) :: t_lo(3), t_hi(3)
     real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))
 
     ! Local variables

@@ -34,13 +34,13 @@ contains
   ! -----------------------------------------------------------------
   subroutine increment_enthalpy(time, lo, hi, &
                                 uin,  ui_lo, ui_hi, &
-                                uout, uo_lo, uo_hi, & 
-  			        tempin, ti_lo, ti_hi, & 
-  			        temp, t_lo , t_hi , &
+                                uout, uo_lo, uo_hi, &
+                                tempin, ti_lo, ti_hi, &
+                                temp, t_lo , t_hi , &
                                 flxx, fx_lo, fx_hi, &
                                 flxy, fy_lo, fy_hi, &
                                 flxz, fz_lo, fz_hi, &
-  			        geom, dt)
+                                geom, dt)
 
     use material_properties_module, only : get_temp, get_maxdiffus
 
@@ -81,16 +81,15 @@ contains
     lo_phys = geom%get_physical_location(lo)
     
     ! Get temperature corresponding to the input enthalpy
-    call get_temp(ti_lo, ti_hi, & 
-        	  ui_lo, ui_hi, uin, &
-                  ti_lo, ti_hi, tempin)
+    call get_temp(ti_lo, ti_hi, &
+                  uin, ui_lo, ui_hi, &
+                  tempin, ti_lo, ti_hi)
     
     ! Get flags to suppress the flux at the free surface	
     call surface_tag(lo_phys, dx, lo, hi, &
                      flxx_flag, fx_lo, fx_hi, &
                      flxy_flag, fy_lo, fy_hi, & 
-                     flxz_flag, fz_lo, fz_hi, &
-                     ui_lo, ui_hi)
+                     flxz_flag, fz_lo, fz_hi)
     
     ! Get enthalpy flux 
     call create_face_flux(dx, lo, hi, &
@@ -105,7 +104,7 @@ contains
     call get_bound_heat(time, lo_phys, &
                         dx, lo, hi, &
                         flxy_flag, fy_lo, fy_hi, &
-                        qbound)   	
+                        qbound)
 
     ! Compute output enthalpy, i.e. compute enthalpy at the next timestep
     do   i = lo(1),hi(1)
@@ -146,9 +145,9 @@ contains
     end do
     
     ! Get temperature corresponding to the output enthalpy
-    call get_temp(lo, hi,             &
-                  uo_lo, uo_hi, uout, &
-                  t_lo , t_hi , temp) 
+    call get_temp(lo, hi, &
+                  uout, uo_lo, uo_hi, &
+                  temp, t_lo , t_hi) 
 
     ! THIS MUST BE UPDATED
     ! find maximum diffusivity for time step determination 
@@ -163,15 +162,14 @@ contains
   ! Subroutine used to obtain the integer field used to distinguish
   ! between material and background
   ! -----------------------------------------------------------------
-  subroutine get_idomain(lo, hi, id_lo, id_hi, idom)
+  subroutine get_idomain(id_lo, id_hi, idom)
 
     ! Input and output variables
-    integer, intent(in) :: lo(3), hi(3) 
-    integer, intent(in) :: id_lo(3), id_hi(3) 				
+    integer, intent(in) :: id_lo(3), id_hi(3)
     integer, intent(inout) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2), id_lo(3):id_hi(3))
-
+    
     ! Local variables
-    real(amrex_real) :: surfpos(id_lo(1):id_hi(1),id_lo(3):id_hi(3))				
+    !real(amrex_real) :: surfpos(id_lo(1):id_hi(1),id_lo(3):id_hi(3))
 
     ! THIS MUST BE UPDATED
     idom = 0 
@@ -192,17 +190,17 @@ contains
     use material_properties_module, only: get_ktherm
 
     ! Input and output variables
-    integer, intent(in) :: lo(3), hi(3)						  
-    integer, intent(in) :: ui_lo(3), ui_hi(3)				
-    integer, intent(in) :: t_lo(3), t_hi(3)				
-    integer, intent(in) :: fx_lo(3), fx_hi(3)				
-    integer, intent(in) :: fy_lo(3), fy_hi(3)				
-    integer, intent(in) :: fz_lo(3), fz_hi(3)				
+    integer, intent(in) :: lo(3), hi(3)  
+    integer, intent(in) :: ui_lo(3), ui_hi(3)
+    integer, intent(in) :: t_lo(3), t_hi(3)
+    integer, intent(in) :: fx_lo(3), fx_hi(3)
+    integer, intent(in) :: fy_lo(3), fy_hi(3)
+    integer, intent(in) :: fz_lo(3), fz_hi(3)
     logical, intent(in) :: flxx_flag(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) 
     logical, intent(in) :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3))
     logical, intent(in) :: flxz_flag(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3))
     real(amrex_real), intent(in) :: dx(3)    
-    real(amrex_real), intent(in) :: uin(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3)) 		
+    real(amrex_real), intent(in) :: uin(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2),ui_lo(3):ui_hi(3))
     real(amrex_real), intent(out) :: flxx(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3))
     real(amrex_real), intent(out) :: flxy(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3))
     real(amrex_real), intent(out) :: flxz(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3))
@@ -215,9 +213,8 @@ contains
     real(amrex_real) :: vx(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3))
     real(amrex_real) :: vz(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3))
 
-    ! Construct 3D melt velocity profile from the 2D shallow water solution  
-    call get_face_velocity(lo, hi, &
-                           vx, fx_lo, fx_hi, &
+    ! Construct 3D melt velocity profile from the 2D shallow water solution
+    call get_face_velocity(vx, fx_lo, fx_hi, &
                            vz, fz_lo, fz_hi )
     
     ! Flux along the x direction
@@ -300,12 +297,10 @@ contains
   ! This subroutine translates to 3D the 2D velocity field obtained
   ! from the solution of the shallow water equations
   ! -----------------------------------------------------------------  
-  subroutine get_face_velocity(lo, hi, &
-                               vx, vx_lo, vx_hi, &
+  subroutine get_face_velocity(vx, vx_lo, vx_hi, &
                                vz, vz_lo, vz_hi)
 
     ! Input and output variables
-    integer, intent(in) :: lo(3), hi(3)      
     integer, intent(in) :: vx_lo(3), vx_hi(3) 
     integer, intent(in) :: vz_lo(3), vz_hi(3)
     real(amrex_real) :: vx(vx_lo(1):vx_hi(1),vx_lo(2):vx_hi(2),vx_lo(3):vx_hi(3))
@@ -325,12 +320,10 @@ contains
   subroutine surface_tag(xlo, dx, lo, hi, &
                          flxx_flag, fx_lo, fx_hi, &
                          flxy_flag, fy_lo, fy_hi, & 
-                         flxz_flag, fz_lo, fz_hi, &
-                         ui_lo, ui_hi)
+                         flxz_flag, fz_lo, fz_hi)
  
     ! Input and output variables
     integer, intent(in) :: lo(3), hi(3)
-    integer, intent(in) :: ui_lo(3), ui_hi(3)
     integer, intent(in) :: fx_lo(3), fx_hi(3)
     integer, intent(in) :: fy_lo(3), fy_hi(3)
     integer, intent(in) :: fz_lo(3), fz_hi(3)
@@ -453,9 +446,6 @@ contains
     real(amrex_real) :: x_alpha, z_alpha
     real(amrex_real) :: valzp
     real(amrex_real) :: valzm
-    real(amrex_real) :: valxp
-    real(amrex_real) :: valxm   
-
     
     do  i = lo(1),hi(1)
        do k = lo(3),hi(3)
@@ -496,7 +486,7 @@ contains
   ! pool to the position of the free surface. This routine is
   ! necessary to avoid problems during the re-solidification phase
   ! -----------------------------------------------------------------      
-  subroutine reset_melt_pos()	
+  subroutine reset_melt_pos()
     
     use amr_data_module, only : surf_pos, melt_pos, surf_ind
     
@@ -517,7 +507,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine get_melt_pos(lo, hi, temp, t_lo, t_hi, geom)
        
-    use amr_data_module, only : surf_pos, melt_pos
+    use amr_data_module, only : melt_pos
     use material_properties_module, only : melt_point
        
     ! Input and output variables
@@ -566,7 +556,6 @@ contains
                             flxy_flag, fy_lo, fy_hi, &
                             qb) 
 
-    use amr_data_module, only : surf_pos
     use read_input_module, only : flux_peak, flux_width, flux_pos, exp_time
 
     ! Input and output variables
@@ -575,11 +564,11 @@ contains
     logical, intent(in) :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3))
     real(amrex_real), intent(in) :: time
     real(amrex_real), intent(in) :: xlo(3)
-    real(amrex_real), intent(in) :: dx(3)		
+    real(amrex_real), intent(in) :: dx(3)
     real(amrex_real), intent(out) :: qb(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))
 
     ! Local variables
-    real(amrex_real) :: xpos, zpos, ypos
+    real(amrex_real) :: xpos, zpos
     integer :: i,j,k
 
     ! Initialize the heat flux
@@ -618,7 +607,7 @@ contains
   ! -----------------------------------------------------------------
   ! Subroutine used to get the total volume of molten material
   ! -----------------------------------------------------------------
-  subroutine integrate_surf(melt_vol)	
+  subroutine integrate_surf(melt_vol)
 
     use amr_data_module, only : surf_pos, melt_pos, surf_ind, surf_dx
 

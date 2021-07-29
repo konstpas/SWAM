@@ -92,11 +92,11 @@ contains
 
     subroutine compute_dt()
     
-    use amr_data_module, only : t_new, dt, nsubsteps
-    use read_input_module, only : stop_time, dt_change_max
+    use amr_data_module, only : dt, nsubsteps
+    use read_input_module, only : dt_change_max
     
     integer :: lev, nlevs, n_factor
-    real(amrex_real) :: dt_0, eps
+    real(amrex_real) :: dt_0
     real(amrex_real), allocatable :: dt_tmp(:)
 
     nlevs = amrex_get_numlevels()
@@ -160,8 +160,8 @@ contains
   ! recursive, which implies that it calls itself
   recursive subroutine advance_one_timestep(lev, time, substep)
 
-    use read_input_module, only : regrid_int, do_reflux, verbose
-    use amr_data_module, only : t_old, t_new, phi_old, phi_new, temp, flux_reg, stepno, nsubsteps, dt  
+    use read_input_module, only : regrid_int, do_reflux
+    use amr_data_module, only : t_old, t_new, phi_old, phi_new, flux_reg, stepno, nsubsteps, dt  
     use regrid_module, only : averagedownto
 
     ! Input and output variables
@@ -240,8 +240,8 @@ contains
 
   subroutine advance(lev, time, dt, substep)
 
-    use read_input_module, only : do_reflux, verbose
-    use amr_data_module, only : phi_new, temp, surf_ind, flux_reg  
+    use read_input_module, only : do_reflux
+    use amr_data_module, only : phi_new, temp, flux_reg  
     use regrid_module, only : fillpatch
     use heat_transfer_module, only : get_melt_pos, reset_melt_pos 
     use shallow_water_module, only : increment_SW
@@ -249,11 +249,12 @@ contains
     
     integer, intent(in) :: lev, substep
     real(amrex_real), intent(in) :: time, dt        
-    integer, parameter :: ngrow = 1    			! number of ghost points in each spatial direction 
-    integer :: ncomp, idim, i,j 	! components, ranges, and indexes
-    logical :: nodal(3)   					! logical for flux multifabs 
-    type(amrex_multifab) :: phiborder, tempborder 		! multifabs on mfi owned tilebox, with ghost points 
-    type(amrex_mfiter) :: mfi					! mfi iterator 
+    integer, parameter :: ngrow = 1 ! number of ghost points in each spatial direction 
+    integer :: ncomp
+    integer :: idim
+    logical :: nodal(3) ! logical for flux multifabs 
+    type(amrex_multifab) :: phiborder, tempborder ! multifabs on mfi owned tilebox, with ghost points 
+    type(amrex_mfiter) :: mfi ! mfi iterator 
     type(amrex_box) :: bx, tbx
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin, pout, ptempin, ptemp, pfx, pfy, pfz, pf, pfab ! input, output pointers
     type(amrex_fab) :: flux(amrex_spacedim)
@@ -276,7 +277,7 @@ contains
 
     ! Propagate SW equations (only at max level)
     if (lev.eq.amrex_max_level) then 
-       call increment_SW(time, amrex_geom(lev), dt)
+       call increment_SW(dt)
     end if
 
     ! RE-distribute energy from 'lost and gained' domain points how
@@ -345,10 +346,10 @@ contains
        
        ! Find melt interface y position 
        if (lev.eq.amrex_max_level) then
-          call get_melt_pos(bx%lo, bx%hi,                      	&
-                          ptemp, lbound(ptemp), ubound(ptemp), 	&
-        		  amrex_geom(lev))
-        end if  
+          call get_melt_pos(bx%lo, bx%hi, &
+                            ptemp, lbound(ptemp), ubound(ptemp), &
+                            amrex_geom(lev))
+       end if
 
     end do
 

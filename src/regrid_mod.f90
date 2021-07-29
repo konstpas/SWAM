@@ -49,7 +49,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine my_make_new_level_from_scratch(lev, time, pba, pdm) bind(c)
 
-    use read_input_module, only : tempinit, surf_pos_init, do_reflux
+    use read_input_module, only : tempinit, do_reflux
     use material_properties_module, only : get_temp
 
     ! Input and output variables
@@ -101,9 +101,9 @@ contains
        call init_phi(bx%lo, bx%hi, tempinit, &
                       phi, lbound(phi), ubound(phi))
        ! Temperature
-       call get_temp(bx%lo, bx%hi, & 
-       	             lbound(phi),   ubound(phi),   phi, &
-                     lbound(ptemp), ubound(ptemp), ptemp)
+       call get_temp(bx%lo, bx%hi, &
+                     phi, lbound(phi), ubound(phi), &
+                     ptemp, lbound(ptemp), ubound(ptemp))
        ! Idomain 
        ! Add here a call to fill the idomain multifabs
        
@@ -153,7 +153,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine my_make_new_level_from_coarse(lev, time, pba, pdm) bind(c)
 
-    use read_input_module, only : surf_pos_init, do_reflux
+    use read_input_module, only : do_reflux
     use heat_transfer_module, only : get_idomain
     use material_properties_module, only : get_temp
 
@@ -163,7 +163,6 @@ contains
     type(c_ptr), intent(in), value :: pba, pdm
 
     ! Local variables
-    integer, contiguous, pointer :: idom(:,:,:,:)     
     real(amrex_real), contiguous, pointer :: phi(:,:,:,:)
     real(amrex_real), contiguous, pointer :: ptemp(:,:,:,:)
     type(amrex_boxarray) :: ba
@@ -208,8 +207,8 @@ contains
 
        ! Temperature
        call get_temp(bx%lo, bx%hi, & 
-       	             lbound(phi),   ubound(phi),   phi, &
-                     lbound(ptemp), ubound(ptemp), ptemp)
+                     phi, lbound(phi), ubound(phi), &
+                     ptemp, lbound(ptemp), ubound(ptemp))
        
        ! idomain
 
@@ -300,7 +299,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine my_remake_level(lev, time, pba, pdm) bind(c)
 
-    use read_input_module, only : surf_pos_init, do_reflux
+    use read_input_module, only : do_reflux
     use material_properties_module, only : get_temp
 
     ! Input and output variables    
@@ -358,8 +357,8 @@ contains
        ptemp => temp(lev)%dataptr(mfi)
 
        call get_temp(bx%lo, bx%hi, & 
-                     lbound(phi),   ubound(phi),   phi, &
-                     lbound(ptemp), ubound(ptemp), ptemp)
+                     phi, lbound(phi), ubound(phi), &
+                     ptemp, lbound(ptemp), ubound(ptemp))
        
      end do    
     call amrex_mfiter_destroy(mfi)
@@ -440,7 +439,6 @@ contains
     character(kind=c_char), contiguous, pointer :: tagarr(:,:,:,:)
     real(amrex_real), contiguous, pointer :: phiarr(:,:,:,:)
     type(amrex_geometry) :: geom
-    type(amrex_parmparse) :: pp
     type(amrex_tagboxarray) :: tag
     type(amrex_mfiter) :: mfi
     type(amrex_box) :: bx
@@ -465,7 +463,7 @@ contains
                           geom%dx, surfdist(lev+1), & 
                           phiarr, lbound(phiarr), ubound(phiarr), &
                           tagarr, lbound(tagarr), ubound(tagarr), &
-                          settag, cleartag)
+                          settag)
        
     end do
     call amrex_mfiter_destroy(mfi)
@@ -480,7 +478,7 @@ contains
   subroutine tag_phi_error(lo, hi, xlo, dx, surfdist, &
                            phi, philo, phihi, &
                            tag, taglo, taghi, &
-                           settag, cleartag)
+                           settag)
     
     use heat_transfer_module, only : get_surf_pos   
     use material_properties_module, only : enth_at_melt
@@ -495,12 +493,10 @@ contains
     real(amrex_real), intent(in) :: surfdist
     character(kind=c_char), intent(inout) :: tag(taglo(1):taghi(1),taglo(2):taghi(2),taglo(3):taghi(3))
     character(kind=c_char), intent(in) :: settag
-    character(kind=c_char), intent(in) :: cleartag
     
     ! Local variables
     integer :: i,j,k
     real(amrex_real) :: surfpos(lo(1):hi(1),lo(3):hi(3)) 
-    real(amrex_real) :: phierr_this
     real(amrex_real) :: ydist
 
 
@@ -521,7 +517,7 @@ contains
              ! Regrid based on the state: all points belonging to the melt pool
              ! should be highly resolved 
              if (phi(i,j,k).ge.enth_at_melt) then
-             	tag(i,j,k) = settag  
+                tag(i,j,k) = settag  
              endif 
              
           enddo

@@ -28,11 +28,9 @@ module shallow_water_module
   ! -----------------------------------------------------------------
   ! Subroutine used to advance the shallow water equations in time
   ! -----------------------------------------------------------------
-  subroutine increment_SW(time, geom, dt)
+  subroutine increment_SW(dt)
 
-
-    type(amrex_geometry), intent(in) :: geom  	! geometry at highest level  
-    real(amrex_real), intent(in) :: dt, time		! sub time step, and time 
+    real(amrex_real), intent(in) :: dt 
     real(amrex_real) :: melt_height(surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2))
     real(amrex_real) :: height_flux(surf_ind(1,1):surf_ind(1,2)+1,surf_ind(2,1):surf_ind(2,2)+1,2) 
     !real(amrex_real) :: xfluxp, xfluxm, zfluxp, zfluxm 
@@ -67,7 +65,7 @@ module shallow_water_module
              else 
                 height_flux(i,k,1) = 0 !no influx
              end if
-          else 	
+          else
              if (melt_vel(i,k,1) > 0_amrex_real) then 
                 height_flux(i,k,1) = melt_height(i-1,k)*melt_vel(i,k,1)
              else 
@@ -106,8 +104,8 @@ module shallow_water_module
     do  i = surf_ind(1,1),surf_ind(1,2)
        do k = surf_ind(2,1),surf_ind(2,2)
           surf_pos(i,k) = surf_pos(i,k) & 
-               - dt/surf_dx(1) * (height_flux(i+1,k  ,1) - height_flux(i,k,1)) & 
-               - dt/surf_dx(2) * (height_flux(i  ,k+1,2) - height_flux(i,k,2))		
+               - dt/surf_dx(1) * (height_flux(i+1,k  ,1) - height_flux(i,k,1)) &
+               - dt/surf_dx(2) * (height_flux(i  ,k+1,2) - height_flux(i,k,2))
        end do
     end do
 
