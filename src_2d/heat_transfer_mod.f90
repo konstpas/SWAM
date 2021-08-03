@@ -237,7 +237,9 @@ contains
     real(amrex_real) :: vx(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2))
 
     ! Construct 3D melt velocity profile from the 2D shallow water solution
-    call get_face_velocity(vx, fx_lo, fx_hi)
+    call get_face_velocity(lo, hi, &
+                           vx, fx_lo, fx_hi, &
+                           temp, t_lo, t_hi)
     
     ! Flux along the x direction
     do i = lo(1), hi(1)+1
@@ -288,14 +290,34 @@ contains
   ! This subroutine translates to 3D the 2D velocity field obtained
   ! from the solution of the shallow water equations
   ! -----------------------------------------------------------------  
-  subroutine get_face_velocity(vx, vx_lo, vx_hi)
+  subroutine get_face_velocity(lo, hi, &
+                               vx, vx_lo, vx_hi, &
+                               temp, t_lo, t_hi)
 
+    use material_properties_module, only : melt_point
+    use read_input_module, only : meltvel
+    
     ! Input and output variables
+    integer, intent(in) :: lo(2), hi(2)
+    integer, intent(in) :: t_lo(2), t_hi(2)
     integer, intent(in) :: vx_lo(2), vx_hi(2)
-    real(amrex_real) :: vx(vx_lo(1):vx_hi(1),vx_lo(2):vx_hi(2))
+    real(amrex_real), intent(in)  :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2))
+    real(amrex_real), intent(out) :: vx(vx_lo(1):vx_hi(1),vx_lo(2):vx_hi(2))
 
-    ! THIS MUST BE UPDATED
-    vx = 0.0_amrex_real
+    ! Local variables
+    integer :: i,j
+    
+    ! THIS MUST BE UPDATED 
+    do i = lo(1), hi(1)+1
+       do j = lo(2), hi(2) 
+          if (temp(i,j).gt.melt_point) then
+             vx(i,j) = meltvel
+          else
+             vx(i,j) = 0.0
+          end if
+       end do   
+    end do
+
     
   end subroutine get_face_velocity
     

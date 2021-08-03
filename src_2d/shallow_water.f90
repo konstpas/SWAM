@@ -30,6 +30,8 @@ module shallow_water_module
   ! -----------------------------------------------------------------
   subroutine increment_SW(dt)
 
+    use read_input_module, only : meltvel
+    
     real(amrex_real), intent(in) :: dt 
     real(amrex_real) :: melt_height(surf_ind(1,1):surf_ind(1,2))
     real(amrex_real) :: height_flux(surf_ind(1,1):surf_ind(1,2)+1,1) 
@@ -38,7 +40,7 @@ module shallow_water_module
     
  
     ! Momentum continuity equation (not solved for now, only prescribed) 
-    melt_vel = 0.05 
+    melt_vel = meltvel
 
     
     ! Mass (column height) continuity equation 
