@@ -70,8 +70,8 @@ module amr_data_module
   real(amrex_real), save :: surf_xlo(1)
   real(amrex_real), save :: surf_dx(1)
   type(amrex_fluxregister), allocatable, save :: flux_reg(:)
-  type(amrex_imultifab), allocatable, save :: idomain_new(:)
-  type(amrex_imultifab), allocatable, save :: idomain_old(:)
+  type(amrex_multifab), allocatable, save :: idomain_new(:)
+  type(amrex_multifab), allocatable, save :: idomain_old(:)
   type(amrex_multifab), allocatable, save :: phi_new(:)
   type(amrex_multifab), allocatable, save :: phi_old(:)
   type(amrex_multifab), allocatable, save :: temp(:)
@@ -162,8 +162,8 @@ contains
     
     do lev = 0, amrex_max_level
 
-       call amrex_imultifab_destroy(idomain_new(lev))
-       call amrex_imultifab_destroy(idomain_old(lev))
+       call amrex_multifab_destroy(idomain_new(lev))
+       call amrex_multifab_destroy(idomain_old(lev))
        call amrex_multifab_destroy(phi_new(lev))
        call amrex_multifab_destroy(phi_old(lev))
        call amrex_multifab_destroy(temp(lev))

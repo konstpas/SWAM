@@ -11,7 +11,7 @@ LINK_NAME = g++
 AMREX_LIBRARY_HOME ?= /home/federico/amrex_local_2d
 LIBDIR := $(AMREX_LIBRARY_HOME)/lib
 INCDIR := $(AMREX_LIBRARY_HOME)/include
-COMP_FLAGS := -I$(INCDIR) 
+COMP_FLAGS := -I$(INCDIR) -fopenmp
 LINK_FLAGS := -L$(LIBDIR) -lamrex -lgfortran
 
 # Files                                                                                              

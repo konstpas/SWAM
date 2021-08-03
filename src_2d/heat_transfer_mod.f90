@@ -39,6 +39,8 @@ contains
                                 temp, t_lo , t_hi , &
                                 flxx, fx_lo, fx_hi, &
                                 flxy, fy_lo, fy_hi, &
+                                idomin, idi_lo, idi_hi, &
+                                idomout, ido_lo, ido_hi, &
                                 geom, dt)
 
     use material_properties_module, only : get_temp, get_maxdiffus
@@ -51,6 +53,8 @@ contains
     integer, intent(in) :: t_lo (2), t_hi (2) ! bounds of output temperature box
     integer, intent(in) :: fx_lo(2), fx_hi(2) ! bounds of the enthalpy flux along x
     integer, intent(in) :: fy_lo(2), fy_hi(2) ! bounds of the enthalpy flux along y
+    integer, intent(in) :: idi_lo(2), idi_hi(2) ! bounds of the input idomain box
+    integer, intent(in) :: ido_lo(2), ido_hi(2) ! bounds of the output idomain box
     real(amrex_real), intent(in) :: dt ! time step
     real(amrex_real), intent(in) :: time ! time
     real(amrex_real), intent(in) :: uin (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2)) ! Input enthalpy 
@@ -59,6 +63,8 @@ contains
     real(amrex_real), intent(inout) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2)) ! Output temperature
     real(amrex_real), intent(out) :: flxx(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2)) ! flux along the x direction  			
     real(amrex_real), intent(out) :: flxy(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2)) ! flux along the y direction
+    real(amrex_real), intent(in) :: idomin(idi_lo(1):idi_hi(1),idi_lo(2):idi_hi(2))
+    real(amrex_real), intent(in) :: idomout(ido_lo(1):ido_hi(1),ido_lo(2):ido_hi(2))
     type(amrex_geometry), intent(in) :: geom ! geometry
     
     !Local variables
@@ -69,12 +75,22 @@ contains
     real(amrex_real) :: lo_phys(2) ! Physical location of the lowest corner of the tile box
     real(amrex_real) :: qbound(lo(1):hi(1),lo(2):hi(2)) ! Volumetric heating (boundary)
 
-    
     ! Get grid size
     dx = geom%dx(1:2) ! grid width at level 
 
     ! Get physical location of the lowest corner of the tile box
     lo_phys = geom%get_physical_location(lo)
+
+    ! Define domain for the heat transfer solver
+    do i = lo(1), hi(1)
+       do j = lo(2), hi(2)
+          
+          ! if (nint(idomin) .eq. 0 .and. nint(idomout) .eq. 1
+          ! idomout_int = nint(idomout)
+
+          
+       end do
+    end do
     
     ! Get temperature corresponding to the input enthalpy
     call get_temp(ti_lo, ti_hi, &
@@ -147,10 +163,10 @@ contains
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)
     integer, intent(in) :: id_lo(2), id_hi(2)
-    integer, intent(inout) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2))
+    real(amrex_real), intent(in) :: dx(2)    
+    real(amrex_real), intent(inout) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2))
     real(amrex_real), intent(in) :: xlo(2)
-    real(amrex_real), intent(in) :: dx(2)
-    
+
     ! Local variables
     integer :: i,j
     integer :: surf_ind_heat_domain
@@ -165,18 +181,17 @@ contains
        surf_ind_heat_domain = lo(2) + &
                               floor((surf_pos_heat_domain(i) - &
                               xlo(2))/dx(2))
-
-       if (surf_ind_heat_domain .ge. lo(2) .and. &
-           surf_ind_heat_domain .le. hi(2)+1) then
-          
-           do j = lo(2), surf_ind_heat_domain
-              idom(i,j) = 1
-           end do
-           
-       end if 
+       
+       do j = lo(2), hi(2)
+          if (j .le. surf_ind_heat_domain) then
+             idom(i,j) = 1
+          else
+             idom(i,j) = 0
+          end if
+       end do
        
     end do
-    
+
   end subroutine get_idomain
 
   ! -----------------------------------------------------------------

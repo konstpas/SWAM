@@ -59,7 +59,7 @@ contains
     type(c_ptr), intent(in), value :: pba, pdm
 
     ! Local variables
-    integer, contiguous, pointer :: pid(:,:,:,:)
+    real(amrex_real), contiguous, pointer :: pid(:,:,:,:)
     real(amrex_real), contiguous, pointer :: phi(:,:,:,:)
     real(amrex_real), contiguous, pointer :: ptemp(:,:,:,:)
     type(amrex_boxarray) :: ba
@@ -86,8 +86,8 @@ contains
     call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, nghost)
-    call amrex_imultifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
-    call amrex_imultifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
 
     ! Build the flux registers
     if (lev > 0 .and. do_reflux) then
@@ -172,7 +172,7 @@ contains
     type(c_ptr), intent(in), value :: pba, pdm
 
     ! Local variables
-    integer, contiguous, pointer :: pid(:,:,:,:)
+    real(amrex_real), contiguous, pointer :: pid(:,:,:,:)
     real(amrex_real), contiguous, pointer :: phi(:,:,:,:)
     real(amrex_real), contiguous, pointer :: ptemp(:,:,:,:)
     type(amrex_boxarray) :: ba
@@ -199,8 +199,8 @@ contains
     call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, nghost)
-    call amrex_imultifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
-    call amrex_imultifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
 
     ! Build the flux registers
     if (lev > 0 .and. do_reflux) then
@@ -326,7 +326,7 @@ contains
     type(c_ptr), intent(in), value :: pba, pdm
 
     ! Local variables
-    integer, contiguous, pointer :: pid(:,:,:,:)
+    real(amrex_real), contiguous, pointer :: pid(:,:,:,:)
     real(amrex_real), contiguous, pointer :: phi(:,:,:,:)
     real(amrex_real), contiguous, pointer :: ptemp(:,:,:,:)
     type(amrex_boxarray) :: ba
@@ -358,8 +358,8 @@ contains
     call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, nghost)
-    call amrex_imultifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
-    call amrex_imultifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
 
     ! Build the flux registers
     if (lev > 0 .and. do_reflux) then
@@ -444,8 +444,8 @@ contains
     call amrex_multifab_destroy(phi_new(lev))
     call amrex_multifab_destroy(phi_old(lev))
     call amrex_multifab_destroy(temp(lev))
-    call amrex_imultifab_destroy(idomain_new(lev))
-    call amrex_imultifab_destroy(idomain_old(lev))
+    call amrex_multifab_destroy(idomain_new(lev))
+    call amrex_multifab_destroy(idomain_old(lev))
     call amrex_fluxregister_destroy(flux_reg(lev))
     
   end subroutine my_clear_level
