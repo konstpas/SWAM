@@ -33,38 +33,39 @@ contains
   ! Subroutine used to compute the enthalpy at a new time step
   ! -----------------------------------------------------------------
   subroutine increment_enthalpy(time, lo, hi, &
-                                uin,  ui_lo, ui_hi, &
-                                uout, uo_lo, uo_hi, &
-                                tempin, ti_lo, ti_hi, &
-                                temp, t_lo , t_hi , &
+                                u_old,  uo_lo, uo_hi, &
+                                u_new, un_lo, un_hi, &
+                                temp_old, to_lo, to_hi, &
+                                temp_new, tn_lo, tn_hi , &
                                 flxx, fx_lo, fx_hi, &
                                 flxy, fy_lo, fy_hi, &
-                                idomin, idi_lo, idi_hi, &
-                                idomout, ido_lo, ido_hi, &
+                                idom_old, ido_lo, ido_hi, &
+                                idom_new, idn_lo, idn_hi, &
                                 geom, dt)
 
-    use material_properties_module, only : get_temp, get_maxdiffus
+    use material_properties_module, only : get_temp, get_maxdiffus, get_enthalpy
+    use read_input_module, only: tempinit
 
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) ! bounds of current tile box
-    integer, intent(in) :: ui_lo(2), ui_hi(2) ! bounds of input enthalpy box 
-    integer, intent(in) :: uo_lo(2), uo_hi(2) ! bounds of output enthalpy box  
-    integer, intent(in) :: ti_lo(2), ti_hi(2) ! bounds of input temperature box  
-    integer, intent(in) :: t_lo (2), t_hi (2) ! bounds of output temperature box
+    integer, intent(in) :: uo_lo(2), uo_hi(2) ! bounds of input enthalpy box 
+    integer, intent(in) :: un_lo(2), un_hi(2) ! bounds of output enthalpy box  
+    integer, intent(in) :: to_lo(2), to_hi(2) ! bounds of input temperature box  
+    integer, intent(in) :: tn_lo (2), tn_hi (2) ! bounds of output temperature box
     integer, intent(in) :: fx_lo(2), fx_hi(2) ! bounds of the enthalpy flux along x
     integer, intent(in) :: fy_lo(2), fy_hi(2) ! bounds of the enthalpy flux along y
-    integer, intent(in) :: idi_lo(2), idi_hi(2) ! bounds of the input idomain box
-    integer, intent(in) :: ido_lo(2), ido_hi(2) ! bounds of the output idomain box
+    integer, intent(in) :: ido_lo(2), ido_hi(2) ! bounds of the input idomain box
+    integer, intent(in) :: idn_lo(2), idn_hi(2) ! bounds of the output idomain box
     real(amrex_real), intent(in) :: dt ! time step
     real(amrex_real), intent(in) :: time ! time
-    real(amrex_real), intent(in) :: uin (ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2)) ! Input enthalpy 
-    real(amrex_real), intent(inout) :: uout(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2)) ! Output enthalpy
-    real(amrex_real), intent(inout) :: tempin(ti_lo(1):ti_hi(1),ti_lo(2):ti_hi(2)) ! Input temperature
-    real(amrex_real), intent(inout) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2)) ! Output temperature
+    real(amrex_real), intent(inout) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2)) ! Input enthalpy 
+    real(amrex_real), intent(inout) :: u_new(un_lo(1):un_hi(1),un_lo(2):un_hi(2)) ! Output enthalpy
+    real(amrex_real), intent(inout) :: temp_old(to_lo(1):to_hi(1),to_lo(2):to_hi(2)) ! Input temperature
+    real(amrex_real), intent(inout) :: temp_new(tn_lo(1):tn_hi(1),tn_lo(2):tn_hi(2)) ! Output temperature
     real(amrex_real), intent(out) :: flxx(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2)) ! flux along the x direction  			
     real(amrex_real), intent(out) :: flxy(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2)) ! flux along the y direction
-    real(amrex_real), intent(in) :: idomin(idi_lo(1):idi_hi(1),idi_lo(2):idi_hi(2))
-    real(amrex_real), intent(in) :: idomout(ido_lo(1):ido_hi(1),ido_lo(2):ido_hi(2))
+    real(amrex_real), intent(in) :: idom_old(ido_lo(1):ido_hi(1),ido_lo(2):ido_hi(2))
+    real(amrex_real), intent(in) :: idom_new(idn_lo(1):idn_hi(1),idn_lo(2):idn_hi(2))
     type(amrex_geometry), intent(in) :: geom ! geometry
     
     !Local variables
@@ -74,28 +75,36 @@ contains
     real(amrex_real) :: dx(2) ! Grid size
     real(amrex_real) :: lo_phys(2) ! Physical location of the lowest corner of the tile box
     real(amrex_real) :: qbound(lo(1):hi(1),lo(2):hi(2)) ! Volumetric heating (boundary)
+    real(amrex_real) :: u_back
 
+    ! Enthalpy of the background (this should be computed once and stored)
+    call get_enthalpy(tempinit,u_back)
+
+    ! Re-evaluate domain
+    do i = lo(1),hi(1)
+       do  j = lo(2),hi(2)
+
+          ! Points added to the domain
+          if (nint(idom_old(i,j)).eq.0 .and. nint(idom_new(i,j)).eq.1) then
+             u_old(i,j) = u_old(i,j-1)
+          ! Points removed from the domain
+          else if (nint(idom_old(i,j)).eq.1 .and. nint(idom_new(i,j)).eq.0) then
+             u_old(i,j) = u_back
+          end if
+          
+       end do
+    end do
+    
     ! Get grid size
     dx = geom%dx(1:2) ! grid width at level 
 
     ! Get physical location of the lowest corner of the tile box
     lo_phys = geom%get_physical_location(lo)
-
-    ! Define domain for the heat transfer solver
-    do i = lo(1), hi(1)
-       do j = lo(2), hi(2)
-          
-          ! if (nint(idomin) .eq. 0 .and. nint(idomout) .eq. 1
-          ! idomout_int = nint(idomout)
-
-          
-       end do
-    end do
     
     ! Get temperature corresponding to the input enthalpy
-    call get_temp(ti_lo, ti_hi, &
-                  uin, ui_lo, ui_hi, &
-                  tempin, ti_lo, ti_hi)
+    call get_temp(to_lo, to_hi, &
+                  u_old, uo_lo, uo_hi, &
+                  temp_old, to_lo, to_hi)
     
     ! Get flags to suppress the flux at the free surface	
     call surface_tag(lo_phys, dx, lo, hi, &
@@ -104,10 +113,10 @@ contains
     
     ! Get enthalpy flux 
     call create_face_flux(dx, lo, hi, &
-                          uin, ui_lo, ui_hi, &
+                          u_old, uo_lo, uo_hi, &
                           flxx, fx_lo, fx_hi, &
                           flxy, fy_lo, fy_hi, &
-                          tempin, ti_lo, ti_hi, &
+                          temp_old, to_lo, to_hi, &
                           flxx_flag, flxy_flag)
   				  	
     ! Prescribe external heat flux on the free surface
@@ -116,15 +125,16 @@ contains
                         flxy_flag, fy_lo, fy_hi, &
                         qbound)
 
-    ! Compute output enthalpy, i.e. compute enthalpy at the next timestep
+    ! Compute enthalpy at the new timestep
     do i = lo(1),hi(1)
-       do  j = lo(2),hi(2) 
-          uout(i,j) = uin(i,j) &
-               - dt/dx(1) * (flxx(i+1,j) - flxx(i,j)) &	! flux divergence x-direction 
-               - dt/dx(2) * (flxy(i,j+1) - flxy(i,j)) &	! flux divergence y-direction 
+       do  j = lo(2),hi(2)
+          u_new(i,j) = u_old(i,j) &
+               - dt/dx(1) * (flxx(i+1,j) - flxx(i,j)) & ! flux divergence x-direction 
+               - dt/dx(2) * (flxy(i,j+1) - flxy(i,j)) & ! flux divergence y-direction 
                + dt*qbound(i,j) ! 'boundary volumetric' source
        end do
     end do
+    
   	
     ! Scale the fluxes for the flux registers
     do j = lo(2), hi(2)
@@ -141,14 +151,14 @@ contains
     
     ! Get temperature corresponding to the output enthalpy
     call get_temp(lo, hi, &
-                  uout, uo_lo, uo_hi, &
-                  temp, t_lo , t_hi) 
+                  u_new, un_lo, un_hi, &
+                  temp_new, tn_lo , tn_hi) 
 
     ! THIS MUST BE UPDATED
     ! find maximum diffusivity for time step determination 
     ! Not called noe, constant max possible diffusivity used.	      
     !call get_maxdiffus(lo, hi, & 
-    !		        temp, t_lo, t_hi)  	
+    !		        temp_new, tn_lo, tn_hi)  	
     
   end subroutine increment_enthalpy
 
@@ -198,7 +208,7 @@ contains
   ! Subroutine used to the enthalpy fluxes on the edges of the grid
   ! -----------------------------------------------------------------  
   subroutine create_face_flux(dx, lo, hi, &
-                              uin, ui_lo, ui_hi, &
+                              u_old, uo_lo, uo_hi, &
                               flxx, fx_lo, fx_hi, &
                               flxy, fy_lo, fy_hi, &
                               temp, t_lo, t_hi, &
@@ -208,14 +218,14 @@ contains
 
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)  
-    integer, intent(in) :: ui_lo(2), ui_hi(2)
+    integer, intent(in) :: uo_lo(2), uo_hi(2)
     integer, intent(in) :: t_lo(2), t_hi(2)
     integer, intent(in) :: fx_lo(2), fx_hi(2)
     integer, intent(in) :: fy_lo(2), fy_hi(2)
     logical, intent(in) :: flxx_flag(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2)) 
     logical, intent(in) :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2))
     real(amrex_real), intent(in) :: dx(2)    
-    real(amrex_real), intent(in) :: uin(ui_lo(1):ui_hi(1),ui_lo(2):ui_hi(2))
+    real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))
     real(amrex_real), intent(out) :: flxx(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2))
     real(amrex_real), intent(out) :: flxy(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2))
     real(amrex_real), intent(in) :: temp (t_lo(1):t_hi(1),t_lo(2):t_hi(2))
@@ -235,9 +245,9 @@ contains
 
           ! Advective component
           if (vx(i,j) > 0_amrex_real) then 
-             flxx(i,j)  = uin(i-1,j)*vx(i,j)
+             flxx(i,j)  = u_old(i-1,j)*vx(i,j)
           else 
-             flxx(i,j)  = uin(i,j)*vx(i,j)
+             flxx(i,j)  = u_old(i,j)*vx(i,j)
           end if
 
           ! Diffusive component
@@ -285,7 +295,7 @@ contains
     real(amrex_real) :: vx(vx_lo(1):vx_hi(1),vx_lo(2):vx_hi(2))
 
     ! THIS MUST BE UPDATED
-    vx = 0_amrex_real 
+    vx = 0.0_amrex_real
     
   end subroutine get_face_velocity
     

@@ -329,8 +329,7 @@ contains
     ! Therefore we reset melt position after solving SW, and before propagating temperature 
     ! Melt position is then found after heat has been propagated 
     call reset_melt_pos() 
-   
-    
+       
     ! Increment heat solver on all levels
     !$omp parallel private(mfi,bx,tbx,pin,pout,ptemp,ptempin,pfx,pfy,pf,pfab,flux,pidin,pidout)
 
@@ -361,8 +360,7 @@ contains
        pidin => idomain_old(lev)%dataptr(mfi)
        pidout => idomain_new(lev)%dataptr(mfi)
 
-       ! Get configuration of the system before the deformation
-       ! (remember that we swapped new and old)
+       ! Get configuration of the system after the deformation
        call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
                         bx%lo, bx%hi, &
                         pidout, lbound(pidout), ubound(pidout))
