@@ -51,6 +51,7 @@ contains
 
     use read_input_module, only : tempinit, do_reflux
     use material_properties_module, only : get_temp
+    use heat_transfer_module, only : get_idomain
 
     ! Input and output variables
     integer, intent(in), value :: lev
@@ -58,17 +59,22 @@ contains
     type(c_ptr), intent(in), value :: pba, pdm
 
     ! Local variables
+    integer, contiguous, pointer :: pid(:,:,:,:)
     real(amrex_real), contiguous, pointer :: phi(:,:,:,:)
     real(amrex_real), contiguous, pointer :: ptemp(:,:,:,:)
     type(amrex_boxarray) :: ba
     type(amrex_distromap) :: dm
     type(amrex_mfiter) :: mfi
     type(amrex_box) :: bx
-
+    type(amrex_geometry) :: geom
+    
     ! Pointers for box array and distribution mapping
     ba = pba
     dm = pdm
 
+    ! Geometry
+    geom = amrex_geom(lev)
+    
     ! Time
     t_new(lev) = time
     t_old(lev) = time - 1.e200_amrex_real
@@ -96,7 +102,8 @@ contains
        bx = mfi%tilebox()
        phi => phi_new(lev)%dataptr(mfi)
        ptemp => temp(lev)%dataptr(mfi)
-
+       pid => idomain_new(lev)%dataptr(mfi)
+       
        ! Enthalpy
        call init_phi(bx%lo, bx%hi, tempinit, &
                       phi, lbound(phi), ubound(phi))
@@ -104,8 +111,12 @@ contains
        call get_temp(bx%lo, bx%hi, &
                      phi, lbound(phi), ubound(phi), &
                      ptemp, lbound(ptemp), ubound(ptemp))
-       ! Idomain 
-       ! Add here a call to fill the idomain multifabs
+       
+       ! Integer domain to distinguish material and background
+       call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
+                        bx%lo, bx%hi, &
+                        pid, lbound(pid), ubound(pid))
+       
        
     end do
     call amrex_mfiter_destroy(mfi)
@@ -152,8 +163,8 @@ contains
   subroutine my_make_new_level_from_coarse(lev, time, pba, pdm) bind(c)
 
     use read_input_module, only : do_reflux
-    use heat_transfer_module, only : get_idomain
     use material_properties_module, only : get_temp
+    use heat_transfer_module, only : get_idomain
 
     ! Input and output variables    
     integer, intent(in), value :: lev
@@ -161,17 +172,22 @@ contains
     type(c_ptr), intent(in), value :: pba, pdm
 
     ! Local variables
+    integer, contiguous, pointer :: pid(:,:,:,:)
     real(amrex_real), contiguous, pointer :: phi(:,:,:,:)
     real(amrex_real), contiguous, pointer :: ptemp(:,:,:,:)
     type(amrex_boxarray) :: ba
     type(amrex_distromap) :: dm
     type(amrex_mfiter) :: mfi
     type(amrex_box) :: bx
+    type(amrex_geometry) :: geom
     
     ! Pointers for box array and distribution mapping
     ba = pba
     dm = pdm
 
+    ! Geometry
+    geom = amrex_geom(lev)
+    
     ! Time
     t_new(lev) = time
     t_old(lev) = time - 1.e200_amrex_real
@@ -202,14 +218,17 @@ contains
        bx = mfi%tilebox()
        phi => phi_new(lev)%dataptr(mfi)
        ptemp => temp(lev)%dataptr(mfi)
-
+       pid => idomain_new(lev)%dataptr(mfi)
+       
        ! Temperature
        call get_temp(bx%lo, bx%hi, & 
                      phi, lbound(phi), ubound(phi), &
                      ptemp, lbound(ptemp), ubound(ptemp))
        
-       ! idomain
-
+       ! Integer domain to distinguish material and background
+       call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
+                        bx%lo, bx%hi, &
+                        pid, lbound(pid), ubound(pid))
        
     end do    
     call amrex_mfiter_destroy(mfi)   
@@ -299,6 +318,7 @@ contains
 
     use read_input_module, only : do_reflux
     use material_properties_module, only : get_temp
+    use heat_transfer_module, only : get_idomain
 
     ! Input and output variables    
     integer, intent(in), value :: lev
@@ -306,6 +326,7 @@ contains
     type(c_ptr), intent(in), value :: pba, pdm
 
     ! Local variables
+    integer, contiguous, pointer :: pid(:,:,:,:)
     real(amrex_real), contiguous, pointer :: phi(:,:,:,:)
     real(amrex_real), contiguous, pointer :: ptemp(:,:,:,:)
     type(amrex_boxarray) :: ba
@@ -313,11 +334,15 @@ contains
     type(amrex_mfiter) :: mfi
     type(amrex_multifab) :: new_phi_new
     type(amrex_box) :: bx
-
+    type(amrex_geometry) :: geom
+    
     ! Pointers for box array and distribution mapping
     ba = pba
     dm = pdm
 
+    ! Geometry
+    geom = amrex_geom(lev)
+    
     ! Create a copy of phi_new and fill it with fillpatch
     call amrex_multifab_build(new_phi_new, ba, dm, ncomp, 0)
     call fillpatch(lev, time, new_phi_new)
@@ -346,17 +371,24 @@ contains
     call phi_new(lev)%copy(new_phi_new, 1, 1, ncomp, 0)
     call amrex_multifab_destroy(new_phi_new)
     
-    ! Fill temperature
+    ! Fill temperature and idomain
     call amrex_mfiter_build(mfi, temp(lev))
     do while (mfi%next())
        
        bx = mfi%tilebox()
        phi => phi_new(lev)%dataptr(mfi)
        ptemp => temp(lev)%dataptr(mfi)
+       pid => idomain_new(lev)%dataptr(mfi)
 
+       ! Temperature
        call get_temp(bx%lo, bx%hi, & 
                      phi, lbound(phi), ubound(phi), &
                      ptemp, lbound(ptemp), ubound(ptemp))
+
+       ! Integer domain to distinguish material and background
+       call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
+                        bx%lo, bx%hi, &
+                        pid, lbound(pid), ubound(pid))
        
      end do    
     call amrex_mfiter_destroy(mfi)

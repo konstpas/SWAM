@@ -141,17 +141,41 @@ contains
   ! Subroutine used to obtain the integer field used to distinguish
   ! between material and background
   ! -----------------------------------------------------------------
-  subroutine get_idomain(id_lo, id_hi, idom)
+  subroutine get_idomain(xlo, dx, lo, hi, &
+                         idom, id_lo, id_hi)
 
     ! Input and output variables
+    integer, intent(in) :: lo(2), hi(2)
     integer, intent(in) :: id_lo(2), id_hi(2)
     integer, intent(inout) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2))
+    real(amrex_real), intent(in) :: xlo(2)
+    real(amrex_real), intent(in) :: dx(2)
     
     ! Local variables
-    !real(amrex_real) :: surfpos(id_lo(1):id_hi(1))
+    integer :: i,j
+    integer :: surf_ind_heat_domain
+    real(amrex_real) :: surf_pos_heat_domain(id_lo(1):id_hi(1))
 
-    ! THIS MUST BE UPDATED
-    idom = 0 
+    ! Get location of the free surface
+    call get_surf_pos(xlo, dx, id_lo, id_hi, surf_pos_heat_domain)
+
+    ! Set flags to distinguish between material and background
+    do i = lo(1), hi(1)
+
+       surf_ind_heat_domain = lo(2) + &
+                              floor((surf_pos_heat_domain(i) - &
+                              xlo(2))/dx(2))
+
+       if (surf_ind_heat_domain .ge. lo(2) .and. &
+           surf_ind_heat_domain .le. hi(2)+1) then
+          
+           do j = lo(2), surf_ind_heat_domain
+              idom(i,j) = 1
+           end do
+           
+       end if 
+       
+    end do
     
   end subroutine get_idomain
 
