@@ -67,7 +67,7 @@ contains
     type(amrex_mfiter) :: mfi
     type(amrex_box) :: bx
     type(amrex_geometry) :: geom
-    
+
     ! Pointers for box array and distribution mapping
     ba = pba
     dm = pdm
@@ -180,7 +180,7 @@ contains
     type(amrex_mfiter) :: mfi
     type(amrex_box) :: bx
     type(amrex_geometry) :: geom
-    
+
     ! Pointers for box array and distribution mapping
     ba = pba
     dm = pdm

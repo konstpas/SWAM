@@ -3,12 +3,12 @@ module heat_transfer_module
   ! -----------------------------------------------------------------
   ! This module is used to perform all the calculations relative
   ! to the heat transfer part of the code.
-  ! NOTE: As of July 24, 2021 there are several parts of this module
+  ! NOTE: As of August 4, 2021 there are several parts of this module
   ! that have to be updated. The main changes have to do with:
   ! 1) Implementing the get_idomain routine
-  ! 2) Implementing the get_face_velocity routine
-  ! 3) Implementing appropriate bounds for the velocities that
-  !    do not depend on the enthalpy
+  ! 2) Try to restructure the code in such a way that the surface
+  !    is tracked only once per timestep and not (at least) three
+  !    times as it is done now
   ! -----------------------------------------------------------------
   
   use amrex_amr_module
@@ -26,7 +26,7 @@ module heat_transfer_module
   public :: increment_enthalpy
   public :: integrate_surf
   public :: reset_melt_pos
-  
+
 contains
 
   ! -----------------------------------------------------------------
@@ -193,7 +193,7 @@ contains
                               xlo(2))/dx(2))
        
        do j = lo(2), hi(2)
-          if (j .le. surf_ind_heat_domain) then
+          if (j+1 .le. surf_ind_heat_domain) then
              idom(i,j) = 1
           else
              idom(i,j) = 0
@@ -402,7 +402,8 @@ contains
   ! -----------------------------------------------------------------
   ! Subroutine used to interpolate the free surface position as given
   ! by the fluid solver in order to construct the heat conduction
-  ! free interface
+  ! free interface. Note that the surface position is defined on
+  ! the faces of the cells and not on the centers
   ! -----------------------------------------------------------------     
   subroutine get_surf_pos(xlo, dx, lo, hi, surf_pos_heat_domain)
 
@@ -425,7 +426,9 @@ contains
        xpos = xlo(1) + (0.5 + i-lo(1))*dx(1) 
        
        ! In what follows -surf_dx(1)/2  and ceiling are used since
-       ! staggered 'backwards' on faces w.r.t values which are centered.  
+       ! the surface is staggered 'backwards' on the faces with
+       ! respect to the xlo and xpos values which are defined on the
+       ! centers. 
        xind = ceiling((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
        x_alpha = mod(xpos - surf_dx(1)/2 - surf_xlo(1), surf_dx(1))
        

@@ -36,7 +36,7 @@ contains
                               my_clear_level, &
                               my_error_estimate
 
-    ! Initialize amrex 
+    ! Initialize amrex
     call amrex_init 
     call amrex_amrcore_init
 
@@ -63,7 +63,6 @@ contains
     else
        call amrex_abort("init from checkpoint not implemented yet")
     end if
-
     
   end subroutine run_init
 
