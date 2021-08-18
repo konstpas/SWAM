@@ -86,8 +86,8 @@ contains
     call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(idomain_new(lev), ba, dm, ncomp, nghost+1)
+    call amrex_multifab_build(idomain_old(lev), ba, dm, ncomp, nghost+1)
 
     ! Build the flux registers
     if (lev > 0 .and. do_reflux) then
@@ -199,8 +199,8 @@ contains
     call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(idomain_new(lev), ba, dm, ncomp, nghost+1)
+    call amrex_multifab_build(idomain_old(lev), ba, dm, ncomp, nghost+1)
 
     ! Build the flux registers
     if (lev > 0 .and. do_reflux) then
@@ -358,8 +358,8 @@ contains
     call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(idomain_new(lev), ba, dm, ncomp, nghost+1)
+    call amrex_multifab_build(idomain_old(lev), ba, dm, ncomp, nghost+1)
 
     ! Build the flux registers
     if (lev > 0 .and. do_reflux) then

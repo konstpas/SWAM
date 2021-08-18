@@ -81,8 +81,8 @@ contains
     call get_enthalpy(tempinit,u_back)
 
     ! Re-evaluate domain
-    do i = lo(1),hi(1)
-       do  j = lo(2),hi(2)
+    do i = lo(1)-1,hi(1)+1
+       do  j = lo(2)-1,hi(2)+1
 
           ! Points added to the domain
           if (nint(idom_old(i,j)).eq.0 .and. nint(idom_new(i,j)).eq.1) then
@@ -183,16 +183,16 @@ contains
     real(amrex_real) :: surf_pos_heat_domain(id_lo(1):id_hi(1))
 
     ! Get location of the free surface
-    call get_surf_pos(xlo, dx, id_lo, id_hi, surf_pos_heat_domain)
+    call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
 
     ! Set flags to distinguish between material and background
-    do i = lo(1), hi(1)
+    do i = lo(1)-1, hi(1)+1
 
        surf_ind_heat_domain = lo(2) + &
                               floor((surf_pos_heat_domain(i) - &
                               xlo(2))/dx(2))
        
-       do j = lo(2), hi(2)
+       do j = lo(2)-1, hi(2)+1
           if (j+1 .le. surf_ind_heat_domain) then
              idom(i,j) = 1
           else
