@@ -36,7 +36,7 @@ module regrid_module
   ! Declare private variables shared by all subroutines
   ! -----------------------------------------------------------------  
   integer, parameter :: ncomp = 1
-  integer, parameter :: nghost = 0
+  integer, parameter :: nghost = 1
   
 contains
 
@@ -51,24 +51,30 @@ contains
 
     use read_input_module, only : tempinit, do_reflux
     use material_properties_module, only : get_temp
-
+    use heat_transfer_module, only : get_idomain
+    
     ! Input and output variables
     integer, intent(in), value :: lev
     real(amrex_real), intent(in), value :: time
     type(c_ptr), intent(in), value :: pba, pdm
 
     ! Local variables
+    real(amrex_real), contiguous, pointer :: pid(:,:,:,:)
     real(amrex_real), contiguous, pointer :: phi(:,:,:,:)
     real(amrex_real), contiguous, pointer :: ptemp(:,:,:,:)
     type(amrex_boxarray) :: ba
     type(amrex_distromap) :: dm
     type(amrex_mfiter) :: mfi
     type(amrex_box) :: bx
-
+    type(amrex_geometry) :: geom
+    
     ! Pointers for box array and distribution mapping
     ba = pba
     dm = pdm
 
+    ! Geometry
+    geom = amrex_geom(lev)
+    
     ! Time
     t_new(lev) = time
     t_old(lev) = time - 1.e200_amrex_real
@@ -77,9 +83,9 @@ contains
     call my_clear_level(lev)
 
     ! Build the multifabs
-    call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(temp(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, 0)
+    call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, 0)
+    call amrex_multifab_build(temp(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
 
@@ -96,7 +102,8 @@ contains
        bx = mfi%tilebox()
        phi => phi_new(lev)%dataptr(mfi)
        ptemp => temp(lev)%dataptr(mfi)
-
+       pid => idomain_new(lev)%dataptr(mfi)
+       
        ! Enthalpy
        call init_phi(bx%lo, bx%hi, tempinit, &
                       phi, lbound(phi), ubound(phi))
@@ -104,8 +111,11 @@ contains
        call get_temp(bx%lo, bx%hi, &
                      phi, lbound(phi), ubound(phi), &
                      ptemp, lbound(ptemp), ubound(ptemp))
-       ! Idomain 
-       ! Add here a call to fill the idomain multifabs
+
+       ! Integer domain to distinguish material and background
+       call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
+                        bx%lo, bx%hi, &
+                        pid, lbound(pid), ubound(pid))
        
     end do
     call amrex_mfiter_destroy(mfi)
@@ -154,8 +164,8 @@ contains
   subroutine my_make_new_level_from_coarse(lev, time, pba, pdm) bind(c)
 
     use read_input_module, only : do_reflux
-    use heat_transfer_module, only : get_idomain
     use material_properties_module, only : get_temp
+    use heat_transfer_module, only : get_idomain
 
     ! Input and output variables    
     integer, intent(in), value :: lev
@@ -163,17 +173,22 @@ contains
     type(c_ptr), intent(in), value :: pba, pdm
 
     ! Local variables
+    real(amrex_real), contiguous, pointer :: pid(:,:,:,:)
     real(amrex_real), contiguous, pointer :: phi(:,:,:,:)
     real(amrex_real), contiguous, pointer :: ptemp(:,:,:,:)
     type(amrex_boxarray) :: ba
     type(amrex_distromap) :: dm
     type(amrex_mfiter) :: mfi
     type(amrex_box) :: bx
+    type(amrex_geometry) :: geom
     
     ! Pointers for box array and distribution mapping
     ba = pba
     dm = pdm
 
+    ! Geometry
+    geom = amrex_geom(lev)
+    
     ! Time
     t_new(lev) = time
     t_old(lev) = time - 1.e200_amrex_real
@@ -182,9 +197,9 @@ contains
     call my_clear_level(lev)
 
     ! Build the multifabs
-    call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(temp(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, 0)
+    call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, 0)
+    call amrex_multifab_build(temp(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
     call amrex_multifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
 
@@ -204,14 +219,17 @@ contains
        bx = mfi%tilebox()
        phi => phi_new(lev)%dataptr(mfi)
        ptemp => temp(lev)%dataptr(mfi)
-
+       pid => idomain_new(lev)%dataptr(mfi)
+       
        ! Temperature
        call get_temp(bx%lo, bx%hi, & 
                      phi, lbound(phi), ubound(phi), &
                      ptemp, lbound(ptemp), ubound(ptemp))
        
-       ! idomain
-
+       ! Integer domain to distinguish material and background
+       call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
+                        bx%lo, bx%hi, &
+                        pid, lbound(pid), ubound(pid))
        
     end do    
     call amrex_mfiter_destroy(mfi)   
@@ -235,8 +253,8 @@ contains
     
     call amrex_fillcoarsepatch(phi, t_old(lev-1), phi_old(lev-1),  &
                                t_new(lev-1), phi_new(lev-1),  &
-                               amrex_geom(lev-1),    fill_physbc,  &
-                               amrex_geom(lev  ),    fill_physbc,  &
+                               amrex_geom(lev-1), fill_physbc,  &
+                               amrex_geom(lev), fill_physbc,  &
                                time, ncomp, ncomp, ncomp, &
                                amrex_ref_ratio(lev-1), amrex_interp_cell_cons, &
                                lo_bc, hi_bc)
@@ -301,13 +319,15 @@ contains
 
     use read_input_module, only : do_reflux
     use material_properties_module, only : get_temp
-
+    use heat_transfer_module, only : get_idomain
+    
     ! Input and output variables    
     integer, intent(in), value :: lev
     real(amrex_real), intent(in), value :: time
     type(c_ptr), intent(in), value :: pba, pdm
 
     ! Local variables
+    real(amrex_real), contiguous, pointer :: pid(:,:,:,:)
     real(amrex_real), contiguous, pointer :: phi(:,:,:,:)
     real(amrex_real), contiguous, pointer :: ptemp(:,:,:,:)
     type(amrex_boxarray) :: ba
@@ -315,11 +335,15 @@ contains
     type(amrex_mfiter) :: mfi
     type(amrex_multifab) :: new_phi_new
     type(amrex_box) :: bx
-
+    type(amrex_geometry) :: geom
+    
     ! Pointers for box array and distribution mapping
     ba = pba
     dm = pdm
 
+    ! Geometry
+    geom = amrex_geom(lev)
+    
     ! Create a copy of phi_new and fill it with fillpatch
     call amrex_multifab_build(new_phi_new, ba, dm, ncomp, 0)
     call fillpatch(lev, time, new_phi_new)
@@ -348,21 +372,27 @@ contains
     call phi_new(lev)%copy(new_phi_new, 1, 1, ncomp, 0)
     call amrex_multifab_destroy(new_phi_new)
     
-    ! Fill temperature
+    ! Fill temperature and idomain
     call amrex_mfiter_build(mfi, temp(lev))
     do while (mfi%next())
        
        bx = mfi%tilebox()
        phi => phi_new(lev)%dataptr(mfi)
        ptemp => temp(lev)%dataptr(mfi)
+       pid => idomain_new(lev)%dataptr(mfi)
 
+       ! Temperature
        call get_temp(bx%lo, bx%hi, & 
                      phi, lbound(phi), ubound(phi), &
                      ptemp, lbound(ptemp), ubound(ptemp))
+
+       ! Integer domain to distinguish material and background
+       call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
+                        bx%lo, bx%hi, &
+                        pid, lbound(pid), ubound(pid))
        
      end do    
     call amrex_mfiter_destroy(mfi)
-
     
   end subroutine my_remake_level
 
@@ -391,9 +421,9 @@ contains
        call amrex_fillpatch(phi, t_old(lev-1), phi_old(lev-1), &
                             t_new(lev-1), phi_new(lev-1), &
                             amrex_geom(lev-1), fill_physbc   , &
-                            t_old(lev  ), phi_old(lev  ), &
-                            t_new(lev  ), phi_new(lev  ), &
-                            amrex_geom(lev  ), fill_physbc   , &
+                            t_old(lev), phi_old(lev), &
+                            t_new(lev), phi_new(lev), &
+                            amrex_geom(lev), fill_physbc   , &
                             time, ncomp, ncomp, ncomp, &
                             amrex_ref_ratio(lev-1), amrex_interp_cell_cons, &
                             lo_bc, hi_bc)

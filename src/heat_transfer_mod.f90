@@ -40,10 +40,13 @@ contains
                                 flxx, fx_lo, fx_hi, &
                                 flxy, fy_lo, fy_hi, &
                                 flxz, fz_lo, fz_hi, &
+                                idom_old, ido_lo, ido_hi, &
+                                idom_new, idn_lo, idn_hi, &
                                 geom, dt)
 
-    use material_properties_module, only : get_temp, get_maxdiffus
-
+    use material_properties_module, only : get_temp, get_maxdiffus, get_enthalpy
+    use read_input_module, only : tempinit
+    
     ! Input and output variables
     integer, intent(in) :: lo(3), hi(3) ! bounds of current tile box
     integer, intent(in) :: uo_lo(3), uo_hi(3) ! bounds of input enthalpy box 
@@ -53,15 +56,19 @@ contains
     integer, intent(in) :: fx_lo(3), fx_hi(3) ! bounds of the enthalpy flux along x
     integer, intent(in) :: fy_lo(3), fy_hi(3) ! bounds of the enthalpy flux along y
     integer, intent(in) :: fz_lo(3), fz_hi(3) ! bounds of the enthalpy flux along z
+     integer, intent(in) :: ido_lo(3), ido_hi(3) ! bounds of the input idomain box
+    integer, intent(in) :: idn_lo(3), idn_hi(3) ! bounds of the output idomain box
     real(amrex_real), intent(in) :: dt ! time step
     real(amrex_real), intent(in) :: time ! time
-    real(amrex_real), intent(in) :: u_old (uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3)) ! Input enthalpy 
+    real(amrex_real), intent(inout) :: u_old (uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3)) ! Input enthalpy 
     real(amrex_real), intent(inout) :: u_new(un_lo(1):un_hi(1),un_lo(2):un_hi(2),un_lo(3):un_hi(3)) ! Output enthalpy
     real(amrex_real), intent(inout) :: temp_old(to_lo(1):to_hi(1),to_lo(2):to_hi(2),to_lo(3):to_hi(3)) ! Input temperature
     real(amrex_real), intent(inout) :: temp_new(tn_lo(1):tn_hi(1),tn_lo(2):tn_hi(2),tn_lo(3):tn_hi(3)) ! Output temperature
     real(amrex_real), intent(out) :: flxx(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) ! flux along the x direction  			
     real(amrex_real), intent(out) :: flxy(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) ! flux along the y direction
-    real(amrex_real), intent(out) :: flxz(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3)) ! flux along the z direction	
+    real(amrex_real), intent(out) :: flxz(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3)) ! flux along the z direction
+     real(amrex_real), intent(in) :: idom_old(ido_lo(1):ido_hi(1),ido_lo(2):ido_hi(2),ido_lo(3):ido_hi(3))
+    real(amrex_real), intent(in) :: idom_new(idn_lo(1):idn_hi(1),idn_lo(2):idn_hi(2),idn_lo(3):idn_hi(3))
     type(amrex_geometry), intent(in) :: geom ! geometry
     
     !Local variables
@@ -72,7 +79,27 @@ contains
     real(amrex_real) :: dx(3) ! Grid size
     real(amrex_real) :: lo_phys(3) ! Physical location of the lowest corner of the tile box
     real(amrex_real) :: qbound(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3)) ! Volumetric heating (boundary)
+    real(amrex_real) :: u_back
 
+    ! Enthalpy of the background (this should be computed once and stored)
+    call get_enthalpy(tempinit,u_back)
+
+    ! Re-evaluate domain
+    do i = lo(1)-1,hi(1)+1
+       do  j = lo(2)-1,hi(2)+1
+          do k = lo(3)-1,hi(3)+1
+             
+             ! Points added to the domain
+             if (nint(idom_old(i,j,k)).eq.0 .and. nint(idom_new(i,j,k)).eq.1) then
+                u_old(i,j,k) = u_old(i,j-1,k)
+                ! Points removed from the domain
+             else if (nint(idom_old(i,j,k)).eq.1 .and. nint(idom_new(i,j,k)).eq.0) then
+                u_old(i,j,k) = u_back
+             end if
+             
+          end do
+       end do
+    end do
     
     ! Get grid size
     dx = geom%dx(1:3) ! grid width at level 
@@ -162,17 +189,44 @@ contains
   ! Subroutine used to obtain the integer field used to distinguish
   ! between material and background
   ! -----------------------------------------------------------------
-  subroutine get_idomain(id_lo, id_hi, idom)
+  subroutine get_idomain(xlo, dx, lo, hi, &
+                         idom, id_lo, id_hi)
 
     ! Input and output variables
+    integer, intent(in) :: lo(3), hi(3)
     integer, intent(in) :: id_lo(3), id_hi(3)
-    integer, intent(inout) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2), id_lo(3):id_hi(3))
-    
-    ! Local variables
-    !real(amrex_real) :: surfpos(id_lo(1):id_hi(1),id_lo(3):id_hi(3))
+    real(amrex_real), intent(in) :: dx(3)    
+    real(amrex_real), intent(inout) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2),id_lo(3):id_hi(3))
+    real(amrex_real), intent(in) :: xlo(3)
 
-    ! THIS MUST BE UPDATED
-    idom = 0 
+    ! Local variables
+    integer :: i,j,k
+    integer :: surf_ind_heat_domain
+    real(amrex_real) :: surf_pos_heat_domain(id_lo(1):id_hi(1),id_lo(3):id_hi(3))
+
+    ! Get location of the free surface
+    call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
+
+    ! Set flags to distinguish between material and background
+    do i = lo(1)-1, hi(1)+1
+       do k = lo(3)-1, hi(3)-1
+
+          surf_ind_heat_domain = lo(2) + &
+               floor((surf_pos_heat_domain(i,k) - &
+               xlo(2))/dx(2))
+          
+          do j = lo(2)-1, hi(2)+1
+             
+             if (j+1 .le. surf_ind_heat_domain) then
+                idom(i,j,k) = 1
+             else
+                idom(i,j,k) = 0
+             end if
+          
+          end do
+
+       end do
+    end do
     
   end subroutine get_idomain
 
@@ -214,8 +268,10 @@ contains
     real(amrex_real) :: vz(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3))
 
     ! Construct 3D melt velocity profile from the 2D shallow water solution
-    call get_face_velocity(vx, fx_lo, fx_hi, &
-                           vz, fz_lo, fz_hi )
+    call get_face_velocity(lo, hi, &
+                           vx, fx_lo, fx_hi, &
+                           vz, fz_lo, fz_hi, &
+                           temp, t_lo, t_hi)
     
     ! Flux along the x direction
     do i = lo(1), hi(1)+1
@@ -297,18 +353,50 @@ contains
   ! This subroutine translates to 3D the 2D velocity field obtained
   ! from the solution of the shallow water equations
   ! -----------------------------------------------------------------  
-  subroutine get_face_velocity(vx, vx_lo, vx_hi, &
-                               vz, vz_lo, vz_hi)
+  subroutine get_face_velocity(lo, hi, &
+                               vx, vx_lo, vx_hi, &
+                               vz, vz_lo, vz_hi, &
+                               temp, t_lo, t_hi)
 
+    use material_properties_module, only : melt_point
+    use read_input_module, only : meltvel
+    
     ! Input and output variables
-    integer, intent(in) :: vx_lo(3), vx_hi(3) 
+    integer, intent(in) :: lo(3), hi(3)
+    integer, intent(in) :: t_lo(3), t_hi(3)
+    integer, intent(in) :: vx_lo(3), vx_hi(3)
     integer, intent(in) :: vz_lo(3), vz_hi(3)
-    real(amrex_real) :: vx(vx_lo(1):vx_hi(1),vx_lo(2):vx_hi(2),vx_lo(3):vx_hi(3))
-    real(amrex_real) :: vz(vz_lo(1):vz_hi(1),vz_lo(2):vz_hi(2),vz_lo(3):vz_hi(3))
+    real(amrex_real), intent(in)  :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))
+    real(amrex_real), intent(out) :: vx(vx_lo(1):vx_hi(1),vx_lo(2):vx_hi(2),vx_lo(3):vx_hi(3))
+    real(amrex_real), intent(out) :: vz(vz_lo(1):vz_hi(1),vz_lo(2):vz_hi(2),vz_lo(3):vz_hi(3))
 
-    ! THIS MUST BE UPDATED
-    vx = 0_amrex_real 
-    vz = 0_amrex_real 
+    ! Local variables
+    integer :: i,j,k
+    
+    ! THIS MUST BE UPDATED 
+    do i = lo(1), hi(1)+1
+       do j = lo(2), hi(2)
+          do k = lo(3), hi(3)
+             if (temp(i,j,k).gt.melt_point) then
+                vx(i,j,k) = meltvel
+             else
+                vx(i,j,k) = 0_amrex_real
+             end if
+          end do
+       end do   
+    end do
+
+    do i = lo(1), hi(1)
+       do j = lo(2), hi(2)
+          do k = lo(3), hi(3)+1
+             if (temp(i,j,k).gt.melt_point) then
+                vz(i,j,k) = meltvel
+             else
+                vz(i,j,k) = 0_amrex_real
+             end if
+          end do
+       end do   
+    end do
     
   end subroutine get_face_velocity
     

@@ -257,11 +257,11 @@ contains
   subroutine advance(lev, time, dt, substep)
 
     use read_input_module, only : do_reflux
-    use amr_data_module, only : phi_new, temp, flux_reg  
+    use amr_data_module, only : phi_new, temp, idomain_new, idomain_old, flux_reg  
     use regrid_module, only : fillpatch
     use heat_transfer_module, only : get_melt_pos, reset_melt_pos 
     use shallow_water_module, only : increment_SW
-    use heat_transfer_module, only: increment_enthalpy
+    use heat_transfer_module, only: increment_enthalpy, get_idomain
 
     ! Input and output variables
     integer, intent(in) :: lev
@@ -283,6 +283,8 @@ contains
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pfz
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pf
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pfab
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidin
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidout
     type(amrex_multifab) :: phiborder ! Enthalpy multifab with ghost points
     type(amrex_multifab) :: tempborder ! Temperature multifab with ghost points
     type(amrex_mfiter) :: mfi ! multifab iterator
@@ -314,6 +316,9 @@ contains
     ! Fill enthalpy multifab
     call fillpatch(lev, time, phiborder)
 
+    ! Swap idomain solution before computing the surface deformation
+    call amrex_multifab_swap(idomain_old(lev), idomain_new(lev))
+    
     ! Propagate SW equations (only at max level)
     if (lev.eq.amrex_max_level) then 
        call increment_SW(dt)
@@ -325,8 +330,9 @@ contains
     ! Melt position is then found after heat has been propagated 
     call reset_melt_pos() 
    
-   
-    !$omp parallel private(mfi,bx,tbx,pin,pout,ptemp,ptempin,pfx,pfy,pfz,pf,pfab,flux)
+
+    ! Increment heat solver on all levels
+    !$omp parallel private(mfi,bx,tbx,pin,pout,ptemp,ptempin,pfx,pfy,pfz,pf,pfab,flux,pidin,pidout)
 
     do idim = 1, amrex_spacedim
        call flux(idim)%reset_omp_private()
@@ -353,6 +359,14 @@ contains
        pfx => flux(1)%dataptr()
        pfy => flux(2)%dataptr()
        pfz => flux(3)%dataptr()
+       pidin => idomain_old(lev)%dataptr(mfi)
+       pidout => idomain_new(lev)%dataptr(mfi)
+
+
+       ! Get configuration of the system after the deformation
+       call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
+                        bx%lo, bx%hi, &
+                        pidout, lbound(pidout), ubound(pidout))
        
        ! Increment solution at given box
        call increment_enthalpy(time, bx%lo, bx%hi, &
@@ -363,6 +377,8 @@ contains
                                pfx, lbound(pfx), ubound(pfx), &
                                pfy, lbound(pfy), ubound(pfy), &
                                pfz, lbound(pfz), ubound(pfz), &
+                               pidin, lbound(pidin), ubound(pidin), &
+                               pidout, lbound(pidout), ubound(pidout), &
                                amrex_geom(lev), dt)
 
        ! Update pointers for flux registers

@@ -252,8 +252,8 @@ contains
     
     call amrex_fillcoarsepatch(phi, t_old(lev-1), phi_old(lev-1),  &
                                t_new(lev-1), phi_new(lev-1),  &
-                               amrex_geom(lev-1),    fill_physbc,  &
-                               amrex_geom(lev  ),    fill_physbc,  &
+                               amrex_geom(lev-1), fill_physbc,  &
+                               amrex_geom(lev), fill_physbc,  &
                                time, ncomp, ncomp, ncomp, &
                                amrex_ref_ratio(lev-1), amrex_interp_cell_cons, &
                                lo_bc, hi_bc)
@@ -421,9 +421,9 @@ contains
        call amrex_fillpatch(phi, t_old(lev-1), phi_old(lev-1), &
                             t_new(lev-1), phi_new(lev-1), &
                             amrex_geom(lev-1), fill_physbc   , &
-                            t_old(lev  ), phi_old(lev  ), &
-                            t_new(lev  ), phi_new(lev  ), &
-                            amrex_geom(lev  ), fill_physbc   , &
+                            t_old(lev), phi_old(lev), &
+                            t_new(lev), phi_new(lev), &
+                            amrex_geom(lev), fill_physbc   , &
                             time, ncomp, ncomp, ncomp, &
                             amrex_ref_ratio(lev-1), amrex_interp_cell_cons, &
                             lo_bc, hi_bc)

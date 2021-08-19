@@ -317,7 +317,7 @@ contains
           if (temp(i,j).gt.melt_point) then
              vx(i,j) = meltvel
           else
-             vx(i,j) = 0.0
+             vx(i,j) = 0_amrex_real
           end if
        end do   
     end do
