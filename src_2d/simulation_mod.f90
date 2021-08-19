@@ -264,14 +264,14 @@ contains
     use shallow_water_module, only : increment_SW
     use heat_transfer_module, only: increment_enthalpy
 
-    ! Input and outpu variables 
+    ! Input and output variables 
     integer, intent(in) :: lev
     integer, intent(in) :: substep
     real(amrex_real), intent(in) :: time
     real(amrex_real), intent(in) :: dt
 
     ! Local variables
-    integer, parameter :: ngrow = 1 ! number of ghost points in each spatial direction 
+    integer, parameter :: nghost = 1 ! number of ghost points in each spatial direction 
     integer :: ncomp
     integer :: idim
     logical :: nodal(2) ! logical for flux multifabs 
@@ -310,8 +310,8 @@ contains
     end if
 
     ! Build enthalpy and temperature multifabs with ghost points
-    call amrex_multifab_build(phiborder, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, ngrow) 
-    call amrex_multifab_build(tempborder, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, ngrow)
+    call amrex_multifab_build(phiborder, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost) 
+    call amrex_multifab_build(tempborder, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost)
 
     ! Fill enthalpy multifab
     call fillpatch(lev, time, phiborder)
