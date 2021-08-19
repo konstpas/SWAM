@@ -63,7 +63,6 @@ contains
     else
        call amrex_abort("init from checkpoint not implemented yet")
     end if
-
     
   end subroutine run_init
 

@@ -7,6 +7,8 @@ module plotfile_module
   use amrex_amr_module
   use amr_data_module, only : phi_new, &
                               temp, &
+                              idomain_new, &
+                              idomain_old, &
                               t_new, &
                               stepno
   use read_input_module, only : plot_file
@@ -70,6 +72,14 @@ contains
     name = trim(plot_file) // "_temperature_" //current_step 
     call amrex_string_build(varname(1), "Temperature")
     call amrex_write_plotfile(name, nlevs, temp, &
+                              varname, amrex_geom, &
+                              t_new(0), stepno, &
+                              amrex_ref_ratio)
+
+    ! Output flag to distinguish between material and background
+    name = trim(plot_file) // "_idomain" //current_step 
+    call amrex_string_build(varname(1), "idomain")
+    call amrex_write_plotfile(name, nlevs, idomain_new, &
                               varname, amrex_geom, &
                               t_new(0), stepno, &
                               amrex_ref_ratio)
