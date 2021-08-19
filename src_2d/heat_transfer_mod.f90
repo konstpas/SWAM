@@ -188,7 +188,7 @@ contains
        
        do j = lo(2)-1, hi(2)+1
 
-          if (j+1 .le. surf_ind_heat_domain) then
+          if (j .le. surf_ind_heat_domain) then
              idom(i,j) = 1
           else
              idom(i,j) = 0
@@ -473,7 +473,8 @@ contains
                 ! into a volumetric heat flux [W/m^3]
                 qb(i,j) = flux_peak &
                      *EXP(-((xpos-flux_pos(1))**2)/(flux_width(1)**2))/dx(2)
-                
+
+           
              end if
              
           end if
