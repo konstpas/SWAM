@@ -36,7 +36,7 @@ module regrid_module
   ! Declare private variables shared by all subroutines
   ! -----------------------------------------------------------------  
   integer, parameter :: ncomp = 1
-  integer, parameter :: nghost = 0
+  integer, parameter :: nghost = 1
   
 contains
 
@@ -83,11 +83,11 @@ contains
     call my_clear_level(lev)
 
     ! Build the multifabs
-    call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(temp(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(idomain_new(lev), ba, dm, ncomp, nghost+1)
-    call amrex_multifab_build(idomain_old(lev), ba, dm, ncomp, nghost+1)
+    call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, 0)
+    call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, 0)
+    call amrex_multifab_build(temp(lev), ba, dm, ncomp, 0)
+    call amrex_multifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
 
     ! Build the flux registers
     if (lev > 0 .and. do_reflux) then
@@ -196,11 +196,11 @@ contains
     call my_clear_level(lev)
 
     ! Build the multifabs
-    call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(temp(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(idomain_new(lev), ba, dm, ncomp, nghost+1)
-    call amrex_multifab_build(idomain_old(lev), ba, dm, ncomp, nghost+1)
+    call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, 0)
+    call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, 0)
+    call amrex_multifab_build(temp(lev), ba, dm, ncomp, 0)
+    call amrex_multifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
 
     ! Build the flux registers
     if (lev > 0 .and. do_reflux) then
@@ -355,11 +355,11 @@ contains
     call my_clear_level(lev)
 
     ! Build the multifabs
-    call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(temp(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(idomain_new(lev), ba, dm, ncomp, nghost+1)
-    call amrex_multifab_build(idomain_old(lev), ba, dm, ncomp, nghost+1)
+    call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, 0)
+    call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, 0)
+    call amrex_multifab_build(temp(lev), ba, dm, ncomp, 0)
+    call amrex_multifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
 
     ! Build the flux registers
     if (lev > 0 .and. do_reflux) then
