@@ -182,9 +182,9 @@ contains
     ! Set flags to distinguish between material and background
     do i = lo(1)-1, hi(1)+1
 
-       surf_ind_heat_domain = lo(2) + &
+       surf_ind_heat_domain = id_lo(2) + &
                               floor((surf_pos_heat_domain(i) - &
-                              xlo(2))/dx(2))
+                              xlo(2)-dx(2))/dx(2))
        
        do j = lo(2)-1, hi(2)+1
 

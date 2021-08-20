@@ -73,9 +73,9 @@ contains
     
     !Local variables
     integer :: i,j,k
-    ! logical :: flxx_flag(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) ! Flags used to suppress the flux along x at the free surface 
-    ! logical :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) ! Flags used to suppress the flux along y at the free surface
-    ! logical :: flxz_flag(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3)) ! Flags used to suppress the flux along z at the free surface
+    logical :: flxx_flag(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) ! Flags used to suppress the flux along x at the free surface 
+    logical :: flxy_flag(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) ! Flags used to suppress the flux along y at the free surface
+    logical :: flxz_flag(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3)) ! Flags used to suppress the flux along z at the free surface
     real(amrex_real) :: dx(3) ! Grid size
     real(amrex_real) :: lo_phys(3) ! Physical location of the lowest corner of the tile box
     real(amrex_real) :: qbound(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3)) ! Volumetric heating (boundary)
@@ -208,23 +208,41 @@ contains
     call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
 
     ! Set flags to distinguish between material and background
-    do i = lo(1)-1, hi(1)+1
-       do k = lo(3)-1, hi(3)-1
+    ! do i = lo(1)-1, hi(1)+1
+    !    do k = lo(3)-1, hi(3)-1
 
-          surf_ind_heat_domain = lo(2) + &
-               floor((surf_pos_heat_domain(i,k) - &
-               xlo(2))/dx(2))
+    !       surf_ind_heat_domain = lo(2) + &
+    !            floor((surf_pos_heat_domain(i,k) - &
+    !            xlo(2))/dx(2))
           
-          do j = lo(2)-1, hi(2)+1
+    !       do j = lo(2)-1, hi(2)+1
              
+    !          if (j+1 .le. surf_ind_heat_domain) then
+    !             idom(i,j,k) = 2
+    !          else
+    !             idom(i,j,k) = -1
+    !          end if
+          
+    !       end do
+
+    !    end do
+    ! end do
+
+    do i = lo(1)-1,hi(1)+1
+       do k = lo(3)-1,hi(3)+1
+          
+          surf_ind_heat_domain = (lo(2)-1) + &
+               floor((surf_pos_heat_domain(i,k) - &
+               xlo(2)-dx(2))/dx(2))
+
+          do j = lo(2)-1,hi(2)+1
              if (j+1 .le. surf_ind_heat_domain) then
                 idom(i,j,k) = 1
              else
                 idom(i,j,k) = 0
              end if
-          
           end do
-
+          
        end do
     end do
     
