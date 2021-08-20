@@ -86,7 +86,7 @@ contains
           if (nint(idom_old(i,j)).eq.0 .and. nint(idom_new(i,j)).eq.1) then
              u_old(i,j) = u_old(i,j-1)
           ! Points removed from the domain
-          else if (nint(idom_old(i,j)).eq.1 .and. nint(idom_new(i,j)).eq.0) then
+          else if (nint(idom_new(i,j)).eq.0) then
              u_old(i,j) = u_back
           end if
           
@@ -184,16 +184,14 @@ contains
 
        surf_ind_heat_domain = id_lo(2) + &
                               floor((surf_pos_heat_domain(i) - &
-                              xlo(2)-dx(2))/dx(2))
+                              xlo(2)+dx(2))/dx(2))
        
        do j = lo(2)-1, hi(2)+1
-
           if (j .le. surf_ind_heat_domain) then
              idom(i,j) = 1
           else
              idom(i,j) = 0
           end if
-          
        end do
        
     end do
