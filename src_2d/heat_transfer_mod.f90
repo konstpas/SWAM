@@ -86,7 +86,7 @@ contains
           if (nint(idom_old(i,j)).eq.0 .and. nint(idom_new(i,j)).eq.1) then
              u_old(i,j) = u_old(i,j-1)
           ! Points removed from the domain
-          else if (nint(idom_new(i,j)).eq.0) then
+          else if (nint(idom_old(i,j)).eq.1 .and. nint(idom_new(i,j)).eq.0) then
              u_old(i,j) = u_back
           end if
           
@@ -451,9 +451,14 @@ contains
     real(amrex_real), intent(out) :: qb(lo(1):hi(1),lo(2):hi(2))
 
     ! Local variables
-    real(amrex_real) :: xpos
+    real(amrex_real) :: xpos, ypos
     integer :: i,j
+    integer :: surf_ind_heat_domain
+    real(amrex_real) :: surf_pos_heat_domain(lo(1):hi(1))
 
+    ! Get location of the free surface
+    call get_surf_pos(xlo, dx, lo, hi, surf_pos_heat_domain)
+    
     ! Initialize the heat flux
     qb = 0. 
     
@@ -462,7 +467,10 @@ contains
        do  j = lo(2), hi(2)
 
           if (time.lt.exp_time) then
-                
+
+             !ypos = xlo(2) + (j-lo(2))*dx(2)
+                       
+             !if(ypos .le. surf_pos_heat_domain(i) .and. ypos .gt. surf_pos_heat_domain(i)-dx(2)) then
              if(nint(idom(i,j)).eq.1 .and. nint(idom(i,j+1)).eq.0) then 
                 
                 xpos = xlo(1) + (i-lo(1))*dx(1)
@@ -472,7 +480,8 @@ contains
                 qb(i,j) = flux_peak &
                      *EXP(-((xpos-flux_pos(1))**2)/(flux_width(1)**2))/dx(2)
 
-           
+                !exit
+                
              end if
              
           end if

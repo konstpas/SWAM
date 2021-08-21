@@ -24,7 +24,6 @@ contains
   ! -----------------------------------------------------------------
   subroutine run_simulation()
 
-    use amrex_amr_module 
     use amr_data_module, only : t_new, stepno, dt
     use read_input_module, only : max_step, stop_time, plot_int
     use plotfile_module, only: writeplotfile, write2dplotfile
@@ -57,7 +56,7 @@ contains
        end if
 
        ! Compute time step size
-       call compute_dt()    
+       call compute_dt
 		 
        ! Advance all levels of one time step  
        lev = 0
@@ -101,7 +100,8 @@ contains
     
     use amr_data_module, only : dt, nsubsteps
     use read_input_module, only : dt_change_max
-    
+
+    ! Local variables
     integer :: lev
     integer :: nlevs
     integer :: n_factor
@@ -136,6 +136,7 @@ contains
 
     
   end subroutine compute_dt
+  
 
   ! -----------------------------------------------------------------
   ! Subroutine used to estimate the timestep based on the stability
@@ -259,9 +260,8 @@ contains
     use read_input_module, only : do_reflux
     use amr_data_module, only : phi_new, temp, idomain_new, idomain_old, flux_reg  
     use regrid_module, only : fillpatch
-    use heat_transfer_module, only : get_melt_pos, reset_melt_pos 
+    use heat_transfer_module, only : get_idomain, get_melt_pos, reset_melt_pos, increment_enthalpy 
     use shallow_water_module, only : increment_SW
-    use heat_transfer_module, only: increment_enthalpy, get_idomain
 
     ! Input and output variables
     integer, intent(in) :: lev
@@ -338,8 +338,8 @@ contains
        call flux(idim)%reset_omp_private()
     end do
     
-    call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.) ! Tiling splits validbox into several tile boxes 
-    								! could be useful depending on parallelization approach 
+    call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
+    
     do while(mfi%next())
 
        ! Box

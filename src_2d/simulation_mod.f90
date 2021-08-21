@@ -260,9 +260,8 @@ contains
     use read_input_module, only : do_reflux
     use amr_data_module, only : phi_new, temp, idomain_new, idomain_old, flux_reg  
     use regrid_module, only : fillpatch
-    use heat_transfer_module, only : get_idomain, get_melt_pos, reset_melt_pos 
+    use heat_transfer_module, only : get_idomain, get_melt_pos, reset_melt_pos, increment_enthalpy
     use shallow_water_module, only : increment_SW
-    use heat_transfer_module, only: increment_enthalpy
 
     ! Input and output variables 
     integer, intent(in) :: lev

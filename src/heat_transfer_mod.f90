@@ -90,13 +90,26 @@ contains
              if (nint(idom_old(i,j,k)).eq.0 .and. nint(idom_new(i,j,k)).eq.1) then
                 u_old(i,j,k) = u_old(i,j-1,k)
              ! Points removed from the domain
-             else if (nint(idom_new(i,j,k)).eq.0) then
+             else if (nint(idom_old(i,j,k)).eq.1 .and. nint(idom_new(i,j,k)).eq.0) then
                 u_old(i,j,k) = u_back
              end if
              
           end do
        end do
     end do
+
+    ! do i = lo(1)-1,hi(1)+1
+    !    do  j = lo(2)-1,hi(2)+1
+    !       do k = lo(3)-1,hi(3)+1
+             
+    !          if (nint(idom_new(i,j,k)).eq.0 .and. abs(u_old(i,j,k)-u_back)/u_back*100.gt.0.01) then
+    !             print *, "INCOSISTENCY: ", u_back, u_old(i,j,k), idom_old(i,j,k), idom_new(i,j,k)
+    !          end if
+             
+    !       end do
+    !    end do
+    ! end do
+
     
     ! Get grid size
     dx = geom%dx(1:3) ! grid width at level 
@@ -128,11 +141,27 @@ contains
     do   i = lo(1),hi(1)
        do  j = lo(2),hi(2) 
           do k = lo(3),hi(3)
+             if (nint(idom_new(i,j,k)).eq.0 .and. flxx(i,j,k).ne.0_amrex_real) print *, "INCOSISTENCY at i: ", flxx(i,j,k)
+             if (nint(idom_new(i-1,j,k)).eq.0 .and. flxx(i-1,j,k).ne.0_amrex_real .and. i.gt.lo(1)) &
+                  print *, "INCOSISTENCY at i-1: ", flxx(i-1,j,k)
+             if (nint(idom_new(i+1,j,k)).eq.0 .and. flxx(i+1,j,k).ne.0_amrex_real) print *, "INCOSISTENCY at i+1: ", flxx(i+1,j,k)
+             if (nint(idom_new(i,j,k)).eq.0 .and. flxy(i,j,k).ne.0_amrex_real) print *, "INCOSISTENCY at j: ", flxy(i,j,k)
+             if (nint(idom_new(i,j-1,k)).eq.0 .and. flxy(i,j-1,k).ne.0_amrex_real .and. j.gt.lo(2)) &
+                  print *, "INCOSISTENCY at j-1: ", flxy(i,j-1,k)
+             if (nint(idom_new(i,j+1,k)).eq.0 .and. flxy(i,j+1,k).ne.0_amrex_real) print *, "INCOSISTENCY at j+1: ", flxy(i,j+1,k)
+             if (nint(idom_new(i,j,k)).eq.0 .and. flxz(i,j,k).ne.0_amrex_real) print *, "INCOSISTENCY at k: ", flxz(i,j,k)
+             if (nint(idom_new(i,j,k-1)).eq.0 .and. flxz(i,j,k-1).ne.0_amrex_real .and. k.gt.lo(3)) &
+                  print *, "INCOSISTENCY at k-1: ", flxz(i,j,k-1)
+             if (nint(idom_new(i,j,k+1)).eq.0 .and. flxz(i,j,k+1).ne.0_amrex_real) print *, "INCOSISTENCY at k+1: ", flxz(i,j,k+1)
+             if (nint(idom_new(i,j,k)).eq.0 .and. qbound(i,j,k).ne.0_amrex_real) print *, "INCONSISTENCY IN QBOUND:", qbound(i,j,k)
+             !if (nint(idom_new(i,j,k)).eq.0 .and. u_old(i,j,k).ne.u_back) print *, "INCONSISTENCY IN U_OLD:", &
+             !u_old(i,j,k), u_new(i,j,k)
              u_new(i,j,k) = u_old(i,j,k) &
                   - dt/dx(1) * (flxx(i+1,j,k) - flxx(i,j,k)) &	! flux divergence x-direction 
                   - dt/dx(2) * (flxy(i,j+1,k) - flxy(i,j,k)) &	! flux divergence y-direction 
                   - dt/dx(3) * (flxz(i,j,k+1) - flxz(i,j,k)) &	! flux divergence z-direction
                   + dt*qbound(i,j,k) ! 'boundary volumetric' source
+             
           end do
        end do
     end do
@@ -645,7 +674,7 @@ contains
                             qb) 
 
     use read_input_module, only : flux_peak, flux_width, flux_pos, exp_time
-
+    
     ! Input and output variables
     integer, intent(in) :: lo(3), hi(3)  
     integer, intent(in) :: id_lo(3), id_hi(3)
@@ -654,9 +683,15 @@ contains
     real(amrex_real), intent(in) :: dx(3)
     real(amrex_real), intent(out) :: qb(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))
     real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2),id_lo(3):id_hi(3))
+
     ! Local variables
-    real(amrex_real) :: xpos, zpos
+    real(amrex_real) :: xpos, zpos, ypos
     integer :: i,j,k
+    integer :: surf_ind_heat_domain
+    real(amrex_real) :: surf_pos_heat_domain(lo(1):hi(1),lo(3):hi(3))
+
+    ! Get location of the free surface
+    call get_surf_pos(xlo, dx, lo, hi, surf_pos_heat_domain)
 
     ! Initialize the heat flux
     qb = 0. 
@@ -665,20 +700,26 @@ contains
     do   i = lo(1), hi(1) 
        do  j = lo(2), hi(2)
           do k = lo(3), hi(3)
-             
+
              if (time.lt.exp_time) then
-                
+
+                ypos = xlo(2) + (j-lo(2))*dx(2)
+
+                !if (ypos .lt. surf_pos_heat_domain(i,k) .and. ypos .ge. surf_pos_heat_domain(i,k)-dx(2)) then
+                !if(ypos .le. surf_pos_heat_domain(i,k) .and. ypos .gt. surf_pos_heat_domain(i,k)-dx(2)) then
                 if(nint(idom(i,j,k)).eq.1 .and. nint(idom(i,j+1,k)).eq.0) then
-                   
+
                    xpos = xlo(1) + (i-lo(1))*dx(1)
                    zpos = xlo(3) + (k-lo(3))*dx(3)
-
+                   
                    ! Note: the term /dx(2) converts a surface heat flux [W/m^2]
                    ! into a volumetric heat flux [W/m^3]
                    qb(i,j,k) = flux_peak &
                                *EXP(-((xpos-flux_pos(1))**2)/(flux_width(1)**2) &
                                    -((zpos-flux_pos(2))**2)/(flux_width(2)**2)) &
-                               /dx(2)   
+                                   /dx(2)
+
+                   
                 end if
                 
              end if
