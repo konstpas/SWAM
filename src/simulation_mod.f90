@@ -432,6 +432,7 @@ contains
 
     ! Clean memory
     call amrex_multifab_destroy(phiborder)
+    call amrex_multifab_destroy(tempborder)
     
  end subroutine advance
 

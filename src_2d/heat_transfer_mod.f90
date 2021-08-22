@@ -86,7 +86,7 @@ contains
           if (nint(idom_old(i,j)).eq.0 .and. nint(idom_new(i,j)).eq.1) then
              u_old(i,j) = u_old(i,j-1)
           ! Points removed from the domain
-          else if (nint(idom_old(i,j)).eq.1 .and. nint(idom_new(i,j)).eq.0) then
+          else if (nint(idom_new(i,j)).eq.0) then
              u_old(i,j) = u_back
           end if
           
