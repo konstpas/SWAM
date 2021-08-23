@@ -20,8 +20,7 @@ module amr_data_module
   ! Flux registers
   public :: flux_reg
   ! Indexes used to label material and background
-  public :: idomain_new
-  public :: idomain_old
+  public :: idomain
   ! Boundary conditions of the entire simulation box
   public :: lo_bc
   public :: hi_bc
@@ -70,8 +69,7 @@ module amr_data_module
   real(amrex_real), save :: surf_xlo(2)
   real(amrex_real), save :: surf_dx(2)
   type(amrex_fluxregister), allocatable, save :: flux_reg(:)
-  type(amrex_multifab), allocatable, save :: idomain_new(:)
-  type(amrex_multifab), allocatable, save :: idomain_old(:)
+  type(amrex_multifab), allocatable, save :: idomain(:)
   type(amrex_multifab), allocatable, save :: phi_new(:)
   type(amrex_multifab), allocatable, save :: phi_old(:)
   type(amrex_multifab), allocatable, save :: temp(:)
@@ -104,8 +102,7 @@ contains
     ! Allocate
     allocate(dt(0:amrex_max_level))
     allocate(flux_reg(0:amrex_max_level))
-    allocate(idomain_new(0:amrex_max_level))
-    allocate(idomain_old(0:amrex_max_level))
+    allocate(idomain(0:amrex_max_level))
     allocate(lo_bc(amrex_spacedim,1)) ! The second argument is the number of components
     allocate(hi_bc(amrex_spacedim,1))
     allocate(melt_pos(lo_x:hi_x, lo_z:hi_z))
@@ -170,8 +167,7 @@ contains
     
     do lev = 0, amrex_max_level
 
-       call amrex_multifab_destroy(idomain_new(lev))
-       call amrex_multifab_destroy(idomain_old(lev))
+       call amrex_multifab_destroy(idomain(lev))
        call amrex_multifab_destroy(phi_new(lev))
        call amrex_multifab_destroy(phi_old(lev))
        call amrex_multifab_destroy(temp(lev))

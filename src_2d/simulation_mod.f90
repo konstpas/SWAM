@@ -258,7 +258,7 @@ contains
   subroutine advance(lev, time, dt, substep)
 
     use read_input_module, only : do_reflux
-    use amr_data_module, only : phi_new, temp, idomain_new, idomain_old, flux_reg  
+    use amr_data_module, only : phi_new, temp, idomain, flux_reg  
     use regrid_module, only : fillpatch
     use heat_transfer_module, only : get_idomain, get_melt_pos, reset_melt_pos, increment_enthalpy
     use shallow_water_module, only : increment_SW
@@ -284,8 +284,9 @@ contains
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pfab
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidin
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidout
-    type(amrex_multifab) :: phiborder ! Enthalpy multifab with ghost points
-    type(amrex_multifab) :: tempborder ! Temperature multifab with ghost points 
+    type(amrex_multifab) :: phi_tmp ! Enthalpy multifab with ghost points
+    type(amrex_multifab) :: temp_tmp ! Temperature multifab with ghost points
+    type(amrex_multifab) :: idomain_tmp ! Idomain multifab to distinguish material and background
     type(amrex_mfiter) :: mfi ! Multifab iterator
     type(amrex_box) :: bx
     type(amrex_box) :: tbx
@@ -309,14 +310,15 @@ contains
     end if
 
     ! Build enthalpy and temperature multifabs with ghost points
-    call amrex_multifab_build(phiborder, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost) 
-    call amrex_multifab_build(tempborder, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost)
-
+    call amrex_multifab_build(phi_tmp, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost) 
+    call amrex_multifab_build(temp_tmp, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost)
+    call amrex_multifab_build(idomain_tmp, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost)
+    
     ! Fill enthalpy multifab
-    call fillpatch(lev, time, phiborder)
+    call fillpatch(lev, time, phi_tmp)
 
     ! Swap idomain solution before computing the surface deformation
-    call amrex_multifab_swap(idomain_old(lev), idomain_new(lev))
+    call amrex_multifab_swap(idomain_tmp, idomain(lev))
     
     ! Propagate SW equations (only at max level)
     if (lev.eq.amrex_max_level) then 
@@ -327,7 +329,7 @@ contains
     ! Since melt layer may span several tile boxes in y-direction (in mfiterator below), we cannot reset within each loop 
     ! Therefore we reset melt position after solving SW, and before propagating temperature 
     ! Melt position is then found after heat has been propagated 
-    call reset_melt_pos() 
+    call reset_melt_pos 
        
     ! Increment heat solver on all levels
     !$omp parallel private(mfi,bx,tbx,pin,pout,ptemp,ptempin,pfx,pfy,pf,pfab,flux,pidin,pidout)
@@ -344,9 +346,9 @@ contains
        bx = mfi%validbox()   
 
        ! Pointers
-       pin     => phiborder%dataptr(mfi)
+       pin     => phi_tmp%dataptr(mfi)
        pout    => phi_new(lev)%dataptr(mfi)
-       ptempin => tempborder%dataptr(mfi)
+       ptempin => temp_tmp%dataptr(mfi)
        ptemp   => temp(lev)%dataptr(mfi)
        do idim = 1, amrex_spacedim
           tbx = bx
@@ -356,8 +358,8 @@ contains
        end do
        pfx => flux(1)%dataptr()
        pfy => flux(2)%dataptr()
-       pidin => idomain_old(lev)%dataptr(mfi)
-       pidout => idomain_new(lev)%dataptr(mfi)
+       pidin => idomain_tmp%dataptr(mfi)
+       pidout => idomain(lev)%dataptr(mfi)
 
        ! Get configuration of the system after the deformation
        call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
@@ -374,7 +376,7 @@ contains
                                pfy, lbound(pfy), ubound(pfy), &
                                pidin, lbound(pidin), ubound(pidin), &
                                pidout, lbound(pidout), ubound(pidout), &
-                               amrex_geom(lev), dt)
+                               geom, dt)
 
        ! Update pointers for flux registers
        if (do_reflux) then
@@ -395,7 +397,7 @@ contains
        if (lev.eq.amrex_max_level) then
           call get_melt_pos(bx%lo, bx%hi, &
                             ptemp, lbound(ptemp), ubound(ptemp), &
-                            amrex_geom(lev))
+                            geom)
        end if
 
     end do
@@ -426,8 +428,9 @@ contains
     end if
 
     ! Clean memory
-    call amrex_multifab_destroy(phiborder)
-    call amrex_multifab_destroy(tempborder)
+    call amrex_multifab_destroy(phi_tmp)
+    call amrex_multifab_destroy(temp_tmp)
+    call amrex_multifab_destroy(idomain_tmp)
 
  end subroutine advance
 

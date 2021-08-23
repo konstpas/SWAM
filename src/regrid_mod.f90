@@ -7,8 +7,7 @@ module regrid_module
   
   use iso_c_binding
   use amrex_amr_module
-  use amr_data_module, only : idomain_new, &
-                              idomain_old, &
+  use amr_data_module, only : idomain, & 
                               flux_reg, &
                               phi_new, &
                               phi_old, &
@@ -86,8 +85,7 @@ contains
     call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, 0)
-    call amrex_multifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(idomain(lev), ba, dm, ncomp, nghost)
 
     ! Build the flux registers
     if (lev > 0 .and. do_reflux) then
@@ -102,7 +100,7 @@ contains
        bx = mfi%tilebox()
        phi => phi_new(lev)%dataptr(mfi)
        ptemp => temp(lev)%dataptr(mfi)
-       pid => idomain_new(lev)%dataptr(mfi)
+       pid => idomain(lev)%dataptr(mfi)
        
        ! Enthalpy
        call init_phi(bx%lo, bx%hi, tempinit, &
@@ -200,8 +198,7 @@ contains
     call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, 0)
-    call amrex_multifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(idomain(lev), ba, dm, ncomp, nghost)
 
     ! Build the flux registers
     if (lev > 0 .and. do_reflux) then
@@ -219,7 +216,7 @@ contains
        bx = mfi%tilebox()
        phi => phi_new(lev)%dataptr(mfi)
        ptemp => temp(lev)%dataptr(mfi)
-       pid => idomain_new(lev)%dataptr(mfi)
+       pid => idomain(lev)%dataptr(mfi)
        
        ! Temperature
        call get_temp(bx%lo, bx%hi, & 
@@ -359,8 +356,7 @@ contains
     call amrex_multifab_build(phi_new(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, 0)
-    call amrex_multifab_build(idomain_new(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(idomain_old(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(idomain(lev), ba, dm, ncomp, nghost)
 
     ! Build the flux registers
     if (lev > 0 .and. do_reflux) then
@@ -379,7 +375,7 @@ contains
        bx = mfi%tilebox()
        phi => phi_new(lev)%dataptr(mfi)
        ptemp => temp(lev)%dataptr(mfi)
-       pid => idomain_new(lev)%dataptr(mfi)
+       pid => idomain(lev)%dataptr(mfi)
 
        ! Temperature
        call get_temp(bx%lo, bx%hi, & 
@@ -444,8 +440,7 @@ contains
     call amrex_multifab_destroy(phi_new(lev))
     call amrex_multifab_destroy(phi_old(lev))
     call amrex_multifab_destroy(temp(lev))
-    call amrex_multifab_destroy(idomain_new(lev))
-    call amrex_multifab_destroy(idomain_old(lev))
+    call amrex_multifab_destroy(idomain(lev))
     call amrex_fluxregister_destroy(flux_reg(lev))
     
   end subroutine my_clear_level

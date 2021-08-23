@@ -43,8 +43,7 @@ contains
                                 idom_new, idn_lo, idn_hi, &
                                 geom, dt)
 
-    use material_properties_module, only : get_temp, get_maxdiffus, get_enthalpy
-    use read_input_module, only: tempinit
+    use material_properties_module, only : get_temp, get_maxdiffus
 
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) ! bounds of current tile box
@@ -73,10 +72,6 @@ contains
     real(amrex_real) :: dx(2) ! Grid size
     real(amrex_real) :: lo_phys(2) ! Physical location of the lowest corner of the tile box
     real(amrex_real) :: qbound(lo(1):hi(1),lo(2):hi(2)) ! Volumetric heating (boundary)
-    real(amrex_real) :: u_back
-
-    ! Enthalpy of the background (this should be computed once and stored)
-    call get_enthalpy(tempinit,u_back)
 
     ! Re-evaluate domain
     do i = lo(1)-1,hi(1)+1
@@ -87,7 +82,7 @@ contains
              u_old(i,j) = u_old(i,j-1)
           ! Points removed from the domain
           else if (nint(idom_new(i,j)).eq.0) then
-             u_old(i,j) = u_back
+             u_old(i,j) = 0_amrex_real
           end if
           
        end do
