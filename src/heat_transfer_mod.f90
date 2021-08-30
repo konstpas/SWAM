@@ -3,12 +3,6 @@ module heat_transfer_module
   ! -----------------------------------------------------------------
   ! This module is used to perform all the calculations relative
   ! to the heat transfer part of the code.
-  ! NOTE: As of July 24, 2021 there are several parts of this module
-  ! that have to be updated. The main changes have to do with:
-  ! 1) Implementing the get_idomain routine
-  ! 2) Implementing the get_face_velocity routine
-  ! 3) Implementing appropriate bounds for the velocities that
-  !    do not depend on the enthalpy
   ! -----------------------------------------------------------------
   
   use amrex_amr_module
@@ -98,11 +92,6 @@ contains
 
     ! Get physical location of the lowest corner of the tile box
     lo_phys = geom%get_physical_location(lo)
-    
-    ! Get temperature corresponding to the input enthalpy
-    call get_temp(to_lo, to_hi, &
-                  u_old, uo_lo, uo_hi, &
-                  temp_old, to_lo, to_hi)
    
     ! Get enthalpy flux 
     call create_face_flux(dx, lo, hi, &
@@ -176,23 +165,38 @@ contains
   ! between material and background
   ! -----------------------------------------------------------------
   subroutine get_idomain(xlo, dx, lo, hi, &
-                         idom, id_lo, id_hi)
+                         idom, id_lo, id_hi, &
+                         temp, t_lo, t_hi)
 
+    use material_properties_module, only : melt_point
+    
     ! Input and output variables
     integer, intent(in) :: lo(3), hi(3)
     integer, intent(in) :: id_lo(3), id_hi(3)
-    real(amrex_real), intent(in) :: dx(3)    
+    integer, intent(in) :: t_lo(3), t_hi(3)
+    real(amrex_real), intent(in) :: dx(3)
+    real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1), t_lo(2):t_hi(2),t_lo(3):t_hi(3))
     real(amrex_real), intent(inout) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2),id_lo(3):id_hi(3))
     real(amrex_real), intent(in) :: xlo(3)
     
     ! Local variables
+    logical :: find_liquid
     integer :: i,j,k
     integer :: surf_ind_heat_domain
     real(amrex_real) :: surf_pos_heat_domain(id_lo(1):id_hi(1),id_lo(3):id_hi(3))
 
     ! Get location of the free surface
     call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
-
+    
+    ! Check whether the liquid should be distinguished from the solid or not
+    if (t_lo(1).eq.lo(1)-1 .and. t_hi(1).eq.hi(1)+1 .and. &
+         t_lo(2).eq.lo(2)-1 .and. t_hi(2).eq.hi(2)+1 .and. &
+         t_lo(3).eq.lo(3)-1 .and. t_hi(3).eq.hi(3)+1) then
+       find_liquid = .true.
+    else
+       find_liquid = .false.
+    end if
+    
     ! Set flags to distinguish between material and background
     do i = lo(1)-1,hi(1)+1
        do k = lo(3)-1,hi(3)+1
@@ -201,14 +205,26 @@ contains
                floor((surf_pos_heat_domain(i,k) - &
                xlo(2)+dx(2))/dx(2))
           
-          do j = lo(2)-1,hi(2)+1
+          do j = lo(2)-1, hi(2)+1
+
              if (j .le. surf_ind_heat_domain) then
-                idom(i,j,k) = 1
+                
+                if (find_liquid) then
+                   if (temp(i,j,k).gt.melt_point) then
+                      idom(i,j,k) = 2 ! Liquid
+                   else
+                      idom(i,j,k) = 1 ! Solid
+                   end if
+                else
+                   idom(i,j,k) = 1 ! Liquid or solid (no distinction is made)
+                end if
+                
              else
-                idom(i,j,k) = 0
+                idom(i,j,k) = 0 ! Background
              end if
-          end do
           
+          end do
+
        end do
     end do
     

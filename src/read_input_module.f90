@@ -60,6 +60,7 @@ module read_input_module
   public :: plot_int
   public :: regrid_int
   public :: restart
+  public :: solve_sw
   public :: stop_time
   public :: surfdist
   public :: surf_pos_init
@@ -81,20 +82,21 @@ module read_input_module
   integer, save :: check_int
   integer, save :: max_grid_size_2d
   integer, save :: max_step
-  integer, save  :: phiT_table_n_points
-  integer, save  :: plot_int
-  integer, save  :: regrid_int
-  integer, save  :: verbose
-  logical, save  :: do_reflux
-  real(amrex_real), save  :: cfl
-  real(amrex_real), save  :: dt_change_max  
-  real(amrex_real), save  :: exp_time
-  real(amrex_real), save  :: flux_peak
-  real(amrex_real), save  :: meltvel
-  real(amrex_real), save  :: phiT_table_max_T
-  real(amrex_real), save  :: stop_time
-  real(amrex_real), save  :: surf_pos_init
-  real(amrex_real), save  :: tempinit
+  integer, save :: phiT_table_n_points
+  integer, save :: plot_int
+  integer, save :: regrid_int
+  integer, save :: verbose
+  logical, save :: do_reflux
+  logical, save :: solve_sw
+  real(amrex_real), save :: cfl
+  real(amrex_real), save :: dt_change_max  
+  real(amrex_real), save :: exp_time
+  real(amrex_real), save :: flux_peak
+  real(amrex_real), save :: meltvel
+  real(amrex_real), save :: phiT_table_max_T
+  real(amrex_real), save :: stop_time
+  real(amrex_real), save :: surf_pos_init
+  real(amrex_real), save :: tempinit
   real(amrex_real), allocatable, save :: surfdist(:)
   real(amrex_real), allocatable, save :: flux_pos(:)
   real(amrex_real), allocatable, save :: flux_width(:)
@@ -151,6 +153,11 @@ contains
     call pp%query("exp_time", exp_time) 
     call amrex_parmparse_destroy(pp)
 
+    ! Parameters for the heat solver
+    call amrex_parmparse_build(pp, "sw")
+    call pp%query("solve", solve_sw)
+    call amrex_parmparse_destroy(pp)
+    
     ! Parameters for the material
     call amrex_parmparse_build(pp, "material")
     call pp%query("material", material)
@@ -198,6 +205,7 @@ contains
     plot_file = "plt"
     plot_int = -1
     regrid_int = 2
+    solve_sw = .true.
     stop_time = 1.0
     do i = 0, amrex_max_level
        surfdist(i) = 0.0_amrex_real

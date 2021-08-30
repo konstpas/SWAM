@@ -3,12 +3,6 @@ module heat_transfer_module
   ! -----------------------------------------------------------------
   ! This module is used to perform all the calculations relative
   ! to the heat transfer part of the code.
-  ! NOTE: As of August 4, 2021 there are several parts of this module
-  ! that have to be updated. The main changes have to do with:
-  ! 1) Implementing the get_idomain routine
-  ! 2) Try to restructure the code in such a way that the surface
-  !    is tracked only once per timestep and not (at least) three
-  !    times as it is done now
   ! -----------------------------------------------------------------
   
   use amrex_amr_module

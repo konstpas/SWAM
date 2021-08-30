@@ -229,7 +229,7 @@ contains
     t_old(lev) = time
     t_new(lev) = time + dt(lev)
     call amrex_multifab_swap(phi_old(lev), phi_new(lev))
-    call advance(lev, time, dt(lev), substep)
+    call advance_one_level(lev, time, dt(lev), substep)
 
     ! Propagate solution and synchronize levels
     if (lev .lt. amrex_get_finest_level()) then
@@ -255,12 +255,13 @@ contains
   ! Subroutine used to advance the shallow water solver and the
   ! heat equation solver of one time step
   ! -----------------------------------------------------------------
-  subroutine advance(lev, time, dt, substep)
+  subroutine advance_one_level(lev, time, dt, substep)
 
-    use read_input_module, only : do_reflux
+    use read_input_module, only : do_reflux, solve_sw
     use amr_data_module, only : phi_new, temp, idomain, flux_reg  
     use regrid_module, only : fillpatch
-    use heat_transfer_module, only : get_idomain, get_melt_pos, reset_melt_pos, increment_enthalpy 
+    use heat_transfer_module, only : get_idomain, get_melt_pos, reset_melt_pos, increment_enthalpy
+    use material_properties_module, only : get_temp
     use shallow_water_module, only : increment_SW
 
     ! Input and output variables
@@ -322,7 +323,7 @@ contains
     call amrex_multifab_swap(idomain_tmp, idomain(lev))
     
     ! Propagate SW equations (only at max level)
-    if (lev.eq.amrex_max_level) then 
+    if (solve_sw .and. lev.eq.amrex_max_level) then 
        call increment_SW(dt)
     end if
 
@@ -364,13 +365,18 @@ contains
        pidin => idomain_tmp%dataptr(mfi)
        pidout => idomain(lev)%dataptr(mfi)
 
-
+       ! Get temperature corresponding to the enthalpy
+       call get_temp(lbound(ptempin), ubound(ptempin), &
+                     pin, lbound(pin), ubound(pin), &
+                     ptempin, lbound(ptempin), ubound(ptempin))
+       
        ! Get configuration of the system after the deformation
        call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
                         bx%lo, bx%hi, &
-                        pidout, lbound(pidout), ubound(pidout))
-       
-       ! Increment solution at given box
+                        pidout, lbound(pidout), ubound(pidout), &
+                        ptempin, lbound(ptempin), ubound(ptempin))
+          
+       ! Increment enthalpy at given box
        call increment_enthalpy(time, bx%lo, bx%hi, &
                                pin, lbound(pin),     ubound(pin),     &
                                pout,    lbound(pout),    ubound(pout),    &
@@ -437,7 +443,7 @@ contains
     call amrex_multifab_destroy(temp_tmp)
     call amrex_multifab_destroy(idomain_tmp)
     
- end subroutine advance
+  end subroutine advance_one_level
 
 
 end module simulation_module

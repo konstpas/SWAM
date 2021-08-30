@@ -82,21 +82,21 @@ module read_input_module
   integer, save :: check_int
   integer, save :: max_grid_size_1d
   integer, save :: max_step
-  integer, save  :: phiT_table_n_points
-  integer, save  :: plot_int
-  integer, save  :: regrid_int
-  integer, save  :: verbose
-  logical, save  :: do_reflux
-  logical, save  :: solve_sw
-  real(amrex_real), save  :: cfl
-  real(amrex_real), save  :: dt_change_max  
-  real(amrex_real), save  :: exp_time
-  real(amrex_real), save  :: flux_peak
-  real(amrex_real), save  :: meltvel
-  real(amrex_real), save  :: phiT_table_max_T
-  real(amrex_real), save  :: stop_time
-  real(amrex_real), save  :: surf_pos_init
-  real(amrex_real), save  :: tempinit
+  integer, save :: phiT_table_n_points
+  integer, save :: plot_int
+  integer, save :: regrid_int
+  integer, save :: verbose
+  logical, save :: do_reflux
+  logical, save :: solve_sw
+  real(amrex_real), save :: cfl
+  real(amrex_real), save :: dt_change_max  
+  real(amrex_real), save :: exp_time
+  real(amrex_real), save :: flux_peak
+  real(amrex_real), save :: meltvel
+  real(amrex_real), save :: phiT_table_max_T
+  real(amrex_real), save :: stop_time
+  real(amrex_real), save :: surf_pos_init
+  real(amrex_real), save :: tempinit
   real(amrex_real), allocatable, save :: surfdist(:)
   real(amrex_real), allocatable, save :: flux_pos(:)
   real(amrex_real), allocatable, save :: flux_width(:)
