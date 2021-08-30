@@ -76,7 +76,7 @@ contains
           do k = lo(3)-1,hi(3)+1
              
              ! Points added to the domain
-             if (nint(idom_old(i,j,k)).eq.0 .and. nint(idom_new(i,j,k)).eq.1) then
+             if (nint(idom_old(i,j,k)).eq.0 .and. nint(idom_new(i,j,k)).ne.0) then
                 u_old(i,j,k) = u_old(i,j-1,k)
              ! Points removed from the domain
              else if (nint(idom_new(i,j,k)).eq.0) then
@@ -576,9 +576,7 @@ contains
 
                 ypos = xlo(2) + (j-lo(2))*dx(2)
 
-                !if (ypos .lt. surf_pos_heat_domain(i,k) .and. ypos .ge. surf_pos_heat_domain(i,k)-dx(2)) then
-                !if(ypos .le. surf_pos_heat_domain(i,k) .and. ypos .gt. surf_pos_heat_domain(i,k)-dx(2)) then
-                if(nint(idom(i,j,k)).eq.1 .and. nint(idom(i,j+1,k)).eq.0) then
+                if(nint(idom(i,j,k)).ne.0 .and. nint(idom(i,j+1,k)).eq.0) then
 
                    xpos = xlo(1) + (i-lo(1))*dx(1)
                    zpos = xlo(3) + (k-lo(3))*dx(3)
