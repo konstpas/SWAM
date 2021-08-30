@@ -113,7 +113,8 @@ contains
        ! Integer domain to distinguish material and background
        call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
                         bx%lo, bx%hi, &
-                        pid, lbound(pid), ubound(pid))
+                        pid, lbound(pid), ubound(pid), &
+                        ptemp, lbound(ptemp), ubound(ptemp))
               
     end do
     call amrex_mfiter_destroy(mfi)
@@ -224,8 +225,9 @@ contains
        ! Integer domain to distinguish material and background
        call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
                         bx%lo, bx%hi, &
-                        pid, lbound(pid), ubound(pid))
-       
+                        pid, lbound(pid), ubound(pid), &
+                        ptemp, lbound(ptemp), ubound(ptemp))
+              
     end do    
     call amrex_mfiter_destroy(mfi)   
     
@@ -383,8 +385,9 @@ contains
        ! Integer domain to distinguish material and background
        call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
                         bx%lo, bx%hi, &
-                        pid, lbound(pid), ubound(pid))
-       
+                        pid, lbound(pid), ubound(pid), &
+                        ptemp, lbound(ptemp), ubound(ptemp))
+              
      end do    
     call amrex_mfiter_destroy(mfi)
 

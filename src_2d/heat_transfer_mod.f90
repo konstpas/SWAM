@@ -78,7 +78,7 @@ contains
        do  j = lo(2)-1,hi(2)+1
 
           ! Points added to the domain
-          if (nint(idom_old(i,j)).eq.0 .and. nint(idom_new(i,j)).eq.1) then
+          if (nint(idom_old(i,j)).eq.0 .and. nint(idom_new(i,j)).ne.0) then
              u_old(i,j) = u_old(i,j-1)
           ! Points removed from the domain
           else if (nint(idom_new(i,j)).eq.0) then
@@ -93,12 +93,6 @@ contains
 
     ! Get physical location of the lowest corner of the tile box
     lo_phys = geom%get_physical_location(lo)
-    
-    ! Get temperature corresponding to the input enthalpy
-    call get_temp(to_lo, to_hi, &
-                  u_old, uo_lo, uo_hi, &
-                  temp_old, to_lo, to_hi)
-   
     
     ! Get enthalpy flux 
     call create_face_flux(dx, lo, hi, &
@@ -157,16 +151,22 @@ contains
   ! between material and background
   ! -----------------------------------------------------------------
   subroutine get_idomain(xlo, dx, lo, hi, &
-                         idom, id_lo, id_hi)
+                         idom, id_lo, id_hi, &
+                         temp, t_lo, t_hi)
 
+    use material_properties_module, only : melt_point    
+    
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)
     integer, intent(in) :: id_lo(2), id_hi(2)
+    integer, intent(in) :: t_lo(2), t_hi(2)
     real(amrex_real), intent(in) :: dx(2)    
+    real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1), t_lo(2):t_hi(2))
     real(amrex_real), intent(inout) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2))
     real(amrex_real), intent(in) :: xlo(2)
 
     ! Local variables
+    logical :: find_liquid
     integer :: i,j
     integer :: surf_ind_heat_domain
     real(amrex_real) :: surf_pos_heat_domain(id_lo(1):id_hi(1))
@@ -174,6 +174,14 @@ contains
     ! Get location of the free surface
     call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
 
+    ! Check whether the liquid should be distinguished from the solid or not
+    if (t_lo(1).eq.lo(1)-1 .and. t_hi(1).eq.hi(1)+1 .and. &
+         t_lo(2).eq.lo(2)-1 .and. t_hi(2).eq.hi(2)+1) then
+       find_liquid = .true.
+    else
+       find_liquid = .false.
+    end if
+    
     ! Set flags to distinguish between material and background
     do i = lo(1)-1, hi(1)+1
 
@@ -182,11 +190,23 @@ contains
                               xlo(2)+dx(2))/dx(2))
        
        do j = lo(2)-1, hi(2)+1
+
           if (j .le. surf_ind_heat_domain) then
-             idom(i,j) = 1
+
+             if (find_liquid) then
+                if (temp(i,j).gt.melt_point) then
+                   idom(i,j) = 2
+                else
+                   idom(i,j) = 1
+                end if
+             else
+                idom(i,j) = 1
+             end if
+             
           else
              idom(i,j) = 0
           end if
+          
        end do
        
     end do
@@ -446,27 +466,18 @@ contains
     real(amrex_real), intent(out) :: qb(lo(1):hi(1),lo(2):hi(2))
 
     ! Local variables
-    real(amrex_real) :: xpos, ypos
+    real(amrex_real) :: xpos
     integer :: i,j
-    integer :: surf_ind_heat_domain
-    real(amrex_real) :: surf_pos_heat_domain(lo(1):hi(1))
-
-    ! Get location of the free surface
-    call get_surf_pos(xlo, dx, lo, hi, surf_pos_heat_domain)
-    
-    ! Initialize the heat flux
-    qb = 0. 
     
     ! Prescribe boundary heating
     do   i = lo(1), hi(1) 
        do  j = lo(2), hi(2)
 
+          qb(i,j) = 0_amrex_real
+          
           if (time.lt.exp_time) then
 
-             !ypos = xlo(2) + (j-lo(2))*dx(2)
-                       
-             !if(ypos .le. surf_pos_heat_domain(i) .and. ypos .gt. surf_pos_heat_domain(i)-dx(2)) then
-             if(nint(idom(i,j)).eq.1 .and. nint(idom(i,j+1)).eq.0) then 
+             if(nint(idom(i,j)).ne.0 .and. nint(idom(i,j+1)).eq.0) then 
                 
                 xpos = xlo(1) + (i-lo(1))*dx(1)
 
@@ -475,8 +486,6 @@ contains
                 qb(i,j) = flux_peak &
                      *EXP(-((xpos-flux_pos(1))**2)/(flux_width(1)**2))/dx(2)
 
-                !exit
-                
              end if
              
           end if

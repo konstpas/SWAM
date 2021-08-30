@@ -261,6 +261,7 @@ contains
     use amr_data_module, only : phi_new, temp, idomain, flux_reg  
     use regrid_module, only : fillpatch
     use heat_transfer_module, only : get_idomain, get_melt_pos, reset_melt_pos, increment_enthalpy
+    use material_properties_module, only : get_temp
     use shallow_water_module, only : increment_SW
 
     ! Input and output variables 
@@ -361,12 +362,18 @@ contains
        pidin => idomain_tmp%dataptr(mfi)
        pidout => idomain(lev)%dataptr(mfi)
 
+       ! Get temperature corresponding to the enthalpy
+       call get_temp(lbound(ptempin), ubound(ptempin), &
+                     pin, lbound(pin), ubound(pin), &
+                     ptempin, lbound(ptempin), ubound(ptempin))
+       
        ! Get configuration of the system after the deformation
        call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
                         bx%lo, bx%hi, &
-                        pidout, lbound(pidout), ubound(pidout))
+                        pidout, lbound(pidout), ubound(pidout), &
+                        ptempin, lbound(ptempin), ubound(ptempin))
           
-       ! Increment solution at given box
+       ! Increment enthalpy at given box
        call increment_enthalpy(time, bx%lo, bx%hi, &
                                pin, lbound(pin),     ubound(pin),     &
                                pout,    lbound(pout),    ubound(pout),    &
