@@ -228,7 +228,7 @@ contains
     t_old(lev) = time
     t_new(lev) = time + dt(lev)
     call amrex_multifab_swap(phi_old(lev), phi_new(lev))
-    call advance(lev, time, dt(lev), substep)
+    call advance_one_level(lev, time, dt(lev), substep)
 
 
     ! Propagate solution and synchronize levels
@@ -253,11 +253,11 @@ contains
 
   ! -----------------------------------------------------------------
   ! Subroutine used to advance the shallow water solver and the
-  ! heat equation solver of one time step
+  ! heat equation solver of one time step at a given level
   ! -----------------------------------------------------------------
-  subroutine advance(lev, time, dt, substep)
+  subroutine advance_one_level(lev, time, dt, substep)
 
-    use read_input_module, only : do_reflux
+    use read_input_module, only : do_reflux, solve_sw
     use amr_data_module, only : phi_new, temp, idomain, flux_reg  
     use regrid_module, only : fillpatch
     use heat_transfer_module, only : get_idomain, get_melt_pos, reset_melt_pos, increment_enthalpy
@@ -322,7 +322,7 @@ contains
     call amrex_multifab_swap(idomain_tmp, idomain(lev))
     
     ! Propagate SW equations (only at max level)
-    if (lev.eq.amrex_max_level) then 
+    if (solve_sw .and. lev.eq.amrex_max_level) then 
        call increment_SW(dt)
     end if
 
@@ -439,7 +439,7 @@ contains
     call amrex_multifab_destroy(temp_tmp)
     call amrex_multifab_destroy(idomain_tmp)
 
- end subroutine advance
+  end subroutine advance_one_level
 
 
 end module simulation_module

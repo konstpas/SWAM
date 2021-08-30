@@ -60,6 +60,7 @@ module read_input_module
   public :: plot_int
   public :: regrid_int
   public :: restart
+  public :: solve_sw
   public :: stop_time
   public :: surfdist
   public :: surf_pos_init
@@ -86,6 +87,7 @@ module read_input_module
   integer, save  :: regrid_int
   integer, save  :: verbose
   logical, save  :: do_reflux
+  logical, save  :: solve_sw
   real(amrex_real), save  :: cfl
   real(amrex_real), save  :: dt_change_max  
   real(amrex_real), save  :: exp_time
@@ -151,6 +153,11 @@ contains
     call pp%query("exp_time", exp_time) 
     call amrex_parmparse_destroy(pp)
 
+    ! Parameters for the heat solver
+    call amrex_parmparse_build(pp, "sw")
+    call pp%query("solve", solve_sw)
+    call amrex_parmparse_destroy(pp)
+
     ! Parameters for the material
     call amrex_parmparse_build(pp, "material")
     call pp%query("material", material)
@@ -198,6 +205,7 @@ contains
     plot_file = "plt"
     plot_int = -1
     regrid_int = 2
+    solve_sw = .true.
     stop_time = 1.0
     do i = 0, amrex_max_level
        surfdist(i) = 0.0_amrex_real
