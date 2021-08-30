@@ -25,6 +25,7 @@ heat.flux_peak = 300e6                # Magnitude of the peak of the gaussian he
 heat.flux_pos = 0.01                  # Position of the peak of the gaussian heat flux pulse
 heat.flux_width = 0.003		      # Width of the gaussian heat flux pulse
 heat.exp_time = 0.4		      # Duration of the heat flux pulse (starts at time = 0.0)
+heat.temp_free_surface = 1000	      # Fixed temperature at the free surface (only used in the fix_T, 1D case)
 
 # SHALLOW WATER SOLVER
 sw.solve = 1                          # Flag to control if the melt motion is on (1 = on, 0 = off)

@@ -64,6 +64,7 @@ module read_input_module
   public :: stop_time
   public :: surfdist
   public :: surf_pos_init
+  public :: temp_fs
   public :: tempinit
   public :: verbose
 
@@ -96,6 +97,7 @@ module read_input_module
   real(amrex_real), save :: phiT_table_max_T
   real(amrex_real), save :: stop_time
   real(amrex_real), save :: surf_pos_init
+  real(amrex_real), save :: temp_fs
   real(amrex_real), save :: tempinit
   real(amrex_real), allocatable, save :: surfdist(:)
   real(amrex_real), allocatable, save :: flux_pos(:)
@@ -150,7 +152,8 @@ contains
     call pp%query("flux_peak", flux_peak) 
     call pp%getarr("flux_pos", flux_pos)
     call pp%getarr("flux_width", flux_width)
-    call pp%query("exp_time", exp_time) 
+    call pp%query("exp_time", exp_time)
+    call pp%query("temp_free_surface", temp_fs)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the heat solver
@@ -211,6 +214,7 @@ contains
        surfdist(i) = 0.0_amrex_real
     end do
     surf_pos_init = 0.020
+    temp_fs = -1
     verbose = 0
     
   end subroutine set_default_values
