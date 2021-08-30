@@ -333,8 +333,6 @@ contains
     call reset_melt_pos 
        
     ! Increment heat solver on all levels
-    !$omp parallel private(mfi,bx,tbx,pin,pout,ptemp,ptempin,pfx,pfy,pf,pfab,flux,pidin,pidout)
-
     do idim = 1, amrex_spacedim
        call flux(idim)%reset_omp_private()
     end do
@@ -415,8 +413,6 @@ contains
        call amrex_fab_destroy(flux(idim))
     end do
     
-    !$omp end parallel
-
     ! Update flux registers (fluxes have already been scaled by dt and area in the increment_enthalpy subroutine)
     if (do_reflux) then
 

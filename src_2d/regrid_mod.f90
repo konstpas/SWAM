@@ -142,13 +142,11 @@ contains
     ! Get enthalpy consistent with the initialization temperature
     call get_enthalpy(tempinit,enth_init)
 
-    !$omp parallel do private(i,j) collapse(2)
     do j=lo(2),hi(2)
        do i=lo(1),hi(1)
           phi(i,j) = enth_init
        end do
     end do
-    !$omp end parallel do
     
     
   end subroutine init_phi
@@ -284,7 +282,6 @@ contains
     mf = pmf
 	
 	
-    !$omp parallel private(mfi,p,plo,phi)
     call amrex_mfiter_build(mfi, mf, tiling=.false.)
     do while(mfi%next())
 
@@ -304,8 +301,7 @@ contains
        
     end do
     call amrex_mfiter_destroy(mfi)   
-    !$omp end parallel
-
+ 
   end subroutine fill_physbc 
   
   ! -----------------------------------------------------------------
@@ -477,7 +473,6 @@ contains
     geom = amrex_geom(lev) 
 
     ! Get error estimate
-    !$omp parallel private(mfi, bx, phiarr, tagarr)
     call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
     do while(mfi%next())
        
@@ -494,7 +489,6 @@ contains
        
     end do
     call amrex_mfiter_destroy(mfi)
-    !$omp end parallel
 
   end subroutine my_error_estimate
 
