@@ -32,7 +32,7 @@ contains
                                         idom_new, idn_lo, idn_hi, &
                                         geom, dt)
 
-    use material_properties_module, only : get_temp, get_enthalpy, get_maxdiffus
+    use material_properties_module, only : get_temp, get_enthalpy
     use read_input_module, only : temp_fs
     
     ! Input and output variables
@@ -128,12 +128,6 @@ contains
     call get_temp(lo, hi, &
                   u_new, un_lo, un_hi, &
                   temp_new, tn_lo , tn_hi) 
-
-    ! THIS MUST BE UPDATED
-    ! find maximum diffusivity for time step determination 
-    ! Not called noe, constant max possible diffusivity used.	      
-    !call get_maxdiffus(lo, hi, & 
-    !		        temp_new, tn_lo, tn_hi)  	
     
   end subroutine increment_enthalpy_1D_fixT
 

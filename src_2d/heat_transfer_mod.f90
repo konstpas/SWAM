@@ -37,7 +37,7 @@ contains
                                 idom_new, idn_lo, idn_hi, &
                                 geom, dt)
 
-    use material_properties_module, only : get_temp, get_maxdiffus
+    use material_properties_module, only : get_temp
 
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) ! bounds of current tile box
@@ -130,12 +130,6 @@ contains
     call get_temp(lo, hi, &
                   u_new, un_lo, un_hi, &
                   temp_new, tn_lo , tn_hi) 
-
-    ! THIS MUST BE UPDATED
-    ! find maximum diffusivity for time step determination 
-    ! Not called noe, constant max possible diffusivity used.	      
-    !call get_maxdiffus(lo, hi, & 
-    !		        temp_new, tn_lo, tn_hi)  	
     
   end subroutine increment_enthalpy
 

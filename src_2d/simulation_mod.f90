@@ -99,6 +99,7 @@ contains
   subroutine compute_dt()
     
     use amr_data_module, only : dt, nsubsteps
+    use material_properties_module, only : max_diffus 
     use read_input_module, only : dt_change_max
 
     ! Local variables
@@ -134,6 +135,8 @@ contains
        dt(lev) = dt(lev-1) / nsubsteps(lev)
     end do
 
+    ! Now that the timestep is defined, reset the maximum diffusivity
+    max_diffus = 0_amrex_real
     
   end subroutine compute_dt
 

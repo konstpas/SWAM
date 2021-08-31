@@ -39,7 +39,6 @@ module material_properties_module
   public :: get_ktherm
   public :: get_temp
   public :: get_enthalpy
-  public :: get_maxdiffus
 
   ! -----------------------------------------------------------------
   ! Declare public variables
@@ -147,11 +146,12 @@ contains
   ! ------------------------------------------------------------------ 
   subroutine init_mat_prop()
 
+    use read_input_module, only : tempinit, temp_fs
+    
     integer :: i
     integer :: imelt = 0
     logical :: isolid = .true.  ! for enthalpy table, true before phase transfer
     real(amrex_real) :: Cp
-    real(amrex_real) :: diffus
     real(amrex_real) :: ktherm 
     real(amrex_real) :: phiT_table_dT  
     real(amrex_real) :: rho
@@ -236,19 +236,25 @@ contains
           enth_table(i) = enth_table(i-1) + (rhocp_i+rhocp_im1)*phiT_table_dT/2_amrex_real  ! Trapezoidal integration
           
        end if
-
-       ! Diffusivity 
-       call get_ktherm(temp_table(i),ktherm)
-       diffus = ktherm/rhocp_i  
-       if (diffus.gt.max_diffus) max_diffus=diffus ! Find maximum thermal diffusivity for time step determination
-       ! Is continually re-evaluated to correspond to maximum within domain. This evaluation adds comp. load - perhaps 
-       ! better to use max value at all times? (i.e. gain of slightly larger step does not outweigh extra load to find diff)
-       
    
     end do
-		
+
+    ! Compute diffusivity corresponding to
+    ! (a) the input temperature for calculations with imposed flux at the free surface
+    ! (b) the free surface for calculations with imposed temperature at the free surface
+    if (temp_fs.gt.tempinit) then
+       call get_ktherm(temp_fs,ktherm)
+       call get_rho(temp_fs,rho) 
+       call get_Cp(temp_fs,Cp) 
+    else
+       call get_ktherm(tempinit,ktherm)
+       call get_rho(tempinit,rho) 
+       call get_Cp(tempinit,Cp)
+    end if
+    max_diffus = ktherm/(rho*Cp)
+    
     ! Output employed material properties to file
-    open (2, file = 'Employed_'//TRIM(material)//'_properties.txt', status = 'unknown')
+    open (2, file = 'material_properties_'//TRIM(material)//'.dat', status = 'unknown')
     write(2,*) 'Material properties employed' 
     write(2,*) 'Temperature[K], Cp [J/kgK], rho [kg/m^3], k [W/mk], enthalpy [J/m^3]' 
     do i = 0,phiT_table_n_points
@@ -279,7 +285,11 @@ contains
     ! Local variables
     integer :: e_ind 
     integer :: i,j
+    real(amrex_real) :: Cp
+    real(amrex_real) :: diffus
     real(amrex_real) :: int_coeff 
+    real(amrex_real) :: ktherm
+    real(amrex_real) :: rho
      
     ! Obtain the temperature from linear interpolation of the enthalpy-temperature tables
     do i = lo(1),hi(1)
@@ -296,6 +306,16 @@ contains
           temp(i,j) = temp_table(e_ind-1) + &
                int_coeff*(temp_table(e_ind)-temp_table(e_ind-1))
           
+          ! Update maximum diffusivity (consider only material grid points and not the background)
+          if (temp(i,j).gt.0) then
+             call get_ktherm(temp(i,j),ktherm)
+             call get_rho(temp(i,j),rho) 
+             call get_Cp(temp(i,j),Cp)
+             diffus = ktherm/(rho*Cp)
+             if (diffus.gt.max_diffus) then
+                max_diffus = diffus
+             end if
+          end if
           
        end do
     end do
