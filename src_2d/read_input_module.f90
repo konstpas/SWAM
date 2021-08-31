@@ -46,10 +46,8 @@ module read_input_module
   public :: check_int
   public :: do_reflux
   public :: dt_change_max
-  public :: exp_time
-  public :: flux_peak
-  public :: flux_pos
-  public :: flux_width
+  public :: flux_type
+  public :: flux_params
   public :: material
   public :: max_grid_size_1d
   public :: max_step
@@ -78,6 +76,7 @@ module read_input_module
   ! -----------------------------------------------------------------
   character(len=:), allocatable, save :: check_file
   character(len=:), allocatable, save :: material
+  character(len=:), allocatable, save :: flux_type
   character(len=:), allocatable, save :: plot_file
   character(len=:), allocatable, save :: restart
   integer, save :: check_int
@@ -91,8 +90,6 @@ module read_input_module
   logical, save :: solve_sw
   real(amrex_real), save :: cfl
   real(amrex_real), save :: dt_change_max  
-  real(amrex_real), save :: exp_time
-  real(amrex_real), save :: flux_peak
   real(amrex_real), save :: meltvel
   real(amrex_real), save :: phiT_table_max_T
   real(amrex_real), save :: stop_time
@@ -100,8 +97,7 @@ module read_input_module
   real(amrex_real), save :: temp_fs
   real(amrex_real), save :: tempinit
   real(amrex_real), allocatable, save :: surfdist(:)
-  real(amrex_real), allocatable, save :: flux_pos(:)
-  real(amrex_real), allocatable, save :: flux_width(:)
+  real(amrex_real), allocatable, save :: flux_params(:)
   
 contains
 
@@ -149,10 +145,8 @@ contains
     call pp%query("surf_pos", surf_pos_init)   
     call pp%query("meltvel", meltvel)  
     call pp%query("tempinit", tempinit)
-    call pp%query("flux_peak", flux_peak) 
-    call pp%getarr("flux_pos", flux_pos)
-    call pp%getarr("flux_width", flux_width)
-    call pp%query("exp_time", exp_time)
+    call pp%query("flux_type", flux_type) 
+    call pp%getarr("flux_params", flux_params)
     call pp%query("temp_free_surface", temp_fs)
     call amrex_parmparse_destroy(pp)
 
@@ -184,22 +178,24 @@ contains
     integer :: i
         
     allocate(character(len=3)::check_file)
+    allocate(character(len=8)::flux_type)
     allocate(character(len=8)::material)
     allocate(character(len=3)::plot_file)
     allocate(character(len=0)::restart)
     allocate(surfdist(0:amrex_max_level))
-    allocate(flux_pos(1))
-    allocate(flux_width(1))
+    allocate(flux_params(100))
     
     cfl = 0.70
     check_file = "chk"
     check_int = -1
     do_reflux = .true.
     dt_change_max = 1.1
-    exp_time = 1.0
-    flux_peak = 300d6
-    flux_pos = (/0.0,0.0/)
-    flux_width = (/1.01,1.01/)
+    flux_params(1) = 0.0
+    flux_params(2) = 1.0
+    flux_params(3) = 300d6
+    flux_params(4) = 0.0
+    flux_params(5) = 0.01
+    flux_type = "Gaussian"
     material = "Tungsten"
     max_grid_size_1d = 16
     max_step = 10000
@@ -229,8 +225,6 @@ contains
     deallocate(plot_file)
     deallocate(restart)
     deallocate(surfdist)
-    deallocate(flux_pos)
-    deallocate(flux_width)
 
   end subroutine deallocate_input
     

@@ -346,40 +346,6 @@ contains
     enth = enth_table(e_ind-1) + int_coeff*(enth_table(e_ind)-enth_table(e_ind-1))
      
   end subroutine get_enthalpy
-	
-	
-	
-  ! ------------------------------------------------------------------
-  ! Subroutine used to obtain the maximum diffusivity. Could be
-  ! computed whenever the temperature is mapped on to the enthalpy.
-  ! ------------------------------------------------------------------  
-  ! If used, called at timestep_mod, subr. increment after second get_temp. diff has to be reset before call to timestep (main)
-  subroutine get_maxdiffus(lo, hi, &
-                           temp, t_lo , t_hi) ! Revert the order of t_lo, t_hi and temp
-
-    ! Input and output variables
-    integer, intent(in) :: lo(2), hi(2)
-    integer, intent(in) :: t_lo(2), t_hi(2)
-    real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2))
-
-    ! Local variables
-    integer :: i,j
-    real(amrex_real) :: Cp
-    real(amrex_real) :: diffus
-    real(amrex_real) :: ktherm
-    real(amrex_real) :: rho 
-
-    do i = lo(1),hi(1)
-       do j = lo(2),hi(2)
-          call get_ktherm(temp(i,j),ktherm)
-          call get_rho(temp(i,j),rho) 
-          call get_Cp(temp(i,j),Cp) 
-          diffus = ktherm/(rho*Cp) 
-          if (diffus.gt.max_diffus) max_diffus = diffus 
-       end do
-    end do
-
- end subroutine get_maxdiffus
 
 
 end module material_properties_module 

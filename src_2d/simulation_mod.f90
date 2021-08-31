@@ -176,7 +176,7 @@ contains
   ! -----------------------------------------------------------------
   recursive subroutine advance_one_timestep(lev, time, substep)
 
-    use read_input_module, only : regrid_int, do_reflux, temp_fs
+    use read_input_module, only : regrid_int, do_reflux
     use amr_data_module, only : t_old, t_new, phi_old, phi_new, flux_reg, stepno, nsubsteps, dt  
     use regrid_module, only : averagedownto
 
@@ -231,11 +231,7 @@ contains
     t_old(lev) = time
     t_new(lev) = time + dt(lev)
     call amrex_multifab_swap(phi_old(lev), phi_new(lev))
-    if (temp_fs.gt.0) then
-       call advance_one_level_1D_fixT(lev, time, dt(lev), substep)
-    else
-       call advance_one_level(lev, time, dt(lev), substep)
-    end if
+    call advance_one_level(lev, time, dt(lev), substep)
 
     ! Propagate solution and synchronize levels
     if (lev .lt. amrex_get_finest_level()) then
@@ -263,10 +259,11 @@ contains
   ! -----------------------------------------------------------------
   subroutine advance_one_level(lev, time, dt, substep)
 
-    use read_input_module, only : do_reflux, solve_sw
+    use read_input_module, only : do_reflux, solve_sw, temp_fs
     use amr_data_module, only : phi_new, temp, idomain, flux_reg  
     use regrid_module, only : fillpatch
     use heat_transfer_module, only : get_idomain, get_melt_pos, reset_melt_pos, increment_enthalpy
+    use heat_transfer_fixT_module, only : increment_enthalpy_fixT
     use material_properties_module, only : get_temp
     use shallow_water_module, only : increment_SW
 
@@ -377,19 +374,31 @@ contains
                         pidout, lbound(pidout), ubound(pidout), &
                         ptempin, lbound(ptempin), ubound(ptempin))
           
-       ! Increment enthalpy at given box
+       ! Increment enthalpy at given box depending on the condition of the free surface
+       if (temp_fs.gt.0) then
+       call increment_enthalpy_fixT(bx%lo, bx%hi, &
+                                    pin, lbound(pin),     ubound(pin),     &
+                                    pout,    lbound(pout),    ubound(pout),    &
+                                    ptempin, lbound(ptempin), ubound(ptempin), &
+                                    ptemp,   lbound(ptemp),   ubound(ptemp),   &
+                                    pfx, lbound(pfx), ubound(pfx), &
+                                    pfy, lbound(pfy), ubound(pfy), &
+                                    pidin, lbound(pidin), ubound(pidin), &
+                                    pidout, lbound(pidout), ubound(pidout), &
+                                    geom, dt)
+       else
+          call increment_enthalpy(time, bx%lo, bx%hi, &
+                                  pin, lbound(pin),     ubound(pin),     &
+                                  pout,    lbound(pout),    ubound(pout),    &
+                                  ptempin, lbound(ptempin), ubound(ptempin), &
+                                  ptemp,   lbound(ptemp),   ubound(ptemp),   &
+                                  pfx, lbound(pfx), ubound(pfx), &
+                                  pfy, lbound(pfy), ubound(pfy), &
+                                  pidin, lbound(pidin), ubound(pidin), &
+                                  pidout, lbound(pidout), ubound(pidout), &
+                                  geom, dt)
+       end if
        
-       call increment_enthalpy(time, bx%lo, bx%hi, &
-                               pin, lbound(pin),     ubound(pin),     &
-                               pout,    lbound(pout),    ubound(pout),    &
-                               ptempin, lbound(ptempin), ubound(ptempin), &
-                               ptemp,   lbound(ptemp),   ubound(ptemp),   &
-                               pfx, lbound(pfx), ubound(pfx), &
-                               pfy, lbound(pfy), ubound(pfy), &
-                               pidin, lbound(pidin), ubound(pidin), &
-                               pidout, lbound(pidout), ubound(pidout), &
-                               geom, dt)
-
        ! Update pointers for flux registers
        if (do_reflux) then
 
@@ -443,176 +452,6 @@ contains
     call amrex_multifab_destroy(idomain_tmp)
 
   end subroutine advance_one_level
-
-  
-  ! -----------------------------------------------------------------
-  ! Subroutine used to advance the heat equation solver in the
-  ! test case with fixed free surface temperature
-  ! -----------------------------------------------------------------
-  subroutine advance_one_level_1D_fixT(lev, time, dt, substep)
-
-    use read_input_module, only : do_reflux
-    use amr_data_module, only : phi_new, temp, idomain, flux_reg  
-    use regrid_module, only : fillpatch
-    use heat_transfer_module, only : get_idomain
-    use heat_transfer_1D_fixT_module, only : increment_enthalpy_1D_fixT
-    use material_properties_module, only : get_temp
-
-    ! Input and output variables 
-    integer, intent(in) :: lev
-    integer, intent(in) :: substep
-    real(amrex_real), intent(in) :: time
-    real(amrex_real), intent(in) :: dt
-
-    ! Local variables
-    integer, parameter :: nghost = 1 ! number of ghost points in each spatial direction 
-    integer :: ncomp
-    integer :: idim
-    logical :: nodal(2) ! logical for flux multifabs 
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pout
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptempin
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pfx
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pfy
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pf
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pfab
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidin
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidout
-    type(amrex_multifab) :: phi_tmp ! Enthalpy multifab with ghost points
-    type(amrex_multifab) :: temp_tmp ! Temperature multifab with ghost points
-    type(amrex_multifab) :: idomain_tmp ! Idomain multifab to distinguish material and background
-    type(amrex_mfiter) :: mfi ! Multifab iterator
-    type(amrex_box) :: bx
-    type(amrex_box) :: tbx
-    type(amrex_fab) :: flux(amrex_spacedim)
-    type(amrex_multifab) :: fluxes(amrex_spacedim)
-    type(amrex_geometry) :: geom
-
-    ! Get geometry
-    geom = amrex_geom(lev)
-    
-    ! Get number of components
-    ncomp = phi_new(lev)%ncomp()
-
-    ! Initialize fluxes 
-    if (do_reflux) then
-       do idim = 1, amrex_spacedim
-          nodal = .false.
-          nodal(idim) = .true.
-          call amrex_multifab_build(fluxes(idim), phi_new(lev)%ba, phi_new(lev)%dm, ncomp, 0, nodal)
-       end do
-    end if
-
-    ! Build enthalpy and temperature multifabs with ghost points
-    call amrex_multifab_build(phi_tmp, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost) 
-    call amrex_multifab_build(temp_tmp, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost)
-    call amrex_multifab_build(idomain_tmp, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost)
-    
-    ! Fill enthalpy multifab
-    call fillpatch(lev, time, phi_tmp)
-
-    ! Swap idomain solution before computing the surface deformation
-    call amrex_multifab_swap(idomain_tmp, idomain(lev))
-       
-    ! Increment heat solver on all levels
-    do idim = 1, amrex_spacedim
-       call flux(idim)%reset_omp_private()
-    end do
-    
-    call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)  
-    						 
-    do while(mfi%next())
-
-       ! Box
-       bx = mfi%validbox()   
-
-       ! Pointers
-       pin     => phi_tmp%dataptr(mfi)
-       pout    => phi_new(lev)%dataptr(mfi)
-       ptempin => temp_tmp%dataptr(mfi)
-       ptemp   => temp(lev)%dataptr(mfi)
-       do idim = 1, amrex_spacedim
-          tbx = bx
-          call tbx%nodalize(idim)
-          call flux(idim)%resize(tbx,ncomp)
-          call tbx%grow(substep)
-       end do
-       pfx => flux(1)%dataptr()
-       pfy => flux(2)%dataptr()
-       pidin => idomain_tmp%dataptr(mfi)
-       pidout => idomain(lev)%dataptr(mfi)
-
-       ! Get temperature corresponding to the enthalpy
-       call get_temp(lbound(ptempin), ubound(ptempin), &
-                     pin, lbound(pin), ubound(pin), &
-                     ptempin, lbound(ptempin), ubound(ptempin))
-       
-       ! Get configuration of the system after the deformation
-       call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
-                        bx%lo, bx%hi, &
-                        pidout, lbound(pidout), ubound(pidout), &
-                        ptempin, lbound(ptempin), ubound(ptempin))
-          
-       ! Increment enthalpy at given box
-       
-       call increment_enthalpy_1D_fixT(time, bx%lo, bx%hi, &
-                                       pin, lbound(pin),     ubound(pin),     &
-                                       pout,    lbound(pout),    ubound(pout),    &
-                                       ptempin, lbound(ptempin), ubound(ptempin), &
-                                       ptemp,   lbound(ptemp),   ubound(ptemp),   &
-                                       pfx, lbound(pfx), ubound(pfx), &
-                                       pfy, lbound(pfy), ubound(pfy), &
-                                       pidin, lbound(pidin), ubound(pidin), &
-                                       pidout, lbound(pidout), ubound(pidout), &
-                                       geom, dt)
-
-       ! Update pointers for flux registers
-       if (do_reflux) then
-
-          do idim = 1, amrex_spacedim
-
-             pf => fluxes(idim)%dataptr(mfi)
-             pfab => flux(idim)%dataptr()
-             tbx = mfi%nodaltilebox(idim)
-             pf(tbx%lo(1):tbx%hi(1), tbx%lo(2):tbx%hi(2), tbx%lo(3):tbx%hi(3), :)  = & 
-                  pfab(tbx%lo(1):tbx%hi(1), tbx%lo(2):tbx%hi(2), tbx%lo(3):tbx%hi(3), :) 
-              
-          end do
-          
-       end if
-       
-    end do
-
-    ! Clean memory
-    call amrex_mfiter_destroy(mfi)
-    do idim = 1, amrex_spacedim
-       call amrex_fab_destroy(flux(idim))
-    end do
-    
-    ! Update flux registers (fluxes have already been scaled by dt and area in the increment_enthalpy subroutine)
-    if (do_reflux) then
-
-       if (lev > 0) then
-          call flux_reg(lev)%fineadd(fluxes, 1.0_amrex_real)
-       end if
-
-       if (lev < amrex_get_finest_level()) then
-          call flux_reg(lev+1)%crseinit(fluxes, -1.0_amrex_real)
-       end if
-
-       do idim = 1, amrex_spacedim
-          call amrex_multifab_destroy(fluxes(idim))
-       end do
-       
-    end if
-
-    ! Clean memory
-    call amrex_multifab_destroy(phi_tmp)
-    call amrex_multifab_destroy(temp_tmp)
-    call amrex_multifab_destroy(idomain_tmp)
-
-  end subroutine advance_one_level_1D_fixT
 
 
 end module simulation_module

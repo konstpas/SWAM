@@ -1,4 +1,4 @@
-module heat_transfer_1D_fixT_module
+module heat_transfer_fixT_module
   
   ! -----------------------------------------------------------------
   ! This module is used to perform all the calculations relative
@@ -14,24 +14,24 @@ module heat_transfer_1D_fixT_module
   ! -----------------------------------------------------------------
   ! Public subroutines
   ! -----------------------------------------------------------------
-  public :: increment_enthalpy_1D_fixT
+  public :: increment_enthalpy_fixT
 
 contains
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the enthalpy at a new time step
   ! -----------------------------------------------------------------
-  subroutine increment_enthalpy_1D_fixT(time, lo, hi, &
-                                        u_old,  uo_lo, uo_hi, &
-                                        u_new, un_lo, un_hi, &
-                                        temp_old, to_lo, to_hi, &
-                                        temp_new, tn_lo, tn_hi , &
-                                        flxx, fx_lo, fx_hi, &
-                                        flxy, fy_lo, fy_hi, &
-                                        idom_old, ido_lo, ido_hi, &
-                                        idom_new, idn_lo, idn_hi, &
-                                        geom, dt)
-
+  subroutine increment_enthalpy_fixT(lo, hi, &
+                                     u_old,  uo_lo, uo_hi, &
+                                     u_new, un_lo, un_hi, &
+                                     temp_old, to_lo, to_hi, &
+                                     temp_new, tn_lo, tn_hi , &
+                                     flxx, fx_lo, fx_hi, &
+                                     flxy, fy_lo, fy_hi, &
+                                     idom_old, ido_lo, ido_hi, &
+                                     idom_new, idn_lo, idn_hi, &
+                                     geom, dt)
+    
     use material_properties_module, only : get_temp, get_enthalpy
     use read_input_module, only : temp_fs
     
@@ -46,7 +46,6 @@ contains
     integer, intent(in) :: ido_lo(2), ido_hi(2) ! bounds of the input idomain box
     integer, intent(in) :: idn_lo(2), idn_hi(2) ! bounds of the output idomain box
     real(amrex_real), intent(in) :: dt ! time step
-    real(amrex_real), intent(in) :: time ! time
     real(amrex_real), intent(inout) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2)) ! Input enthalpy 
     real(amrex_real), intent(inout) :: u_new(un_lo(1):un_hi(1),un_lo(2):un_hi(2)) ! Output enthalpy
     real(amrex_real), intent(inout) :: temp_old(to_lo(1):to_hi(1),to_lo(2):to_hi(2)) ! Input temperature
@@ -89,7 +88,6 @@ contains
     
     ! Get enthalpy flux 
     call create_face_flux(dx, lo, hi, &
-                          u_old, uo_lo, uo_hi, &
                           flxx, fx_lo, fx_hi, &
                           flxy, fy_lo, fy_hi, &
                           temp_old, to_lo, to_hi, &
@@ -129,13 +127,12 @@ contains
                   u_new, un_lo, un_hi, &
                   temp_new, tn_lo , tn_hi) 
     
-  end subroutine increment_enthalpy_1D_fixT
+  end subroutine increment_enthalpy_fixT
 
   ! -----------------------------------------------------------------
   ! Subroutine used to the enthalpy fluxes on the edges of the grid
   ! -----------------------------------------------------------------  
   subroutine create_face_flux(dx, lo, hi, &
-                              u_old, uo_lo, uo_hi, &
                               flxx, fx_lo, fx_hi, &
                               flxy, fy_lo, fy_hi, &
                               temp, t_lo, t_hi, &
@@ -145,13 +142,11 @@ contains
 
     ! Input and output variables 
     integer, intent(in) :: lo(2), hi(2)  
-    integer, intent(in) :: uo_lo(2), uo_hi(2)
     integer, intent(in) :: t_lo(2), t_hi(2)
     integer, intent(in) :: fx_lo(2), fx_hi(2)
     integer, intent(in) :: fy_lo(2), fy_hi(2)
     integer, intent(in) :: id_lo(2), id_hi(2)
-    real(amrex_real), intent(in) :: dx(2)    
-    real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))
+    real(amrex_real), intent(in) :: dx(2) 
     real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2)) 
     real(amrex_real), intent(out) :: flxx(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2))
     real(amrex_real), intent(out) :: flxy(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2))
@@ -207,4 +202,4 @@ contains
  
   end subroutine create_face_flux
   
-end module heat_transfer_1D_fixT_module
+end module heat_transfer_fixT_module
