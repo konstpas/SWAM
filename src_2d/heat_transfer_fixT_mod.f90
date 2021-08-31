@@ -98,8 +98,11 @@ contains
        do  j = lo(2),hi(2)
           
           if (nint(idom_new(i,j)).ne.0 .and. nint(idom_new(i,j+1)).eq.0) then
-             u_new(i,j) = u_fs
+             u_new(i,j) = u_fs ! Impose temperature on the free surface
+          else if(nint(idom_new(i,j)).eq.0) then
+             u_new(i,j) = u_fs ! Set background temperature equal to the free surface temperature
           else
+             ! Update enthalpy according to heat equation
              u_new(i,j) = u_old(i,j) &
                           - dt/dx(1) * (flxx(i+1,j) - flxx(i,j)) & ! flux divergence x-direction 
                           - dt/dx(2) * (flxy(i,j+1) - flxy(i,j)) ! flux divergence y-direction
@@ -163,39 +166,22 @@ contains
     do i = lo(1), hi(1)+1
        do j = lo(2), hi(2)          
 
-          if (nint(idom(i-1,j)).eq.0 .or. nint(idom(i,j)).eq.0) then
+          ! Diffusive component
+          temp_face = (temp(i,j) + temp(i-1,j))/2_amrex_real
+          call get_ktherm(temp_face, ktherm)
+          flxx(i,j) = -ktherm*(temp(i,j)-temp(i-1,j))/dx(1)
 
-             flxx(i,j) = 0_amrex_real
-
-          else
-             ! Diffusive component
-             temp_face = (temp(i,j) + temp(i-1,j))/2_amrex_real
-             call get_ktherm(temp_face, ktherm)
-             flxx(i,j) = -ktherm*(temp(i,j)-temp(i-1,j))/dx(1)
-
-          end if
-          
        end do
     end do
     
     ! Flux along the y direction
     do i = lo(1), hi(1)
        do j = lo(2), hi(2)+1
-
-          if (nint(idom(i,j-1)).eq.0 .or. nint(idom(i,j)).eq.0) then
-
-             ! Suppress flux at the free surface
-             flxy(i,j) = 0_amrex_real
-
-          else
           
-             ! Diffusive component (there is no advection in the y direction)
-             temp_face = (temp(i,j) + temp(i,j-1))/2_amrex_real
-             call get_ktherm(temp_face, ktherm)
-             flxy(i,j) = -ktherm*(temp(i,j)-temp(i,j-1))/dx(2)
-
-          end if
-
+          ! Diffusive component (there is no advection in the y direction)
+          temp_face = (temp(i,j) + temp(i,j-1))/2_amrex_real
+          call get_ktherm(temp_face, ktherm)
+          flxy(i,j) = -ktherm*(temp(i,j)-temp(i,j-1))/dx(2)
           
        end do
     end do
