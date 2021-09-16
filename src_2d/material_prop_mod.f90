@@ -17,6 +17,12 @@ module material_properties_module
                                                   get_m_A_tungsten, &
                                                   get_melting_point_tungsten
 
+  use material_properties_test_module, only : get_ktherm_test, &
+                                              get_rho_test, &
+                                              get_Cp_test, &
+                                              get_m_A_test, &
+                                              get_melting_point_test
+
   
   implicit none 
 
@@ -52,7 +58,7 @@ module material_properties_module
   ! -----------------------------------------------------------------
   real(amrex_real), save :: enth_fus
   real(amrex_real), save :: m_A
-  real(amrex_real), save :: rho_melt   
+  real(amrex_real), save :: rho_melt
   real(amrex_real), allocatable, save :: enth_table(:)
   real(amrex_real), allocatable, save :: temp_table(:)
 
@@ -69,6 +75,8 @@ contains
     	 
     if (material.eq.'Tungsten') then 
        call get_ktherm_tungsten(temp,ktherm)
+    else if (material.eq.'Test') then 
+       call get_ktherm_test(temp,ktherm)
     else
        STOP 'Unknown material'
     end if
@@ -86,6 +94,8 @@ contains
   	 
     if (material.eq.'Tungsten') then 
        call get_rho_tungsten(temp,rho)
+    else if (material.eq.'Test') then 
+       call get_rho_test(temp,rho)
     else
        STOP 'Unknown material'
     end if
@@ -103,6 +113,8 @@ contains
   	 
     if (material.eq.'Tungsten') then 
        call get_Cp_tungsten(temp,Cp)
+    else if (material.eq.'Test') then 
+       call get_Cp_test(temp,Cp)
     else
        STOP 'Unknown material'
     end if
@@ -117,6 +129,8 @@ contains
 
     if (material.eq.'Tungsten') then 
        call get_m_A_tungsten(m_A)
+    else if (material.eq.'Test') then 
+       call get_m_A_test(m_A)
     else
        STOP 'Unknown material'
     end if
@@ -131,6 +145,8 @@ contains
 
     if (material.eq.'Tungsten') then 
        call get_melting_point_tungsten(melt_point, enth_fus, rho_melt)
+    else if (material.eq.'Test') then 
+       call get_melting_point_test(melt_point, enth_fus, rho_melt)
     else
        STOP 'Unknown material'
     end if
@@ -328,23 +344,32 @@ contains
   ! is only used during the initialization phase when the temperature
   ! passed in input should be translated into an enthalpy
   ! ------------------------------------------------------------------ 
-  subroutine get_enthalpy(temp,enth) 
+  subroutine get_enthalpy(temp,enth,do_interp) 
 
-    integer :: e_ind 
+    ! Input and output variables
+    logical, intent(in) :: do_interp
     real(amrex_real), intent(in) :: temp
     real(amrex_real), intent(out) :: enth
+
+    ! Local variables
+    integer :: e_ind
     real(amrex_real) :: int_coeff
 
     ! Obtain the enthalpy from linear interpolation of the enthalpy-temperature tables
     do e_ind = 0,phiT_table_n_points 
-       if (temp .le. temp_table(e_ind) ) exit 
+       if (temp .lt. temp_table(e_ind) ) exit 
     end do
     
     if (e_ind.eq.phiT_table_n_points) STOP 'Temperature table exceeded'
+
+    if (do_interp) then
+       int_coeff = (temp-temp_table(e_ind-1))/(temp_table(e_ind)-temp_table(e_ind-1))
+    else
+       int_coeff = 0_amrex_real
+    end if
     
-    int_coeff = (temp-temp_table(e_ind-1))/(temp_table(e_ind)-temp_table(e_ind-1))
     enth = enth_table(e_ind-1) + int_coeff*(enth_table(e_ind)-enth_table(e_ind-1))
-     
+    
   end subroutine get_enthalpy
 
 

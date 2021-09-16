@@ -184,6 +184,8 @@ contains
 
              if (find_liquid) then
                 if (temp(i,j).gt.melt_point) then
+                   idom(i,j) = 3
+                else if (temp(i,j).eq.melt_point) then
                    idom(i,j) = 2
                 else
                    idom(i,j) = 1

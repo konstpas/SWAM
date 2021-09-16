@@ -140,7 +140,7 @@ contains
     real(amrex_real) :: enth_init
 
     ! Get enthalpy consistent with the initialization temperature
-    call get_enthalpy(tempinit,enth_init)
+    call get_enthalpy(tempinit,enth_init,.false.)
 
     do j=lo(2),hi(2)
        do i=lo(1),hi(1)

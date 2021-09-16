@@ -63,7 +63,7 @@ contains
     real(amrex_real) :: lo_phys(2) ! Physical location of the lowest corner of the tile box
 
     ! Enthalpy at the free surface
-    call get_enthalpy(temp_fs, u_fs)
+    call get_enthalpy(temp_fs, u_fs, .true.)
     
     ! Re-evaluate domain
     do i = lo(1)-1,hi(1)+1
