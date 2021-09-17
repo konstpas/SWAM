@@ -48,7 +48,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine my_make_new_level_from_scratch(lev, time, pba, pdm) bind(c)
 
-    use read_input_module, only : tempinit, do_reflux
+    use read_input_module, only : do_reflux
     use material_properties_module, only : get_temp
     use heat_transfer_module, only : get_idomain
 
@@ -103,7 +103,7 @@ contains
        pid => idomain(lev)%dataptr(mfi)
        
        ! Enthalpy
-       call init_phi(bx%lo, bx%hi, tempinit, &
+       call init_phi(bx%lo, bx%hi, &
                       phi, lbound(phi), ubound(phi))
        ! Temperature
        call get_temp(bx%lo, bx%hi, &
@@ -124,23 +124,23 @@ contains
   ! -----------------------------------------------------------------
   ! Subroutine used to initialize the enthalpy multifab
   ! -----------------------------------------------------------------
-  subroutine init_phi(lo, hi, tempinit, &
+  subroutine init_phi(lo, hi, &
                       phi, phi_lo, phi_hi)
 
+    use read_input_module, only : temp_init
     use material_properties_module, only : get_enthalpy
 
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)
     integer, intent(in) :: phi_lo(2), phi_hi(2)
     real(amrex_real), intent(inout) :: phi(phi_lo(1):phi_hi(1),phi_lo(2):phi_hi(2))
-    real(amrex_real), intent(in) :: tempinit
 
     ! Local variables
     integer          :: i,j
     real(amrex_real) :: enth_init
 
     ! Get enthalpy consistent with the initialization temperature
-    call get_enthalpy(tempinit,enth_init,.false.)
+    call get_enthalpy(temp_init,enth_init)
 
     do j=lo(2),hi(2)
        do i=lo(1),hi(1)

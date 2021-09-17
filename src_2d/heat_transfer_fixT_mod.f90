@@ -63,7 +63,7 @@ contains
     real(amrex_real) :: lo_phys(2) ! Physical location of the lowest corner of the tile box
 
     ! Enthalpy at the free surface
-    call get_enthalpy(temp_fs, u_fs, .true.)
+    call get_enthalpy(temp_fs, u_fs)
     
     ! Re-evaluate domain
     do i = lo(1)-1,hi(1)+1
@@ -90,8 +90,7 @@ contains
     call create_face_flux(dx, lo, hi, &
                           flxx, fx_lo, fx_hi, &
                           flxy, fy_lo, fy_hi, &
-                          temp_old, to_lo, to_hi, &
-                          idom_new, idn_lo, idn_hi)
+                          temp_old, to_lo, to_hi)
 
     ! Compute enthalpy at the new timestep
     do i = lo(1),hi(1)
@@ -138,8 +137,7 @@ contains
   subroutine create_face_flux(dx, lo, hi, &
                               flxx, fx_lo, fx_hi, &
                               flxy, fy_lo, fy_hi, &
-                              temp, t_lo, t_hi, &
-                              idom, id_lo, id_hi)
+                              temp, t_lo, t_hi)
   				
     use material_properties_module, only: get_ktherm
 
@@ -148,9 +146,7 @@ contains
     integer, intent(in) :: t_lo(2), t_hi(2)
     integer, intent(in) :: fx_lo(2), fx_hi(2)
     integer, intent(in) :: fy_lo(2), fy_hi(2)
-    integer, intent(in) :: id_lo(2), id_hi(2)
     real(amrex_real), intent(in) :: dx(2) 
-    real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2)) 
     real(amrex_real), intent(out) :: flxx(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2))
     real(amrex_real), intent(out) :: flxy(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2))
     real(amrex_real), intent(in) :: temp (t_lo(1):t_hi(1),t_lo(2):t_hi(2))

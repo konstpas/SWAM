@@ -1,3 +1,4 @@
+
 module material_properties_test_module
 
   use amrex_amr_module
@@ -30,8 +31,12 @@ contains
 
     real(amrex_real), intent(in) :: temp   ! Temperature [K]
     real(amrex_real), intent(out) :: ktherm ! Thermal conductivity [W/mK] 
-    
-    ktherm = 149.441
+
+    if (temp .ge. 0_amrex_real) then
+       ktherm = 150.0
+    else
+       STOP "Negative temperature!"
+    end if
     
   end subroutine get_ktherm_test
 
@@ -43,9 +48,13 @@ contains
 
     ! Input and output variables 
     real(amrex_real), intent(in) :: temp   ! Temperature [K]
-    real(amrex_real), intent(out) :: rho    ! Mass density [kg/m3]
+    real(amrex_real), intent(out) :: rho   ! Mass density [kg/m3]
 
-    rho = 19.25*1E3
+    if (temp .ge. 0_amrex_real) then
+       rho = 20.0E3
+    else
+       STOP "Negative temperature!"
+    end if
    
   end subroutine get_rho_test
   
@@ -57,12 +66,17 @@ contains
 
     ! Input and output variables 
     real(amrex_real), intent(in) :: temp   ! Temperature [K]
-    real(amrex_real), intent(out) :: Cp     ! Specific heat capacity [J/kgK]
+    real(amrex_real), intent(out) :: Cp    ! Specific heat capacity [J/kgK]
 
     ! Local variables
     real(amrex_real) :: m_A ! Atomic mass [g/mol]
+
+    if (temp .ge. 0_amrex_real) then
+       Cp = 20.0
+    else
+       STOP "Negative temperature!"
+    end if
     
-    Cp = 21.868372
     ! Conversion from J/(mol*K) to J/(kg*K) 
     call get_m_A_test(m_A)
     Cp = 1E3*(Cp/m_A)
@@ -85,15 +99,15 @@ contains
   ! -----------------------------------------------------------------
   ! Subroutine used to computed the melting point properties
   ! -----------------------------------------------------------------
-  subroutine get_melting_point_test(melt_point, enth_fus, rho_melt)
+  subroutine get_melting_point_test(temp_melt, enth_fus, rho_melt)
 
-    real(amrex_real), intent(out) :: melt_point ! Temperature at melting [K] 
+    real(amrex_real), intent(out) :: temp_melt ! Temperature at melting [K] 
     real(amrex_real), intent(out) :: enth_fus ! Enthalpy of fusion [kJ/mol] 
     real(amrex_real), intent(out) :: rho_melt ! Density at melting [kg/m3] 
 
-    melt_point = 3695.0
+    temp_melt = 3695.0
     enth_fus = 52.3
-    rho_melt = 19.25E3
+    rho_melt = 20.0E3
     
   end subroutine get_melting_point_test
   

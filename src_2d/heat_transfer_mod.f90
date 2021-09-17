@@ -143,7 +143,7 @@ contains
                          idom, id_lo, id_hi, &
                          temp, t_lo, t_hi)
 
-    use material_properties_module, only : melt_point    
+    use material_properties_module, only : temp_melt    
     
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)
@@ -183,9 +183,9 @@ contains
           if (j .le. surf_ind_heat_domain) then
 
              if (find_liquid) then
-                if (temp(i,j).gt.melt_point) then
+                if (temp(i,j).gt.temp_melt) then
                    idom(i,j) = 3
-                else if (temp(i,j).eq.melt_point) then
+                else if (temp(i,j).eq.temp_melt) then
                    idom(i,j) = 2
                 else
                    idom(i,j) = 1
@@ -302,7 +302,7 @@ contains
                                vx, vx_lo, vx_hi, &
                                temp, t_lo, t_hi)
 
-    use material_properties_module, only : melt_point
+    use material_properties_module, only : temp_melt
     use read_input_module, only : meltvel
     
     ! Input and output variables
@@ -318,7 +318,7 @@ contains
     ! THIS MUST BE UPDATED 
     do i = lo(1), hi(1)+1
        do j = lo(2), hi(2) 
-          if (temp(i,j).gt.melt_point) then
+          if (temp(i,j).gt.temp_melt) then
              vx(i,j) = meltvel
           else
              vx(i,j) = 0_amrex_real
@@ -400,7 +400,7 @@ contains
   subroutine get_melt_pos(lo, hi, temp, t_lo, t_hi, geom)
        
     use amr_data_module, only : melt_pos
-    use material_properties_module, only : melt_point
+    use material_properties_module, only : temp_melt
        
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) 
@@ -417,7 +417,7 @@ contains
     do i = lo(1), hi(1)  ! x-direction
        do j = lo(2), hi(2) 
              
-          if (temp(i,j).gt.melt_point) then
+          if (temp(i,j).gt.temp_melt) then
              
              it(1) = i
              it(2) = j

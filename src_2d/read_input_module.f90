@@ -52,6 +52,7 @@ module read_input_module
   public :: max_grid_size_1d
   public :: max_step
   public :: meltvel
+  public :: phase_init
   public :: phiT_table_max_T
   public :: phiT_table_n_points
   public :: plot_file
@@ -63,7 +64,7 @@ module read_input_module
   public :: surfdist
   public :: surf_pos_init
   public :: temp_fs
-  public :: tempinit
+  public :: temp_init
   public :: verbose
 
   ! -----------------------------------------------------------------
@@ -77,8 +78,9 @@ module read_input_module
   character(len=:), allocatable, save :: check_file
   character(len=:), allocatable, save :: material
   character(len=:), allocatable, save :: flux_type
+  character(len=:), allocatable, save :: phase_init
   character(len=:), allocatable, save :: plot_file
-  character(len=:), allocatable, save :: restart
+  character(len=:), allocatable, save :: restart   
   integer, save :: check_int
   integer, save :: max_grid_size_1d
   integer, save :: max_step
@@ -95,7 +97,7 @@ module read_input_module
   real(amrex_real), save :: stop_time
   real(amrex_real), save :: surf_pos_init
   real(amrex_real), save :: temp_fs
-  real(amrex_real), save :: tempinit
+  real(amrex_real), save :: temp_init
   real(amrex_real), allocatable, save :: surfdist(:)
   real(amrex_real), allocatable, save :: flux_params(:)
   
@@ -144,7 +146,8 @@ contains
     call amrex_parmparse_build(pp, "heat")
     call pp%query("surf_pos", surf_pos_init)   
     call pp%query("meltvel", meltvel)  
-    call pp%query("tempinit", tempinit)
+    call pp%query("temp_init", temp_init)
+    call pp%query("phase_init", phase_init)
     call pp%query("flux_type", flux_type) 
     call pp%getarr("flux_params", flux_params)
     call pp%query("temp_free_surface", temp_fs)
@@ -180,6 +183,7 @@ contains
     allocate(character(len=3)::check_file)
     allocate(character(len=8)::flux_type)
     allocate(character(len=8)::material)
+    allocate(character(len=9)::phase_init)
     allocate(character(len=3)::plot_file)
     allocate(character(len=0)::restart)
     allocate(surfdist(0:amrex_max_level))
@@ -199,6 +203,7 @@ contains
     material = "Tungsten"
     max_grid_size_1d = 16
     max_step = 10000
+    phase_init = "undefined"
     phiT_table_max_T = 10000.0
     phiT_table_n_points = 10000
     plot_file = "plt"
@@ -222,6 +227,7 @@ contains
     
     deallocate(check_file)
     deallocate(material)
+    deallocate(phase_init)
     deallocate(plot_file)
     deallocate(restart)
     deallocate(surfdist)

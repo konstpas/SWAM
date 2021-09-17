@@ -6,7 +6,6 @@ module init_module
   
   use iso_c_binding
   use amrex_amr_module
-  use amr_data_module
   
   implicit none
 
@@ -26,7 +25,8 @@ contains
   ! restart file)
   ! -----------------------------------------------------------------
   subroutine run_init()
-    
+
+    use amr_data_module, only : amr_data_init
     use read_input_module, only : read_input_file, restart
     use material_properties_module, only : init_mat_prop
     use regrid_module, only : averagedown, &
@@ -70,10 +70,16 @@ contains
   ! Subroutine to finalize a simulation and clean the memory
   ! -----------------------------------------------------------------
   subroutine run_finalize()
-
+    
+    use amr_data_module, only : amr_data_finalize
+    use material_properties_module, only : finalize_mat_prop
+    
     ! Free amrex data
     call amr_data_finalize
 
+    ! Free tables with material properties
+    call finalize_mat_prop
+    
     ! Finalize amrex
     call amrex_amrcore_finalize 
     call amrex_finalize
