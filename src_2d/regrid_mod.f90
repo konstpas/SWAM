@@ -536,9 +536,9 @@ contains
           
           ! Regrid based on the state: all points belonging to the melt pool
           ! should be highly resolved 
-          if (phi(i,j).ge.enth_at_melt) then
-             tag(i,j) = settag  
-          endif
+          ! if (phi(i,j).ge.enth_at_melt) then
+          !    tag(i,j) = settag  
+          ! endif
           
        enddo
     enddo
