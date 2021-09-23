@@ -96,9 +96,10 @@ contains
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the timestep for each level
   ! -----------------------------------------------------------------
-  subroutine compute_dt
+  subroutine compute_dt()
     
     use amr_data_module, only : dt, nsubsteps
+    !use material_properties_module, only : max_diffus
     use read_input_module, only : dt_change_max
 
     ! Local variables
@@ -134,6 +135,8 @@ contains
        dt(lev) = dt(lev-1) / nsubsteps(lev)
     end do
 
+    ! Now that the timestep is defined, reset the maximum diffusivity
+    !max_diffus = 0_amrex_real
     
   end subroutine compute_dt
   
@@ -185,10 +188,10 @@ contains
 
     ! Local variables
     integer, allocatable, save :: last_regrid_step(:)
+    integer :: finest_level
+    integer :: fine_substep
     integer :: k
     integer :: old_finest_level
-    integer :: finest_level
-    integer :: fine_substep    
     
     ! Regridding 
     if (regrid_int .gt. 0) then
@@ -257,7 +260,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine advance_one_level(lev, time, dt, substep)
 
-    use read_input_module, only : do_reflux, solve_sw
+    use read_input_module, only : do_reflux, solve_sw, temp_fs
     use amr_data_module, only : phi_new, temp, idomain, flux_reg  
     use regrid_module, only : fillpatch
     use heat_transfer_module, only : get_idomain, get_melt_pos, reset_melt_pos, increment_enthalpy
@@ -333,7 +336,6 @@ contains
     ! Melt position is then found after heat has been propagated 
     call reset_melt_pos
    
-
     ! Increment heat solver on all levels
     do idim = 1, amrex_spacedim
        call flux(idim)%reset_omp_private()
@@ -374,19 +376,34 @@ contains
                         pidout, lbound(pidout), ubound(pidout), &
                         ptempin, lbound(ptempin), ubound(ptempin))
           
-       ! Increment enthalpy at given box
-       call increment_enthalpy(time, bx%lo, bx%hi, &
-                               pin, lbound(pin),     ubound(pin),     &
-                               pout,    lbound(pout),    ubound(pout),    &
-                               ptempin, lbound(ptempin), ubound(ptempin), &
-                               ptemp,   lbound(ptemp),   ubound(ptemp),   &
-                               pfx, lbound(pfx), ubound(pfx), &
-                               pfy, lbound(pfy), ubound(pfy), &
-                               pfz, lbound(pfz), ubound(pfz), &
-                               pidin, lbound(pidin), ubound(pidin), &
-                               pidout, lbound(pidout), ubound(pidout), &
-                               geom, dt)
+       ! Increment enthalpy at given box depending on the condition of the free surface
+       if (temp_fs.gt.0) then
+          call increment_enthalpy(time, bx%lo, bx%hi, &
+                                  pin, lbound(pin),     ubound(pin),     &
+                                  pout,    lbound(pout),    ubound(pout),    &
+                                  ptempin, lbound(ptempin), ubound(ptempin), &
+                                  ptemp,   lbound(ptemp),   ubound(ptemp),   &
+                                  pfx, lbound(pfx), ubound(pfx), &
+                                  pfy, lbound(pfy), ubound(pfy), &
+                                  pfz, lbound(pfz), ubound(pfz), &
+                                  pidin, lbound(pidin), ubound(pidin), &
+                                  pidout, lbound(pidout), ubound(pidout), &
+                                  geom, dt)
+       else
+          call increment_enthalpy(time, bx%lo, bx%hi, &
+                                  pin, lbound(pin),     ubound(pin),     &
+                                  pout,    lbound(pout),    ubound(pout),    &
+                                  ptempin, lbound(ptempin), ubound(ptempin), &
+                                  ptemp,   lbound(ptemp),   ubound(ptemp),   &
+                                  pfx, lbound(pfx), ubound(pfx), &
+                                  pfy, lbound(pfy), ubound(pfy), &
+                                  pfz, lbound(pfz), ubound(pfz), &
+                                  pidin, lbound(pidin), ubound(pidin), &
+                                  pidout, lbound(pidout), ubound(pidout), &
+                                  geom, dt)
+       end if
 
+       
        ! Update pointers for flux registers
        if (do_reflux) then
 

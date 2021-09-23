@@ -99,7 +99,7 @@ contains
   subroutine compute_dt()
     
     use amr_data_module, only : dt, nsubsteps
-    use material_properties_module, only : max_diffus 
+    !use material_properties_module, only : max_diffus 
     use read_input_module, only : dt_change_max
 
     ! Local variables
@@ -136,7 +136,7 @@ contains
     end do
 
     ! Now that the timestep is defined, reset the maximum diffusivity
-    max_diffus = 0_amrex_real
+    !max_diffus = 0_amrex_real
     
   end subroutine compute_dt
 
@@ -186,7 +186,7 @@ contains
     real(amrex_real), intent(in) :: time
 
     ! Local variables
-    integer, allocatable :: last_regrid_step(:)
+    integer, allocatable, save :: last_regrid_step(:)
     integer :: finest_level
     integer :: fine_substep    
     integer :: k
@@ -376,7 +376,7 @@ contains
           
        ! Increment enthalpy at given box depending on the condition of the free surface
        if (temp_fs.gt.0) then
-       call increment_enthalpy_fixT(bx%lo, bx%hi, &
+          call increment_enthalpy_fixT(bx%lo, bx%hi, &
                                     pin, lbound(pin),     ubound(pin),     &
                                     pout,    lbound(pout),    ubound(pout),    &
                                     ptempin, lbound(ptempin), ubound(ptempin), &

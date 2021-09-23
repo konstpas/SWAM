@@ -38,7 +38,8 @@ contains
                                 idom_new, idn_lo, idn_hi, &
                                 geom, dt)
 
-    use material_properties_module, only : get_temp, get_maxdiffus
+    use heat_flux_module, only: get_boundary_heat_flux
+    use material_properties_module, only : get_temp
     
     ! Input and output variables
     integer, intent(in) :: lo(3), hi(3) ! bounds of current tile box
@@ -103,11 +104,11 @@ contains
                           idom_new, idn_lo, idn_hi)
   				  	
     ! Prescribe external heat flux on the free surface
-    call get_bound_heat(time, lo_phys, &
-                        dx, lo, hi, &
-                        idom_new, idn_lo, idn_hi, &
-                        qbound)
-
+    call get_boundary_heat_flux(time, lo_phys, &
+                                dx, lo, hi, &
+                                idom_new, idn_lo, idn_hi, &
+                                qbound)
+    
     ! Compute output enthalpy, i.e. compute enthalpy at the next timestep
     do   i = lo(1),hi(1)
        do  j = lo(2),hi(2) 
@@ -151,12 +152,6 @@ contains
                   u_new, un_lo, un_hi, &
                   temp_new, tn_lo , tn_hi) 
 
-    ! THIS MUST BE UPDATED
-    ! find maximum diffusivity for time step determination 
-    ! Not called noe, constant max possible diffusivity used.	      
-    !call get_maxdiffus(lo, hi, & 
-    !		        temp_new, tn_lo, tn_hi)  	
-    
   end subroutine increment_enthalpy
 
 
@@ -168,7 +163,7 @@ contains
                          idom, id_lo, id_hi, &
                          temp, t_lo, t_hi)
 
-    use material_properties_module, only : melt_point
+    use material_properties_module, only : temp_melt
     
     ! Input and output variables
     integer, intent(in) :: lo(3), hi(3)
@@ -210,7 +205,7 @@ contains
              if (j .le. surf_ind_heat_domain) then
                 
                 if (find_liquid) then
-                   if (temp(i,j,k).gt.melt_point) then
+                   if (temp(i,j,k).gt.temp_melt) then
                       idom(i,j,k) = 2 ! Liquid
                    else
                       idom(i,j,k) = 1 ! Solid
@@ -369,7 +364,7 @@ contains
                                vz, vz_lo, vz_hi, &
                                temp, t_lo, t_hi)
 
-    use material_properties_module, only : melt_point
+    use material_properties_module, only : temp_melt
     use read_input_module, only : meltvel
     
     ! Input and output variables
@@ -388,7 +383,7 @@ contains
     do i = lo(1), hi(1)+1
        do j = lo(2), hi(2)
           do k = lo(3), hi(3)
-             if (temp(i,j,k).gt.melt_point) then
+             if (temp(i,j,k).gt.temp_melt) then
                 vx(i,j,k) = meltvel
              else
                 vx(i,j,k) = 0_amrex_real
@@ -400,7 +395,7 @@ contains
     do i = lo(1), hi(1)
        do j = lo(2), hi(2)
           do k = lo(3), hi(3)+1
-             if (temp(i,j,k).gt.melt_point) then
+             if (temp(i,j,k).gt.temp_melt) then
                 vz(i,j,k) = meltvel
              else
                 vz(i,j,k) = 0_amrex_real
@@ -488,7 +483,7 @@ contains
  
   end subroutine reset_melt_pos
 
-
+  
   ! -----------------------------------------------------------------
   ! Subroutine used to get the position of the bottom of the melt
   ! pool
@@ -496,7 +491,7 @@ contains
   subroutine get_melt_pos(lo, hi, temp, t_lo, t_hi, geom)
        
     use amr_data_module, only : melt_pos
-    use material_properties_module, only : melt_point
+    use material_properties_module, only : temp_melt
        
     ! Input and output variables
     integer, intent(in) :: lo(3), hi(3) 
@@ -514,7 +509,7 @@ contains
        do k = lo(3), hi(3)  ! z-direction 	
           do j = lo(2), hi(2) 
              
-             if (temp(i,j,k).gt.melt_point) then
+             if (temp(i,j,k).gt.temp_melt) then
                 
                 it(1) = i
                 it(2) = j
@@ -531,75 +526,6 @@ contains
     end do
     
   end subroutine get_melt_pos
-
-  
-  ! -----------------------------------------------------------------
-  ! Subroutine used to prescribe the boundary heating on the free
-  ! surface. Note that the incoming heat flux is assigned to the
-  ! first node under the free surface in the form of a volumetric
-  ! heating (after an appropriate dimensionality correction)
-  ! -----------------------------------------------------------------   
-  subroutine get_bound_heat(time, xlo, &
-                            dx, lo, hi, &
-                            idom, id_lo, id_hi, &
-                            qb) 
-
-    use read_input_module, only : flux_peak, flux_width, flux_pos, exp_time
-    
-    ! Input and output variables
-    integer, intent(in) :: lo(3), hi(3)  
-    integer, intent(in) :: id_lo(3), id_hi(3)
-    real(amrex_real), intent(in) :: time
-    real(amrex_real), intent(in) :: xlo(3)
-    real(amrex_real), intent(in) :: dx(3)
-    real(amrex_real), intent(out) :: qb(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))
-    real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2),id_lo(3):id_hi(3))
-
-    ! Local variables
-    real(amrex_real) :: xpos, zpos, ypos
-    integer :: i,j,k
-    integer :: surf_ind_heat_domain
-    real(amrex_real) :: surf_pos_heat_domain(lo(1):hi(1),lo(3):hi(3))
-
-    ! Get location of the free surface
-    call get_surf_pos(xlo, dx, lo, hi, surf_pos_heat_domain)
-
-    ! Initialize the heat flux
-    qb = 0. 
-    
-    ! Prescribe boundary heating
-    do   i = lo(1), hi(1) 
-       do  j = lo(2), hi(2)
-          do k = lo(3), hi(3)
-
-             if (time.lt.exp_time) then
-
-                ypos = xlo(2) + (j-lo(2))*dx(2)
-
-                if(nint(idom(i,j,k)).ne.0 .and. nint(idom(i,j+1,k)).eq.0) then
-
-                   xpos = xlo(1) + (i-lo(1))*dx(1)
-                   zpos = xlo(3) + (k-lo(3))*dx(3)
-                   
-                   ! Note: the term /dx(2) converts a surface heat flux [W/m^2]
-                   ! into a volumetric heat flux [W/m^3]
-                   qb(i,j,k) = flux_peak &
-                               *EXP(-((xpos-flux_pos(1))**2)/(flux_width(1)**2) &
-                                   -((zpos-flux_pos(2))**2)/(flux_width(2)**2)) &
-                                   /dx(2)
-
-                   
-                end if
-                
-             end if
-             
-          end do
-       end do
-    end do
-
-       
-  end subroutine get_bound_heat
-  
 
   ! -----------------------------------------------------------------
   ! Subroutine used to get the total volume of molten material

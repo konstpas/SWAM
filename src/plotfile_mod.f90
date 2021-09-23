@@ -120,17 +120,5 @@ contains
   end subroutine write2dplotfile
   
   
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-
 end module plotfile_module
 

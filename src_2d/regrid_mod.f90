@@ -386,9 +386,9 @@ contains
               
      end do    
     call amrex_mfiter_destroy(mfi)
-
     
   end subroutine my_remake_level
+
 
   ! -----------------------------------------------------------------
   ! Subroutine used to fill the enthalpy multifab at a given level

@@ -184,18 +184,18 @@ contains
 
              if (find_liquid) then
                 if (temp(i,j).gt.temp_melt) then
-                   idom(i,j) = 3
+                   idom(i,j) = 3 ! Liquid
                 else if (temp(i,j).eq.temp_melt) then
-                   idom(i,j) = 2
+                   idom(i,j) = 2 ! Material at melting
                 else
-                   idom(i,j) = 1
+                   idom(i,j) = 1 ! Solid
                 end if
              else
-                idom(i,j) = 1
+                idom(i,j) = 1 ! Solid or liquid (no distinction is made)
              end if
              
           else
-             idom(i,j) = 0
+             idom(i,j) = 0 ! Background
           end if
           
        end do

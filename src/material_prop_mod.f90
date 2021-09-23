@@ -2,22 +2,24 @@ module material_properties_module
 
   ! -----------------------------------------------------------------
   ! This module is used to compute the material properties.
-  ! NOTE: As of July 24, 2021 the maximum diffusivity is set in
-  ! init_mat_prop and never changed again. This should probably
-  ! be changed
   ! -----------------------------------------------------------------
   
   use amrex_amr_module
   use read_input_module, only : material, &
                                 phiT_table_max_T, &
                                 phiT_table_n_points
+  
   use material_properties_tungsten_module, only : get_ktherm_tungsten, &
                                                   get_rho_tungsten, &
                                                   get_Cp_tungsten, &
                                                   get_m_A_tungsten, &
                                                   get_melting_point_tungsten
 
-  
+  use material_properties_test_module, only : get_ktherm_test, &
+                                              get_rho_test, &
+                                              get_Cp_test, &
+                                              get_m_A_test, &
+                                              get_melting_point_test
   implicit none 
 
   private
@@ -28,24 +30,24 @@ module material_properties_module
   ! Enthalpy at the onset of melting
   public :: enth_at_melt
   ! Temperature at the melting point
-  public :: melt_point
+  public :: temp_melt
   ! Maximum diffusivity
   public :: max_diffus  
   
   ! -----------------------------------------------------------------
   ! Public subroutines
-  ! -----------------------------------------------------------------  
-  public :: init_mat_prop
+  ! -----------------------------------------------------------------
+  public :: finalize_mat_prop
   public :: get_ktherm
   public :: get_temp
   public :: get_enthalpy
-  public :: get_maxdiffus
-
+  public :: init_mat_prop
+  
   ! -----------------------------------------------------------------
   ! Declare public variables
   ! -----------------------------------------------------------------
   real(amrex_real), save :: enth_at_melt
-  real(amrex_real), save :: melt_point
+  real(amrex_real), save :: temp_melt
   real(amrex_real), save :: max_diffus
   
   ! -----------------------------------------------------------------
@@ -70,10 +72,12 @@ contains
     	 
     if (material.eq.'Tungsten') then 
        call get_ktherm_tungsten(temp,ktherm)
+    else if (material.eq.'Test') then 
+       call get_ktherm_test(temp,ktherm)
     else
        STOP 'Unknown material'
     end if
-
+    
   end subroutine get_ktherm
 
   
@@ -87,6 +91,8 @@ contains
   	 
     if (material.eq.'Tungsten') then 
        call get_rho_tungsten(temp,rho)
+    else if (material.eq.'Test') then 
+       call get_rho_test(temp,rho)
     else
        STOP 'Unknown material'
     end if
@@ -104,6 +110,8 @@ contains
   	 
     if (material.eq.'Tungsten') then 
        call get_Cp_tungsten(temp,Cp)
+    else if (material.eq.'Test') then 
+       call get_Cp_test(temp,Cp)
     else
        STOP 'Unknown material'
     end if
@@ -118,6 +126,8 @@ contains
 
     if (material.eq.'Tungsten') then 
        call get_m_A_tungsten(m_A)
+    else if (material.eq.'Test') then 
+       call get_m_A_test(m_A)
     else
        STOP 'Unknown material'
     end if
@@ -131,14 +141,15 @@ contains
   subroutine get_melting_point()
 
     if (material.eq.'Tungsten') then 
-       call get_melting_point_tungsten(melt_point, enth_fus, rho_melt)
+       call get_melting_point_tungsten(temp_melt, enth_fus, rho_melt)
+    else if (material.eq.'Test') then 
+       call get_melting_point_test(temp_melt, enth_fus, rho_melt)
     else
        STOP 'Unknown material'
     end if
     
   end subroutine get_melting_point
 
-  
   
   ! ------------------------------------------------------------------
   ! Subroutine used to compute the tables that relate the enthalpy
@@ -190,29 +201,29 @@ contains
        temp_table(i) = temp_table(i-1) + phiT_table_dT 
        
        ! Check if the updated temperature falls above the melting point
-       if (temp_table(i).ge.melt_point) then
+       if (temp_table(i).ge.temp_melt) then
 
           ! Operations to perform for the first data point above melting temperature  
           if (isolid) then  
 
              isolid = .false.   
              imelt = i          
-             temp_table(i) = melt_point 
-             phiT_table_dT = melt_point - temp_table(i-1)
+             temp_table(i) = temp_melt 
+             phiT_table_dT = temp_melt - temp_table(i-1)
              rhocp_im1 = rhocp_i 
              call get_rho(temp_table(i),rho) 
              call get_Cp(temp_table(i),Cp)  
              rhocp_i = rho*Cp  
              enth_table(i) = enth_table(i-1) + (rhocp_i+rhocp_im1)*phiT_table_dT/2_amrex_real   ! Enthalpy at melt onset 
              enth_at_melt = enth_table(i) 
-             phiT_table_dT = (phiT_table_max_T - melt_point)/(phiT_table_n_points-1-i)  ! New phiT_table_dT to match phiT_table_max_T !
+             phiT_table_dT = (phiT_table_max_T - temp_melt)/(phiT_table_n_points-1-i)  ! New phiT_table_dT to match phiT_table_max_T !
              
           end if
 
           ! Solid-liquid phase transfer jump
           if(imelt.eq.i-1) then
 
-             temp_table(i) = melt_point
+             temp_table(i) = temp_melt
              enth_table(i) = enth_table(i-1) + 1E6*enth_fus*rho_melt/m_A ! [J/m3] = 1E6*[kJ/mol]*[kg/m3]/[g/mol]
 
           ! Compute enthalpy for all the state points above the melting point
@@ -237,12 +248,10 @@ contains
           
        end if
 
-       ! Diffusivity 
+       ! Initialize the maximum diffusivity  
        call get_ktherm(temp_table(i),ktherm)
        diffus = ktherm/rhocp_i  
-       if (diffus.gt.max_diffus) max_diffus=diffus ! Find maximum thermal diffusivity for time step determination
-       ! Is continually re-evaluated to correspond to maximum within domain. This evaluation adds comp. load - perhaps 
-       ! better to use max value at all times? (i.e. gain of slightly larger step does not outweigh extra load to find diff)
+       if (diffus.gt.max_diffus) max_diffus=diffus
        
    
     end do
@@ -261,7 +270,17 @@ contains
 
   end subroutine init_mat_prop
   
- 
+  ! ------------------------------------------------------------------
+  ! Subroutine used to deallocate the tables that relate the enthalpy
+  ! and the temperature
+  ! ------------------------------------------------------------------ 
+  subroutine finalize_mat_prop()
+
+    deallocate(temp_table)
+    deallocate(enth_table)
+    
+  end subroutine finalize_mat_prop
+  
   ! ------------------------------------------------------------------
   ! Subroutine used to obtain the temperature given the enthalpy
   ! ------------------------------------------------------------------ 
@@ -277,26 +296,41 @@ contains
     real(amrex_real), intent(out) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))
 
     ! Local variables
-    integer :: e_ind 
+    integer :: idx 
     integer :: i,j,k
     real(amrex_real) :: int_coeff 
-     
+    ! real(amrex_real) :: Cp
+    ! real(amrex_real) :: diffus
+    ! real(amrex_real) :: ktherm
+    ! real(amrex_real) :: rho
+    
     ! Obtain the temperature from linear interpolation of the enthalpy-temperature tables
     do i = lo(1),hi(1)
        do j = lo(2),hi(2)
           do k = lo(3),hi(3)
              
-             do e_ind = 0,phiT_table_n_points 
-                if (ui(i,j,k) .le. enth_table(e_ind) ) exit 
+             do idx = 0,phiT_table_n_points 
+                if (ui(i,j,k) .le. enth_table(idx) ) exit 
              end do
 
-             if (e_ind.eq.phiT_table_n_points) STOP 'Temperature table exceeded' 
+             if (idx.eq.phiT_table_n_points) STOP 'Temperature table exceeded' 
 
-             int_coeff = (ui(i,j,k)-enth_table(e_ind-1))/ &
-                    (enth_table(e_ind)-enth_table(e_ind-1))
-             temp(i,j,k) = temp_table(e_ind-1) + &
-                           int_coeff*(temp_table(e_ind)-temp_table(e_ind-1))
-             
+             int_coeff = (ui(i,j,k)-enth_table(idx-1))/ &
+                    (enth_table(idx)-enth_table(idx-1))
+             temp(i,j,k) = temp_table(idx-1) + &
+                           int_coeff*(temp_table(idx)-temp_table(idx-1))
+
+             ! ! Update maximum diffusivity (consider only material grid points and not the background)
+             ! if (temp(i,j,k).gt.0) then
+             !    call get_ktherm(temp(i,j,k),ktherm)
+             !    call get_rho(temp(i,j,k),rho) 
+             !    call get_Cp(temp(i,j,k),Cp)
+             !    diffus = ktherm/(rho*Cp)
+             !    if (diffus.gt.max_diffus) then
+             !       max_diffus = diffus
+             !    end if
+             ! end if
+           
           end do
        end do
     end do
@@ -311,58 +345,43 @@ contains
   ! ------------------------------------------------------------------ 
   subroutine get_enthalpy(temp,enth) 
 
-    integer :: e_ind 
+    use read_input_module, only : phase_init
+    
+    ! Input and output variables
     real(amrex_real), intent(in) :: temp
     real(amrex_real), intent(out) :: enth
+
+    ! Local variables
+    integer :: idx 
     real(amrex_real) :: int_coeff
 
     ! Obtain the enthalpy from linear interpolation of the enthalpy-temperature tables
-    do e_ind = 0,phiT_table_n_points 
-       if (temp .le. temp_table(e_ind) ) exit 
+    do idx = 0,phiT_table_n_points 
+       if (temp .le. temp_table(idx) ) exit 
     end do
     
-    if (e_ind.eq.phiT_table_n_points) STOP 'Temperature table exceeded'
+    if (idx.eq.phiT_table_n_points) STOP 'Temperature table exceeded'
     
-    int_coeff = (temp-temp_table(e_ind-1))/(temp_table(e_ind)-temp_table(e_ind-1))
-    enth = enth_table(e_ind-1) + int_coeff*(enth_table(e_ind)-enth_table(e_ind-1))
+    ! If the input temperature is the melting temperature the enthalpy is ambiguous and
+    ! it should be specified if the system is to be considered solid or liquid
+    if (temp .eq. temp_melt) then
+       
+       if (phase_init .eq. "solid") then
+          enth = enth_table(idx)
+       else if (phase_init .eq. "liquid") then
+          enth = enth_table(idx+1)
+       else
+          STOP "get_enthalpy: For systems at the melting temperature the phase (liquid or solid) should be specified"
+       end if
+       
+    else ! In all other cases, interpolate from table
+
+       int_coeff = (temp-temp_table(idx-1))/(temp_table(idx)-temp_table(idx-1))
+       enth = enth_table(idx-1) + int_coeff*(enth_table(idx)-enth_table(idx-1))
+    
+    end if
      
   end subroutine get_enthalpy
-	
-	
-	
-  ! ------------------------------------------------------------------
-  ! Subroutine used to obtain the maximum diffusivity. Could be
-  ! computed whenever the temperature is mapped on to the enthalpy.
-  ! ------------------------------------------------------------------  
-  ! If used, called at timestep_mod, subr. increment after second get_temp. diff has to be reset before call to timestep (main)
-  subroutine get_maxdiffus(lo, hi, &
-                           temp, t_lo , t_hi) ! Revert the order of t_lo, t_hi and temp
-
-    ! Input and output variables
-    integer, intent(in) :: lo(3), hi(3)
-    integer, intent(in) :: t_lo(3), t_hi(3)
-    real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))
-
-    ! Local variables
-    integer :: i,j,k
-    real(amrex_real) :: Cp
-    real(amrex_real) :: diffus
-    real(amrex_real) :: ktherm
-    real(amrex_real) :: rho 
-
-    do i = lo(1),hi(1)
-       do j = lo(2),hi(2)
-          do k = lo(3),hi(3)
-             call get_ktherm(temp(i,j,k),ktherm)
-             call get_rho(temp(i,j,k),rho) 
-             call get_Cp(temp(i,j,k),Cp) 
-             diffus = ktherm/(rho*Cp) 
-             if (diffus.gt.max_diffus) max_diffus = diffus 
-          end do
-       end do
-    end do
-
- end subroutine get_maxdiffus
-
+  
 
 end module material_properties_module 

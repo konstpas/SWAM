@@ -2,9 +2,6 @@ module material_properties_module
 
   ! -----------------------------------------------------------------
   ! This module is used to compute the material properties.
-  ! NOTE: As of July 24, 2021 the maximum diffusivity is set in
-  ! init_mat_prop and never changed again. This should probably
-  ! be changed
   ! -----------------------------------------------------------------
   
   use amrex_amr_module
@@ -161,13 +158,12 @@ contains
   ! enthalpy in J/m^3
   ! ------------------------------------------------------------------ 
   subroutine init_mat_prop()
-
-    use read_input_module, only : temp_init, temp_fs
     
     integer :: i
     integer :: imelt = 0
     logical :: isolid = .true.  ! for enthalpy table, true before phase transfer
     real(amrex_real) :: Cp
+    real(amrex_real) :: diffus
     real(amrex_real) :: ktherm 
     real(amrex_real) :: phiT_table_dT  
     real(amrex_real) :: rho
@@ -252,22 +248,13 @@ contains
           enth_table(i) = enth_table(i-1) + (rhocp_i+rhocp_im1)*phiT_table_dT/2_amrex_real  ! Trapezoidal integration
           
        end if
-   
-    end do
 
-    ! Compute diffusivity corresponding to
-    ! (a) the input temperature for calculations with imposed flux at the free surface
-    ! (b) the free surface for calculations with imposed temperature at the free surface
-    if (temp_fs.gt.temp_init) then
-       call get_ktherm(temp_fs,ktherm)
-       call get_rho(temp_fs,rho) 
-       call get_Cp(temp_fs,Cp) 
-    else
-       call get_ktherm(temp_init,ktherm)
-       call get_rho(temp_init,rho) 
-       call get_Cp(temp_init,Cp)
-    end if
-    max_diffus = ktherm/(rho*Cp)
+       ! Initialize the maximum diffusivity  
+       call get_ktherm(temp_table(i),ktherm)
+       diffus = ktherm/rhocp_i  
+       if (diffus.gt.max_diffus) max_diffus=diffus
+       
+    end do
     
     ! Output employed material properties to file
     open (2, file = 'material_properties_'//TRIM(material)//'.dat', status = 'unknown')
@@ -310,40 +297,40 @@ contains
     real(amrex_real), intent(out) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2))
 
     ! Local variables
-    integer :: e_ind 
+    integer :: idx 
     integer :: i,j
-    real(amrex_real) :: Cp
-    real(amrex_real) :: diffus
     real(amrex_real) :: int_coeff 
-    real(amrex_real) :: ktherm
-    real(amrex_real) :: rho
+    ! real(amrex_real) :: Cp
+    ! real(amrex_real) :: diffus
+    ! real(amrex_real) :: ktherm
+    ! real(amrex_real) :: rho
      
     ! Obtain the temperature from linear interpolation of the enthalpy-temperature tables
     do i = lo(1),hi(1)
        do j = lo(2),hi(2)
           
-          do e_ind = 0,phiT_table_n_points 
-             if (ui(i,j) .le. enth_table(e_ind) ) exit 
+          do idx = 0,phiT_table_n_points 
+             if (ui(i,j) .le. enth_table(idx) ) exit 
           end do
           
-          if (e_ind.eq.phiT_table_n_points) STOP 'Temperature table exceeded' 
+          if (idx.eq.phiT_table_n_points) STOP 'Temperature table exceeded' 
           
-          int_coeff = (ui(i,j)-enth_table(e_ind-1))/ &
-               (enth_table(e_ind)-enth_table(e_ind-1))
-          temp(i,j) = temp_table(e_ind-1) + &
-               int_coeff*(temp_table(e_ind)-temp_table(e_ind-1))
+          int_coeff = (ui(i,j)-enth_table(idx-1))/ &
+               (enth_table(idx)-enth_table(idx-1))
+          temp(i,j) = temp_table(idx-1) + &
+               int_coeff*(temp_table(idx)-temp_table(idx-1))
           
-          ! Update maximum diffusivity (consider only material grid points and not the background)
-          if (temp(i,j).gt.0) then
-             call get_ktherm(temp(i,j),ktherm)
-             call get_rho(temp(i,j),rho) 
-             call get_Cp(temp(i,j),Cp)
-             diffus = ktherm/(rho*Cp)
-             if (diffus.gt.max_diffus) then
-                max_diffus = diffus
-             end if
-          end if
-          
+          ! ! Update maximum diffusivity (consider only material grid points and not the background)
+          ! if (temp(i,j).gt.0) then
+          !    call get_ktherm(temp(i,j),ktherm)
+          !    call get_rho(temp(i,j),rho) 
+          !    call get_Cp(temp(i,j),Cp)
+          !    diffus = ktherm/(rho*Cp)
+          !    if (diffus.gt.max_diffus) then
+          !       max_diffus = diffus
+          !    end if
+          ! end if
+           
        end do
     end do
     

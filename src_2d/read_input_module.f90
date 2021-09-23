@@ -196,7 +196,7 @@ contains
     dt_change_max = 1.1
     flux_params(1) = 0.0
     flux_params(2) = 1.0
-    flux_params(3) = 300d6
+    flux_params(3) = 300E6
     flux_params(4) = 0.0
     flux_params(5) = 0.01
     flux_type = "Gaussian"
@@ -226,6 +226,8 @@ contains
   subroutine deallocate_input()
     
     deallocate(check_file)
+    deallocate(flux_params)    
+    deallocate(flux_type)
     deallocate(material)
     deallocate(phase_init)
     deallocate(plot_file)

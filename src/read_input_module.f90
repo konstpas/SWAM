@@ -46,14 +46,13 @@ module read_input_module
   public :: check_int
   public :: do_reflux
   public :: dt_change_max
-  public :: exp_time
-  public :: flux_peak
-  public :: flux_pos
-  public :: flux_width
+  public :: flux_type
+  public :: flux_params
   public :: material
   public :: max_grid_size_2d
   public :: max_step
   public :: meltvel
+  public :: phase_init
   public :: phiT_table_max_T
   public :: phiT_table_n_points
   public :: plot_file
@@ -64,7 +63,8 @@ module read_input_module
   public :: stop_time
   public :: surfdist
   public :: surf_pos_init
-  public :: tempinit
+  public :: temp_fs
+  public :: temp_init
   public :: verbose
 
   ! -----------------------------------------------------------------
@@ -77,6 +77,8 @@ module read_input_module
   ! -----------------------------------------------------------------
   character(len=:), allocatable, save :: check_file
   character(len=:), allocatable, save :: material
+  character(len=:), allocatable, save :: flux_type
+  character(len=:), allocatable, save :: phase_init
   character(len=:), allocatable, save :: plot_file
   character(len=:), allocatable, save :: restart
   integer, save :: check_int
@@ -90,16 +92,14 @@ module read_input_module
   logical, save :: solve_sw
   real(amrex_real), save :: cfl
   real(amrex_real), save :: dt_change_max  
-  real(amrex_real), save :: exp_time
-  real(amrex_real), save :: flux_peak
   real(amrex_real), save :: meltvel
   real(amrex_real), save :: phiT_table_max_T
   real(amrex_real), save :: stop_time
   real(amrex_real), save :: surf_pos_init
-  real(amrex_real), save :: tempinit
+  real(amrex_real), save :: temp_fs
+  real(amrex_real), save :: temp_init
   real(amrex_real), allocatable, save :: surfdist(:)
-  real(amrex_real), allocatable, save :: flux_pos(:)
-  real(amrex_real), allocatable, save :: flux_width(:)
+  real(amrex_real), allocatable, save :: flux_params(:)
   
 contains
 
@@ -146,11 +146,11 @@ contains
     call amrex_parmparse_build(pp, "heat")
     call pp%query("surf_pos", surf_pos_init)   
     call pp%query("meltvel", meltvel)  
-    call pp%query("tempinit", tempinit)
-    call pp%query("flux_peak", flux_peak) 
-    call pp%getarr("flux_pos", flux_pos)
-    call pp%getarr("flux_width", flux_width)
-    call pp%query("exp_time", exp_time) 
+    call pp%query("temp_init", temp_init)
+    call pp%query("phase_init", phase_init)
+    call pp%query("flux_type", flux_type) 
+    call pp%getarr("flux_params", flux_params)
+    call pp%query("temp_free_surface", temp_fs)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the heat solver
@@ -181,25 +181,31 @@ contains
     integer :: i
         
     allocate(character(len=3)::check_file)
+    allocate(character(len=8)::flux_type)
     allocate(character(len=8)::material)
+    allocate(character(len=9)::phase_init)
     allocate(character(len=3)::plot_file)
     allocate(character(len=0)::restart)
     allocate(surfdist(0:amrex_max_level))
-    allocate(flux_pos(2))
-    allocate(flux_width(2))
+    allocate(flux_params(100))
     
     cfl = 0.70
     check_file = "chk"
     check_int = -1
     do_reflux = .true.
     dt_change_max = 1.1
-    exp_time = 1.0
-    flux_peak = 300d6
-    flux_pos = (/0.0,0.0/)
-    flux_width = (/1.01,1.01/)
+    flux_params(1) = 0.0
+    flux_params(2) = 1.0
+    flux_params(3) = 300E6
+    flux_params(4) = 0.0
+    flux_params(5) = 0.01
+    flux_params(6) = 0.0
+    flux_params(7) = 0.01
+    flux_type = "Gaussian"
     material = "Tungsten"
     max_grid_size_2d = 16
     max_step = 10000
+    phase_init = "undefined"
     phiT_table_max_T = 10000.0
     phiT_table_n_points = 10000
     plot_file = "plt"
@@ -211,6 +217,7 @@ contains
        surfdist(i) = 0.0_amrex_real
     end do
     surf_pos_init = 0.020
+    temp_fs = -1
     verbose = 0
     
   end subroutine set_default_values
@@ -221,12 +228,13 @@ contains
   subroutine deallocate_input()
     
     deallocate(check_file)
+    deallocate(flux_params)
+    deallocate(flux_type)
     deallocate(material)
+    deallocate(phase_init)
     deallocate(plot_file)
     deallocate(restart)
     deallocate(surfdist)
-    deallocate(flux_pos)
-    deallocate(flux_width)
 
   end subroutine deallocate_input
     
