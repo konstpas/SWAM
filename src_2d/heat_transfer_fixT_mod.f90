@@ -2,7 +2,9 @@ module heat_transfer_fixT_module
   
   ! -----------------------------------------------------------------
   ! This module is used to perform all the calculations relative
-  ! to the heat transfer part of the code.
+  ! to the heat transfer part of the code. All the calculations are
+  ! performed with a fixed temperature on the free surface and only
+  ! the diffusive part of the heat transfer equation is solved.
   ! -----------------------------------------------------------------
   
   use amrex_amr_module

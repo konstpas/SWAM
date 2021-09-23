@@ -264,6 +264,7 @@ contains
     use amr_data_module, only : phi_new, temp, idomain, flux_reg  
     use regrid_module, only : fillpatch
     use heat_transfer_module, only : get_idomain, get_melt_pos, reset_melt_pos, increment_enthalpy
+    use heat_transfer_fixT_module, only : increment_enthalpy_fixT
     use material_properties_module, only : get_temp
     use shallow_water_module, only : increment_SW
 
@@ -378,17 +379,17 @@ contains
           
        ! Increment enthalpy at given box depending on the condition of the free surface
        if (temp_fs.gt.0) then
-          call increment_enthalpy(time, bx%lo, bx%hi, &
-                                  pin, lbound(pin),     ubound(pin),     &
-                                  pout,    lbound(pout),    ubound(pout),    &
-                                  ptempin, lbound(ptempin), ubound(ptempin), &
-                                  ptemp,   lbound(ptemp),   ubound(ptemp),   &
-                                  pfx, lbound(pfx), ubound(pfx), &
-                                  pfy, lbound(pfy), ubound(pfy), &
-                                  pfz, lbound(pfz), ubound(pfz), &
-                                  pidin, lbound(pidin), ubound(pidin), &
-                                  pidout, lbound(pidout), ubound(pidout), &
-                                  geom, dt)
+          call increment_enthalpy_fixT(bx%lo, bx%hi, &
+                                       pin, lbound(pin),     ubound(pin),     &
+                                       pout,    lbound(pout),    ubound(pout),    &
+                                       ptempin, lbound(ptempin), ubound(ptempin), &
+                                       ptemp,   lbound(ptemp),   ubound(ptemp),   &
+                                       pfx, lbound(pfx), ubound(pfx), &
+                                       pfy, lbound(pfy), ubound(pfy), &
+                                       pfz, lbound(pfz), ubound(pfz), &
+                                       pidin, lbound(pidin), ubound(pidin), &
+                                       pidout, lbound(pidout), ubound(pidout), &
+                                       geom, dt)
        else
           call increment_enthalpy(time, bx%lo, bx%hi, &
                                   pin, lbound(pin),     ubound(pin),     &

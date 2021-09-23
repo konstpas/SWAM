@@ -2,7 +2,8 @@ module heat_transfer_module
   
   ! -----------------------------------------------------------------
   ! This module is used to perform all the calculations relative
-  ! to the heat transfer part of the code.
+  ! to the heat transfer part of the code. All the calculations are
+  ! performed with a prescribed heat flux on the free surface.
   ! -----------------------------------------------------------------
   
   use amrex_amr_module
@@ -109,7 +110,7 @@ contains
                                 idom_new, idn_lo, idn_hi, &
                                 qbound)
     
-    ! Compute output enthalpy, i.e. compute enthalpy at the next timestep
+    ! Compute enthalpy at the new timestep
     do   i = lo(1),hi(1)
        do  j = lo(2),hi(2) 
           do k = lo(3),hi(3)

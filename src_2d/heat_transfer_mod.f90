@@ -2,7 +2,8 @@ module heat_transfer_module
   
   ! -----------------------------------------------------------------
   ! This module is used to perform all the calculations relative
-  ! to the heat transfer part of the code.
+  ! to the heat transfer part of the code. All the calculations are
+  ! performed with a prescribed heat flux on the free surface.
   ! -----------------------------------------------------------------
   
   use amrex_amr_module
