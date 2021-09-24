@@ -41,6 +41,7 @@ module read_input_module
   ! -----------------------------------------------------------------
   ! Public variables (read from input file)
   ! -----------------------------------------------------------------
+  public :: alpha_B
   public :: cfl
   public :: check_file
   public :: check_int
@@ -52,6 +53,7 @@ module read_input_module
   public :: max_grid_size_1d
   public :: max_step
   public :: meltvel
+  public :: n_e
   public :: phase_init
   public :: phiT_table_max_T
   public :: phiT_table_n_points
@@ -65,7 +67,9 @@ module read_input_module
   public :: surf_pos_init
   public :: temp_fs
   public :: temp_init
+  public :: u_the
   public :: verbose
+  public :: cool_flux
 
   ! -----------------------------------------------------------------
   ! Public subroutines
@@ -76,6 +80,7 @@ module read_input_module
   ! Default values of public variables
   ! -----------------------------------------------------------------
   character(len=:), allocatable, save :: check_file
+  character(len=:), allocatable, save :: cool_flux   
   character(len=:), allocatable, save :: material
   character(len=:), allocatable, save :: flux_type
   character(len=:), allocatable, save :: phase_init
@@ -90,17 +95,20 @@ module read_input_module
   integer, save :: verbose
   logical, save :: do_reflux
   logical, save :: solve_sw
+  real(amrex_real), save :: alpha_B
   real(amrex_real), save :: cfl
   real(amrex_real), save :: dt_change_max  
   real(amrex_real), save :: meltvel
+  real(amrex_real), save :: n_e
   real(amrex_real), save :: phiT_table_max_T
   real(amrex_real), save :: stop_time
   real(amrex_real), save :: surf_pos_init
   real(amrex_real), save :: temp_fs
   real(amrex_real), save :: temp_init
+  real(amrex_real), save :: u_the
   real(amrex_real), allocatable, save :: surfdist(:)
   real(amrex_real), allocatable, save :: flux_params(:)
-  
+
 contains
 
   ! ------------------------------------------------------------------
@@ -151,6 +159,10 @@ contains
     call pp%query("flux_type", flux_type) 
     call pp%getarr("flux_params", flux_params)
     call pp%query("temp_free_surface", temp_fs)
+    call pp%query("plasma_density", n_e)
+    call pp%query("electron_thermal_velocity", u_the)
+    call pp%query("magnetic_inclination", alpha_B)
+    call pp%query("cooling_fluxes", cool_flux)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the heat solver
@@ -181,6 +193,7 @@ contains
     integer :: i
         
     allocate(character(len=3)::check_file)
+    allocate(character(len=4)::cool_flux)
     allocate(character(len=8)::flux_type)
     allocate(character(len=8)::material)
     allocate(character(len=9)::phase_init)
@@ -192,17 +205,21 @@ contains
     cfl = 0.70
     check_file = "chk"
     check_int = -1
+    cool_flux = "None"
     do_reflux = .true.
     dt_change_max = 1.1
     flux_params(1) = 0.0
     flux_params(2) = 1.0
-    flux_params(3) = 300E6
+    flux_params(3) = 300d6
     flux_params(4) = 0.0
     flux_params(5) = 0.01
     flux_type = "Gaussian"
     material = "Tungsten"
     max_grid_size_1d = 16
     max_step = 10000
+    u_the = 0.0
+    n_e = 0.0
+    alpha_B = 90.0
     phase_init = "undefined"
     phiT_table_max_T = 10000.0
     phiT_table_n_points = 10000
@@ -226,8 +243,7 @@ contains
   subroutine deallocate_input()
     
     deallocate(check_file)
-    deallocate(flux_params)    
-    deallocate(flux_type)
+    deallocate(cool_flux)
     deallocate(material)
     deallocate(phase_init)
     deallocate(plot_file)

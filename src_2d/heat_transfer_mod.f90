@@ -2,8 +2,7 @@ module heat_transfer_module
   
   ! -----------------------------------------------------------------
   ! This module is used to perform all the calculations relative
-  ! to the heat transfer part of the code. All the calculations are
-  ! performed with a prescribed heat flux on the free surface.
+  ! to the heat transfer part of the code.
   ! -----------------------------------------------------------------
   
   use amrex_amr_module
@@ -102,7 +101,7 @@ contains
     call get_boundary_heat_flux(time, lo_phys, &
                                 dx, lo, hi, &
                                 idom_new, idn_lo, idn_hi, &
-                                qbound)
+                                temp_old, tn_lo, tn_hi, qbound)
 
     ! Compute enthalpy at the new timestep
     do i = lo(1),hi(1)
@@ -185,18 +184,18 @@ contains
 
              if (find_liquid) then
                 if (temp(i,j).gt.temp_melt) then
-                   idom(i,j) = 3 ! Liquid
+                   idom(i,j) = 3
                 else if (temp(i,j).eq.temp_melt) then
-                   idom(i,j) = 2 ! Material at melting
+                   idom(i,j) = 2
                 else
-                   idom(i,j) = 1 ! Solid
+                   idom(i,j) = 1
                 end if
              else
-                idom(i,j) = 1 ! Solid or liquid (no distinction is made)
+                idom(i,j) = 1
              end if
              
           else
-             idom(i,j) = 0 ! Background
+             idom(i,j) = 0
           end if
           
        end do
