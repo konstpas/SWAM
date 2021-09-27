@@ -41,19 +41,20 @@ module read_input_module
   ! -----------------------------------------------------------------
   ! Public variables (read from input file)
   ! -----------------------------------------------------------------
-  public :: alpha_B
   public :: cfl
   public :: check_file
   public :: check_int
+  public :: cooling_thermionic
+  public :: cooling_vaporization
+  public :: cooling_radiation
   public :: do_reflux
   public :: dt_change_max
-  public :: flux_type
-  public :: flux_params
+  public :: plasma_flux_type
+  public :: plasma_flux_params
   public :: material
   public :: max_grid_size_1d
   public :: max_step
   public :: meltvel
-  public :: n_e
   public :: phase_init
   public :: phiT_table_max_T
   public :: phiT_table_n_points
@@ -67,9 +68,11 @@ module read_input_module
   public :: surf_pos_init
   public :: temp_fs
   public :: temp_init
-  public :: u_the
+  public :: thermionic_lim_current
+  public :: thermionic_lim_current_ne
+  public :: thermionic_lim_current_vTe
+  public :: thermionic_lim_current_alpha
   public :: verbose
-  public :: cool_flux
 
   ! -----------------------------------------------------------------
   ! Public subroutines
@@ -80,9 +83,8 @@ module read_input_module
   ! Default values of public variables
   ! -----------------------------------------------------------------
   character(len=:), allocatable, save :: check_file
-  character(len=:), allocatable, save :: cool_flux   
   character(len=:), allocatable, save :: material
-  character(len=:), allocatable, save :: flux_type
+  character(len=:), allocatable, save :: plasma_flux_type
   character(len=:), allocatable, save :: phase_init
   character(len=:), allocatable, save :: plot_file
   character(len=:), allocatable, save :: restart   
@@ -93,21 +95,25 @@ module read_input_module
   integer, save :: plot_int
   integer, save :: regrid_int
   integer, save :: verbose
+  logical, save :: cooling_thermionic
+  logical, save :: cooling_vaporization
+  logical, save :: cooling_radiation
   logical, save :: do_reflux
   logical, save :: solve_sw
-  real(amrex_real), save :: alpha_B
   real(amrex_real), save :: cfl
   real(amrex_real), save :: dt_change_max  
   real(amrex_real), save :: meltvel
-  real(amrex_real), save :: n_e
   real(amrex_real), save :: phiT_table_max_T
   real(amrex_real), save :: stop_time
   real(amrex_real), save :: surf_pos_init
   real(amrex_real), save :: temp_fs
   real(amrex_real), save :: temp_init
-  real(amrex_real), save :: u_the
+  real(amrex_real), save :: thermionic_lim_current
+  real(amrex_real), save :: thermionic_lim_current_ne
+  real(amrex_real), save :: thermionic_lim_current_vTe
+  real(amrex_real), save :: thermionic_lim_current_alpha
   real(amrex_real), allocatable, save :: surfdist(:)
-  real(amrex_real), allocatable, save :: flux_params(:)
+  real(amrex_real), allocatable, save :: plasma_flux_params(:)
 
 contains
 
@@ -156,13 +162,16 @@ contains
     call pp%query("meltvel", meltvel)  
     call pp%query("temp_init", temp_init)
     call pp%query("phase_init", phase_init)
-    call pp%query("flux_type", flux_type) 
-    call pp%getarr("flux_params", flux_params)
+    call pp%query("flux_type", plasma_flux_type) 
+    call pp%getarr("flux_params", plasma_flux_params)
     call pp%query("temp_free_surface", temp_fs)
-    call pp%query("plasma_density", n_e)
-    call pp%query("electron_thermal_velocity", u_the)
-    call pp%query("magnetic_inclination", alpha_B)
-    call pp%query("cooling_fluxes", cool_flux)
+    call pp%query("cooling_thermionic",cooling_thermionic)
+    call pp%query("cooling_vaporization",cooling_thermionic)
+    call pp%query("cooling_radiative",cooling_thermionic)
+    call pp%query("thermionic_lim_current",thermionic_lim_current)
+    call pp%query("thermionic_lim_current_ne",thermionic_lim_current_ne)
+    call pp%query("thermionic_lim_current_vTe",thermionic_lim_current_vTe)
+    call pp%query("thermionic_lim_current_alpha",thermionic_lim_current_alpha)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the heat solver
@@ -193,33 +202,31 @@ contains
     integer :: i
         
     allocate(character(len=3)::check_file)
-    allocate(character(len=4)::cool_flux)
-    allocate(character(len=8)::flux_type)
+    allocate(character(len=8)::plasma_flux_type)
     allocate(character(len=8)::material)
     allocate(character(len=9)::phase_init)
     allocate(character(len=3)::plot_file)
     allocate(character(len=0)::restart)
     allocate(surfdist(0:amrex_max_level))
-    allocate(flux_params(100))
+    allocate(plasma_flux_params(100))
     
     cfl = 0.70
     check_file = "chk"
     check_int = -1
-    cool_flux = "None"
+    cooling_thermionic = .true.
+    cooling_vaporization = .true.
+    cooling_radiation = .true.
     do_reflux = .true.
     dt_change_max = 1.1
-    flux_params(1) = 0.0
-    flux_params(2) = 1.0
-    flux_params(3) = 300d6
-    flux_params(4) = 0.0
-    flux_params(5) = 0.01
-    flux_type = "Gaussian"
+    plasma_flux_params(1) = 0.0
+    plasma_flux_params(2) = 1.0
+    plasma_flux_params(3) = 300e6
+    plasma_flux_params(4) = 0.0
+    plasma_flux_params(5) = 0.01
+    plasma_flux_type = "Gaussian"
     material = "Tungsten"
     max_grid_size_1d = 16
     max_step = 10000
-    u_the = 0.0
-    n_e = 0.0
-    alpha_B = 90.0
     phase_init = "undefined"
     phiT_table_max_T = 10000.0
     phiT_table_n_points = 10000
@@ -229,10 +236,14 @@ contains
     solve_sw = .true.
     stop_time = 1.0
     do i = 0, amrex_max_level
-       surfdist(i) = 0.0_amrex_real
+       surfdist(i) = 0.0
     end do
     surf_pos_init = 0.020
-    temp_fs = -1
+    thermionic_lim_current = -1.0
+    thermionic_lim_current_ne = 0.0
+    thermionic_lim_current_vTe = 0.0
+    thermionic_lim_current_alpha = 0.0
+    temp_fs = -1.0
     verbose = 0
     
   end subroutine set_default_values
@@ -243,9 +254,10 @@ contains
   subroutine deallocate_input()
     
     deallocate(check_file)
-    deallocate(cool_flux)
     deallocate(material)
     deallocate(phase_init)
+    deallocate(plasma_flux_params)
+    deallocate(plasma_flux_type)
     deallocate(plot_file)
     deallocate(restart)
     deallocate(surfdist)

@@ -29,8 +29,11 @@ module heat_flux_module
                                      idom, id_lo, id_hi, &
                                      temp, t_lo, t_hi, qb) 
  
-      use read_input_module, only : flux_type, &
-                                    cool_flux
+      use read_input_module, only : plasma_flux_type, &
+                                    cooling_thermionic, &
+                                    cooling_vaporization, &
+                                    cooling_radiation
+      
 
       ! Input and output variables
       integer, intent(in) :: lo(2), hi(2)  
@@ -65,23 +68,25 @@ module heat_flux_module
                xpos = xlo(1) + (i-lo(1))*dx(1)
 
                ! Plasma flux
-               if (flux_type.eq.'Gaussian') then
+               if (plasma_flux_type.eq.'Gaussian') then
                   call gaussian_heat_flux(time, xpos, q_plasma)
-               end if
-
-               ! Radiative cooling flux
-               if (cool_flux.eq.'all' .or. cool_flux.eq.'radiation') then
-                  call radiation_cooling(temp(i, j), q_rad)
+               else
+                  STOP "Unknown plasma heat flux type"
                end if
 
                ! Thermionic cooling flux
-               if (cool_flux.eq.'all' .or. cool_flux.eq.'thermionic') then
-                  call thermionic_cooling(temp(i, j), q_therm)
+               if (cooling_thermionic) then
+                  call thermionic_cooling(temp(i,j), q_therm)
                end if
 
-               ! Vapor cooling flux
-               if (cool_flux.eq.'all' .or. cool_flux.eq.'vaporization') then
+               ! Vaporization cooling flux
+               if (cooling_vaporization) then
                   call vaporization_cooling(temp(i ,j), q_vap)
+               end if
+
+               ! Radiative cooling flux
+               if (cooling_radiation) then
+                  call radiation_cooling(temp(i,j), q_rad)
                end if
 
                ! Sum all flux contributions
@@ -105,7 +110,7 @@ module heat_flux_module
    ! -----------------------------------------------------------------   
    subroutine gaussian_heat_flux(time, xpos, qb) 
  
-     use read_input_module, only : flux_params
+     use read_input_module, only : plasma_flux_params
      
      ! Input and output variables
      real(amrex_real), intent(in) :: time
@@ -115,9 +120,9 @@ module heat_flux_module
      
      qb = 0_amrex_real
      
-     if (time.ge.flux_params(1) .and. time.lt.flux_params(2)) then
-        qb = flux_params(3) &
-             *EXP(-((xpos-flux_params(4))**2)/(flux_params(5)**2))
+     if (time.ge.plasma_flux_params(1) .and. time.lt.plasma_flux_params(2)) then
+        qb = plasma_flux_params(3) &
+             *EXP(-((xpos-plasma_flux_params(4))**2)/(plasma_flux_params(5)**2))
      end if
      
    end subroutine gaussian_heat_flux
@@ -127,7 +132,7 @@ module heat_flux_module
    ! Subroutine used to find the surface cooling flux due to 
    ! radiation given the surface temperature
    ! -----------------------------------------------------------------   
-   subroutine radiation_cooling (Ts, q_rad)
+   subroutine radiation_cooling(Ts, q_rad)
  
     use material_properties_module, only : get_emissivity
  
@@ -137,7 +142,7 @@ module heat_flux_module
  
     ! Local variables 
     real(amrex_real) :: eps_t ! Emissivity
-    real(amrex_real) :: sigma = 5.670374419E-8 ! Stefan-Bolzmann constant [W/(m^-2*K^-4)]
+    real(amrex_real) :: sigma = 5.670374419E-8 ! Stefan-Boltzmann constant [W/(m^-2*K^-4)]
 
     call get_emissivity(Ts, eps_t)
     q_rad = sigma*eps_t*Ts**4
@@ -150,21 +155,22 @@ module heat_flux_module
    ! thermionic emission given the surface temperature temperature
    ! see E. Thorén et al. Plasma Phys. Control. Fusion 63 035021 (2021)
    ! -----------------------------------------------------------------   
-   subroutine thermionic_cooling (Ts, q_therm)
+   subroutine thermionic_cooling(Ts, q_therm)
  
      use material_properties_module, only : get_work_function, &
                                             get_Richardson
      
-     use read_input_module, only : u_the, &
-                                   n_e, &
-                                   alpha_B
+     use read_input_module, only : thermionic_lim_current, &
+                                   thermionic_lim_current_ne, &
+                                   thermionic_lim_current_vTe, &
+                                   thermionic_lim_current_alpha
  
      ! Input and output variables                                       
      real(amrex_real), intent(in) :: Ts        ! Temperature at the center of cells adjacent to the free surface [K]
      real(amrex_real), intent(out) :: q_therm  ! Flux of energy due to thermionic emission [W/m^2]
      
      ! Local variables
-     real(amrex_real) :: kb = 1.38064852E-23 ! Bolzmann constant [m^2*kg/(s^2*K)]
+     real(amrex_real) :: kb = 1.38064852E-23 ! Boltzmann constant [m^2*kg/(s^2*K)]
      real(amrex_real) :: Jth_nom
      real(amrex_real) :: Jth_lim
      real(amrex_real) :: Jth
@@ -175,11 +181,25 @@ module heat_flux_module
      
      call get_work_function(Wf)
      call get_Richardson(Aeff)
-     
-     Jth_lim = 0.43*e*n_e*u_the*(SIN(alpha_B/180*pi))**2  
-     Jth_nom = Aeff*EXP(-Wf/(kb*Ts))*Ts**2                
+
+     ! Nominal thermionic current from the Richardson-Dushman formula
+     Jth_nom = Aeff*EXP(-Wf/(kb*Ts))*Ts**2
+
+     ! Space-charge limited current
+     if (thermionic_lim_current .gt. 0.0) then
+        ! From input
+        Jth_lim = thermionic_lim_current
+     else
+        ! Semi-empirical expression from PIC simulations
+        Jth_lim = 0.43*e*thermionic_lim_current_ne * &
+                  thermionic_lim_current_vTe * &
+                  (SIN(thermionic_lim_current_alpha/180*pi))**2
+     end if
+
+     ! Minimum between nominal and space-charge limited
      Jth = MIN(Jth_lim, Jth_nom)
-     
+
+     ! Heat flux
      q_therm = Jth/e*(Wf+2*kb*Ts)
      
    end subroutine thermionic_cooling
@@ -201,7 +221,7 @@ module heat_flux_module
       real(amrex_real), intent(out) :: q_vap
       ! Local variables
       real(amrex_real) :: gm
-      real(amrex_real) :: kb = 1.38064852E-23 ! Bolzmann constant [m^2*kg/(s^2*K)]
+      real(amrex_real) :: kb = 1.38064852E-23 ! Boltzmann constant [m^2*kg/(s^2*K)]
       real(amrex_real) :: h_vap ! Enthalpy of vaporization [kJ/mol]
       real(amrex_real) :: pv ! Vapor pressure
       real(amrex_real) :: m_A ! Atomic mass [g/mol]
