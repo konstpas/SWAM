@@ -529,6 +529,7 @@ module material_properties_module
     integer :: imelt = 0
     logical :: isolid = .true.  ! for enthalpy table, true before phase transfer
     real(amrex_real) :: Cp
+    real(amrex_real) :: diffus
     real(amrex_real) :: ktherm 
     real(amrex_real) :: phiT_table_dT  
     real(amrex_real) :: rho
@@ -613,22 +614,13 @@ module material_properties_module
           enth_table(i) = enth_table(i-1) + (rhocp_i+rhocp_im1)*phiT_table_dT/2_amrex_real  ! Trapezoidal integration
           
        end if
-   
-    end do
 
-    ! Compute diffusivity corresponding to
-    ! (a) the input temperature for calculations with imposed flux at the free surface
-    ! (b) the free surface for calculations with imposed temperature at the free surface
-    if (temp_fs.gt.temp_init) then
-       call get_ktherm(temp_fs,ktherm)
-       call get_rho(temp_fs,rho) 
-       call get_Cp(temp_fs,Cp) 
-    else
-       call get_ktherm(temp_init,ktherm)
-       call get_rho(temp_init,rho) 
-       call get_Cp(temp_init,Cp)
-    end if
-    max_diffus = ktherm/(rho*Cp)
+       ! Initialize the maximum diffusivity  
+       call get_ktherm(temp_table(i),ktherm)
+       diffus = ktherm/rhocp_i  
+       if (diffus.gt.max_diffus) max_diffus=diffus
+      
+    end do
     
     ! Output employed material properties to file
     open (2, file = 'material_properties_'//TRIM(material)//'.dat', status = 'unknown')
