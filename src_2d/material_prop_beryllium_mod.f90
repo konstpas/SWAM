@@ -6,8 +6,7 @@ module material_properties_beryllium_module
 
   ! -----------------------------------------------------------------
   ! This module is used to compute the material properties of
-  ! beryllium as described in P. Tolias, Nucl. Mater. Energy 13, 42
-  ! (2017)
+  ! beryllium.
   ! -----------------------------------------------------------------
   
   private
@@ -35,7 +34,15 @@ contains
 
   
   ! -----------------------------------------------------------------
-  ! Subroutine used to computed the thermal conductivity
+  ! Subroutine used to compute the thermal conductivity
+  ! Solid beryllium data (300-1400K) adopted from the synthetic dataset of Ho, Powell and Liley, Thermal
+  ! conductivity of the elements, J. Phys. Chem. Ref. Data 3, 689–704 (1974).
+  ! In absence of liquid beryllium data, the following procedure was adopted. (a) The high temperature
+  ! Lorenz number was extracted from the recommended solid Be descriptions of electrical resistivity and
+  ! thermal conductivity. (b) The Wiedemann-Franz law was employed with the extrapolated Lorenz number
+  ! and the recommended liquid Be description of electrical resistivity. (c) The linear curve us expressed as a
+  ! Taylor fit around the melting point. (d) The slope is slightly reduced to account for resistivity variations.
+  ! Shomate fit to the solid data and linear fit to the liquid data.
   ! -----------------------------------------------------------------
   subroutine get_ktherm_beryllium(temp,ktherm)
 
@@ -55,7 +62,15 @@ contains
 
 
   ! -----------------------------------------------------------------
-  ! Subroutine used to computed the mass density
+  ! Subroutine used to compute the mass density
+  ! Solid phase beryllium data adopted from Y. S. Touloukian, Thermophysical properties of matter – The TPRC
+  ! Data Series - Vol 12 Thermal expansion - Metallic elements and alloys (Plenum, New York, 1975).
+  ! The tabulated spatial expansion data were translated into volume expansion data (cubed) and then into
+  ! mass density data (𝜌𝜌 m = 1.850g/cm 3 at 300K).
+  ! Liquid phase beryllium fit adopted from Thermophysical Properties of Materials For Nuclear Engineering: A
+  ! Tutorial and Collection of Data (IAEA, Vienna, 2008). Nearly the same fit was recommended in Iida and
+  ! Guthrie, The thermophysical properties of metallic liquids Vol. 2 (Oxford University Press, Oxford, 2015).
+  ! Taylor fit around room temperature to the solid data, Taylor fit around melting point to the liquid data.
   ! -----------------------------------------------------------------
   subroutine get_rho_beryllium(temp,rho)
 
@@ -82,7 +97,11 @@ contains
   
 
   ! -----------------------------------------------------------------
-  ! Subroutine used to computed the heat capacity
+  ! Subroutine used to compute the heat capacity
+  ! Solid α-phase, solid β-phase & liquid phase beryllium fits adopted from J. W. Arblaster, Thermodynamic 
+  ! Properties of Beryllium, Journal of Phase Equilibria and Diffusion 37, 581-591 (2016).
+  ! Shomate fit to the solid α-phase data, constant value for the solid β-phase data and linear fit for the
+  ! liquid phase data.
   ! -----------------------------------------------------------------
   subroutine get_Cp_beryllium(temp,Cp) 
 
@@ -110,7 +129,14 @@ contains
   
 
   ! -----------------------------------------------------------------
-  ! Subroutine used to computed the electrical resistivity
+  ! Subroutine used to compute the electrical resistivity
+  ! Solid beryllium data adopted from T. C. Chi, "Electrical resistivity of alkaline earth elements", Journal of
+  ! Physical and Chemical Reference Data 8, 439 (1979). The same data were suggested in Gmelin, Beryllium,
+  ! A3, Supplement.
+  ! Liquid beryllium value at melting point adopted from Iida and Guthrie, The thermophysical properties of
+  ! metallic liquids Vol. 2 (Oxford University Press, Oxford, 2015). In absence of other reliable data, it is
+  ! assumed that the value remains constant based on the small resistivity changes for most liquid metals.
+  ! Taylor fit around room temperature to the solid data, constant value for the liquid data.
   ! -----------------------------------------------------------------
   subroutine get_electrical_resistivity_beryllium(temp,rho_e)
 
@@ -137,7 +163,15 @@ contains
 
 
   ! -----------------------------------------------------------------
-  ! Subroutine used to computed the surface tension
+  ! Subroutine used to compute the surface tension
+  ! Liquid phase beryllium data adopted from Thermophysical Properties of Materials For Nuclear
+  ! Engineering: A Tutorial and Collection of Data (IAEA, Vienna, 2008). Only two data points available, one
+  ! also reported in Iida and Guthrie, The thermophysical properties of metallic liquids Vol. 2 (Oxford
+  ! University Press, Oxford, 2015).
+  ! Linear fit around the melting point. This fit leads to a prediction of 7275K for the critical point which is
+  ! relatively close to the 8080K prediction of Fortov and collaborators as quoted by Apfelbaum, Estimate of
+  ! Beryllium Critical Point on the Basis of Correspondence between the Critical and Zeno-Line Parameters, J.
+  ! Phys. Chem. B 116, 14660−14666 (2012).
   ! -----------------------------------------------------------------
   subroutine get_surf_tension_beryllium(temp,sigma)
 
@@ -154,7 +188,13 @@ contains
 
 
   ! -----------------------------------------------------------------
-  ! Subroutine used to computed vapor pressure
+  ! Subroutine used to compute vapor pressure
+  ! Beryllium fitting parameters adopted from C. L. Yaws, The Yaws handbook of vapor pressure,
+  ! Elsevier, Oxford, 2018. Standard Antoine fit.
+  ! A much more complicated fit with branches in the solid α-, solid β-, liquid phases is proposed by J.
+  ! W. Arblaster, Thermodynamic Properties of Beryllium, Journal of Phase Equilibria and Diffusion 37,
+  ! 581-591 (2016). Except from very low temperatures, where vaporization is anyways negligible, the
+  ! two fits are strongly overlapping. Therefore, there is no reason to utilize Arblaster’s fit.
   ! -----------------------------------------------------------------
   subroutine get_vapor_pressure_beryllium(temp,pv)
 
@@ -167,12 +207,21 @@ contains
   
 
   ! -----------------------------------------------------------------
-  ! Subroutine used to computed the viscosity
+  ! Subroutine used to compute the viscosity
+  ! Liquid phase beryllium data were extracted from a figure provided in Dombrowski et al, Atomic and
+  ! Plasma-Material Interaction Data for Fusion vol .5 (IAEA, Vienna, 1995) with the aid of software. The data
+  ! exhibited a very pronounced disagreement with both the Andrade formula (at the melting point) and the
+  ! Fowler-Born-Green formula (at the entire liquid range). The disagreement exceeded an order of
+  ! magnitude and the data were dismissed.
+  ! The liquid phase beryllium fit was adopted from L. Battezzati and A. L. Greer, The viscosity of liquid metals
+  ! and alloys, Acta Metall. 37, 1791-1802 (1989). It exhibits good agreement with both the Andrade and the
+  ! Fowler–Born–Green formulas.
+  ! Arrhenius type fit around the melting point.
   ! -----------------------------------------------------------------
   subroutine get_viscosity_beryllium(temp,mu)
 
     real(amrex_real), intent(in) :: temp ! Temperature [K]
-    real(amrex_real), intent(out) :: mu  ! Viscosity [N/m] 
+    real(amrex_real), intent(out) :: mu  ! Viscosity [Pa*s] 
     
     if (temp.lt.1560.0) then
        mu = 0.005090697766920;
@@ -183,7 +232,7 @@ contains
   end subroutine get_viscosity_beryllium  
   
   ! -----------------------------------------------------------------
-  ! Subroutine used to computed the atomic mass
+  ! Subroutine used to compute the atomic mass
   ! -----------------------------------------------------------------
   subroutine get_m_A_beryllium(m_A)
 
@@ -195,7 +244,11 @@ contains
 
   
   ! -----------------------------------------------------------------
-  ! Subroutine used to computed the melting point properties
+  ! Subroutine used to compute the melting point properties
+  ! The beryllium enthalpy of fusion has been adopted from J. W. Arblaster, Thermodynamic Properties of Beryllium, Journal of
+  ! Phase Equilibria and Diffusion 37, 581-591 (2016). A rather close value is provided by H. Kleykamp, Selected thermal
+  ! properties of beryllium and phase equilibria in beryllium systems relevant for nuclear fusion reactor blankets, 
+  ! Journal of Nuclear Materials 294, 88-93 (2001).
   ! -----------------------------------------------------------------
   subroutine get_melting_point_beryllium(temp_melt, enth_fus, rho_melt)
 
@@ -205,13 +258,16 @@ contains
 
     temp_melt = 1560.0
     enth_fus = 7.959
-    rho_melt = 1690.0
+    rho_melt = 1705.0
     
   end subroutine get_melting_point_beryllium
 
 
   ! -----------------------------------------------------------------
-  ! Subroutine used to computed the enthalpy of vaporization
+  ! Subroutine used to compute the enthalpy of vaporization
+  ! The beryllium enthalpy of vaporization has been adopted from J. W. Arblaster, Thermodynamic Properties of Beryllium, Journal
+  ! of Phase Equilibria and Diffusion 37, 581-591 (2016). A very close value is provided by Zhang, Evans and Yang, Corrected values
+  ! for boiling points and enthalpies of vaporization of elements in handbooks, J. Chem. Eng. Data 56, 328-337 (2011).
   ! -----------------------------------------------------------------
   subroutine get_enthalpy_of_vap_beryllium(enth_vap)
 
@@ -223,7 +279,11 @@ contains
 
 
   ! -----------------------------------------------------------------
-  ! Subroutine used to computed the hcp to bcc point properties 
+  ! Subroutine used to compute the hcp to bcc point properties 
+  ! The beryllium enthalpy of hcp-to-bcc transformation has been adopted from J. W. Arblaster, Thermodynamic Properties
+  ! of Beryllium, Journal of Phase Equilibria and Diffusion 37, 581-591 (2016). A rather close value is provided by H. Kleykamp,
+  ! Selected thermal properties of beryllium and phase equilibria in beryllium systems relevant for nuclear fusion reactor
+  ! blankets, Journal of Nuclear Materials 294, 88-93 (2001).
   ! -----------------------------------------------------------------
   subroutine get_hcp_to_bcc_point_beryllium(enth_hcp2bcc, hcp2bcc_point, rho_hcp2bcc)
 
@@ -241,6 +301,16 @@ contains
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the work function
+  ! Early measurements even by well-known specialists referred to oxidized samples, which led to very
+  ! low work function values around 3.7eV, see for instance R. G. Wilson, Vacuum Thermionic Work
+  ! Functions of Polycrystalline Be, Ti, Cr, Fe, Ni, Cu, Pt and Type 304 Stainless Steel, J. Appl. Phys. 37, 2261
+  ! (1966); V. S. Fomenko, The Handbook of thermionic properties, Plenum, New York (1966); R. C. Jernert
+  ! and C. B. Magee, Effect of Surface Oxidation on the Thermionic Work Function of Beryllium, Ox. Met.
+  ! 2, 1 (1970). This is pointed out in Gmelin, Beryllium, A3, Supplement.
+  ! Very good agreement on the work function value in the classical literature, see for instance S. Trasatti,
+  ! Electronegativity, Work Function and Heat of Adsorption of Hydrogen on Metals, Chim. Ind. (Milan)
+  ! 53, 559 (1971); H. B. Michaelson, The work function of the elements and its periodicity, J. Appl. Phys.
+  ! 48, 4729 (1977).
   ! -----------------------------------------------------------------
   subroutine get_work_function_beryllium(Wf)
 
@@ -255,6 +325,9 @@ contains
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute Richardson constant
+  ! The recommended value is 𝑊𝑊 f = 4.98eV.
+  ! Lack of measurements of the effective Richardson constant of clean polycrystalline samples.
+  ! The recommended value is the nominal Richardson value
   ! -----------------------------------------------------------------
   subroutine get_Richardson_beryllium(Aeff)
 
@@ -267,6 +340,20 @@ contains
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute emissivity
+  ! This is the total hemispherical emissivity that is directly used in the Stefan-Boltzmann law for the
+  ! cooling flux due to thermal radiation
+  ! Very few available measurements of the total hemispherical emissivity at elevated temperatures.
+  ! Solid beryllium data were adopted from Thermophysical Properties of Materials For Nuclear
+  ! Engineering: A Tutorial and Collection of Data (IAEA, Vienna, 2008). The original data stem from G. E.
+  ! Darwin and J. H. Buddery, Metallurgy of the rarer metals no.7: Beryllium (Butterworths Scientific
+  ! Publications, London, 1960).
+  ! These data agree reasonably well with total normal emissivity data provided by Y. S. Touloukian,
+  ! Thermophysical properties of matter– The TPRC Data Series - Vol 7 Thermal radiative properties -
+  ! Metallic elements and alloys (Plenum, New York, 1970). The same normal emissivity data are quoted
+  ! by two beryllium-centered ASM handbooks.
+  ! The solid dataset was fitted with a third order Taylor expansion around the room temperature.
+  ! In absence of measurements, for liquid beryllium, an absence of discontinuity at the melting point and
+  ! a constant value across the liquid phase were assumed.
   ! -----------------------------------------------------------------
   subroutine get_emissivity_beryllium(temp, eps_t)
 
@@ -286,6 +373,25 @@ contains
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the absolute thermoelectric power
+  ! The absolute thermoelectric power provided here can be employed in order to confirm that the
+  ! Thomson heating effect is negligible. The discontinuity jump at the melting point has not been
+  ! measured, thus it is impossible to justify our assumption that thermoelectric effects do not influence
+  ! the replacement current.
+  ! Solid beryllium data (600-1100K) were adopted from Lillie’s experiments (1955) that are quoted in
+  ! different handbooks, see for instance E. Vidal et al., ASM Handbook: Beryllium and Beryllium Alloys
+  ! (ASM International, Ohio, 2010), E. Vidal et al., Beryllium Chemistry & Processing (ASM International,
+  ! Ohio, 2009) and Gmelin, Beryllium A3. The data refer to polycrystalline beryllium versus platinum and
+  ! have been fitted with a linear expansion around the room temperature.
+  ! Absolute solid platinum data (273-1600K) were adopted from R. Roberts, F. Righini & R. Compton,
+  ! Absolute scale of thermoelectricity III, Philosophical Magazine Part B, 52, 1147-1163 (1985). The ninth
+  ! order Taylor expansion proposed in L. Abadlia et al. "New experimental methodology, setup and
+  ! LabView program for accurate absolute thermoelectric power and electrical resistivity measurements
+  ! between 25 and 1600 K: Application to pure Cu, Pt, W and Ni at very high temperatures", Review of
+  ! Scientific Instruments 85,095121 (2014) has been utilized.
+  ! The difference of the fits has been digitized and refitted to a third order Taylor expansion around the
+  ! room temperature. The absolute numbers might seem high, but they are similar to other alkanine
+  ! earth metals, see e.g. Ba and Ca in the Landolt-Börnstein database.
+  ! There are no liquid beryllium measurements and any educated guess is impossible.
   ! -----------------------------------------------------------------
   subroutine get_thermelec_power_beryllium(temp, S)
 
@@ -294,7 +400,7 @@ contains
 
     if(temp.lt.300.0) then
        S = 6.75364
-    elseif(temp.le.1560.0) then
+    elseif(temp.lt.1560.0) then
        S = 6.75364 + 43.09365E-3*(temp-300) - 8.21233E-6*(temp-300)**2 &
             + 3.17939E-9*(temp-300)**3
     else

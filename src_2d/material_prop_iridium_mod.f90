@@ -34,6 +34,13 @@ contains
   
   ! -----------------------------------------------------------------
   ! Subroutine used to computed the thermal conductivity
+  ! Solid phase Iridium data (300-1900K) adopted from the synthetic / extrapolated dataset of Ho, Powell
+  ! and Liley, Thermal conductivity of the elements, J. Phys. Chem. Ref. Data 3, 689–704 (1974).
+  ! Solid phase Iridium data (2000-2719K) adopted from Cagran and Pottlacher, Physical properties & normal
+  ! spectral emissivity of Ir up to 3500K, 16 th symposium on thermophysical properties, Boulder, USA (2006).
+  ! Liquid phase Iridium data adopted from Cagran and Pottlacher, Physical properties & normal spectral
+  ! emissivity of Ir up to 3500K, 16 th symposium on thermophysical properties, Boulder, USA (2006).
+  ! Shomate fit to the solid data and linear fit to the liquid data.
   ! -----------------------------------------------------------------
   subroutine get_ktherm_iridium(temp,ktherm)
 
@@ -54,6 +61,11 @@ contains
 
   ! -----------------------------------------------------------------
   ! Subroutine used to computed the mass density
+  ! Solid phase Iridium data adopted from J. W. Arblaster, Crystallographic properties of iridium, Platinum
+  ! Metals Rev. 54, 93 (2010)
+  ! Liquid phase Iridium data adopted from J. W. Arblaster, Selected Values for the Densities and Molar
+  ! Volumes of the Liquid Platinum Group Metals, Johnson Matthey Technol. Rev. 61, 80–86 (2017)
+  ! Taylor fit around room temperature to the solid data, Taylor fit around melting point to the liquid data.
   ! -----------------------------------------------------------------
   subroutine get_rho_iridium(temp,rho)
 
@@ -80,6 +92,11 @@ contains
 
   ! -----------------------------------------------------------------
   ! Subroutine used to computed the heat capacity
+  ! Solid phase Iridium data adopted from J. W. Arblaster, The thermodynamic properties of iridium on ITS-
+  ! 90, Calphad 19, 365-372 (1995).
+  ! Liquid phase Iridium data adopted from Cagran and Pottlacher, Physical properties & normal spectral
+  ! emissivity of iridium up to 3500K, 16 th symposium on thermophysical properties, Boulder, USA (2006).
+  ! Shomate fit to the solid data, while the liquid data are nearly constant.
   ! -----------------------------------------------------------------
   subroutine get_Cp_iridium(temp,Cp) 
 
@@ -105,6 +122,9 @@ contains
 
   ! -----------------------------------------------------------------
   ! Subroutine used to computed the electrical resistivity
+  ! Solid and liquid phase Iridium fits adopted from J. W. Arblaster, Selected Electrical Resistivity Values for
+  ! the Platinum Group of Metals II:Rhodium and Iridium, Johnson Matthey Technol. Rev. 60, 4–11 (2016).
+  ! Cubic fit to the solid data, linear fit to the liquid data.
   ! -----------------------------------------------------------------
   subroutine get_electrical_resistivity_iridium(temp,rho_e)
 
@@ -131,6 +151,10 @@ contains
 
   ! -----------------------------------------------------------------
   ! Subroutine used to computed the surface tension
+  ! Liquid phase Iridium data and fits adopted from Paradis, Ishikawa and Okada, Thermophysical Properties
+  ! of Platinum Group Metals in their Liquid Undercooled and Superheated Phases, Johnson Matthey Technol.
+  ! Rev. 58, 124–136 (2014).
+  ! Linear fit around the melting point.
   ! -----------------------------------------------------------------
   subroutine get_surf_tension_iridium(temp,sigma)
 
@@ -148,6 +172,9 @@ contains
 
   ! -----------------------------------------------------------------
   ! Subroutine used to computed vapor pressure
+  ! Iridium fitting parameters adopted from C. L. Yaws, The Yaws handbook of vapor pressure, Elsevier,
+  ! Oxford, 2018.
+  ! Standard Antoine fit.
   ! -----------------------------------------------------------------
   subroutine get_vapor_pressure_iridium(temp,pv)
 
@@ -161,11 +188,15 @@ contains
 
  ! -----------------------------------------------------------------
  ! Subroutine used to computed the viscosity
+ ! Liquid phase Iridium data and fits adopted from Paradis, Ishikawa and Okada, Thermophysical Properties
+ ! of Platinum Group Metals in their Liquid Undercooled and Superheated Phases, Johnson Matthey Technol.
+ ! Rev. 58, 124–136 (2014).
+ !  Arrhenius type fit around the melting point.
  ! -----------------------------------------------------------------
  subroutine get_viscosity_iridium(temp,mu)
 
    real(amrex_real), intent(in) :: temp   ! Temperature [K]
-   real(amrex_real), intent(out) :: mu    ! Viscosity [N/m] 
+   real(amrex_real), intent(out) :: mu    ! Viscosity [Pa*s] 
    
    if (temp.lt.2719.0) then
       mu = 0.0085;
@@ -190,6 +221,8 @@ contains
   
   ! -----------------------------------------------------------------
   ! Subroutine used to computed the melting point properties
+  ! The iridium enthalpy of fusion has been adopted from Cagran and Pottlacher, Physical properties & normal spectral emissivity
+  ! of iridium up to 3500K, 16 th symposium on thermophysical properties, Boulder, USA (2006).
   ! -----------------------------------------------------------------
   subroutine get_melting_point_iridium(temp_melt, enth_fus, rho_melt)
 
@@ -199,15 +232,18 @@ contains
 
     temp_melt = 2719.0
     enth_fus = 39.37
-    rho_melt = 19.5E3
+    rho_melt = 20.205E3
     
   end subroutine get_melting_point_iridium
 
   ! -----------------------------------------------------------------
   ! Subroutine used to computed the enthalpy of vaporization
+  ! The iridium enthalpy of vaporization has been adopted from Zhang, Evans and Yang, Corrected values for boiling points and 
+  ! enthalpies of vaporization of elements in handbooks, J. Chem. Eng. Data 56, 328-337 (2011).
   ! -----------------------------------------------------------------
-  subroutine get_enthalpy_of_vap_iridium(enth_vap)
+  subroutine get_enthalpy_of_vap_iridium(temp, enth_vap)
 
+   real(amrex_real), intent(in) :: temp      ! Temperature [K]
    real(amrex_real), intent(out) :: enth_vap ! Enthalpy of vaporization [kj/mol]
 
    enth_vap = 564.0
@@ -217,6 +253,12 @@ contains
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the work function
+  ! Very good agreement on the work function value between old, classical and contemporary literature
+  ! see for instance R.G Wilson, Vacuum thermionic work functions of polycrystalline Nb, Mo, Ta, W, Re,
+  ! Os and Ir, J. Appl. Phys. 37, 3170 (1966); V. S. Fomenko, The Handbook of thermionic properties,
+  ! Plenum, New York (1966); H. B. Michaelson, The work function of the elements and its periodicity, J.
+  ! Appl. Phys. 48, 4729 (1977); H. Kawano, Effective work functions for ionic and electronic emissions
+  ! from mono- and polycrystalline surfaces, Prog. Surf. Sci. 83, 1-165 (2008).
   ! -----------------------------------------------------------------
   subroutine get_work_function_iridium(Wf)
 
@@ -231,6 +273,10 @@ contains
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute Richardson constant
+  ! Relatively good agreement on the Richardson constant value, after correcting for small work function
+  ! discrepancies see for instance V. S. Fomenko, The Handbook of thermionic properties, Plenum, New
+  ! York (1966); D. L. Goldwater and W. E. Danforth, Thermionic emission constants of Iridium, Phys. Rev.
+  ! 103, 871 (1956).
   ! -----------------------------------------------------------------
   subroutine get_Richardson_iridium(Aeff)
 
@@ -243,6 +289,14 @@ contains
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute emissivity
+  ! This is the total hemispherical emissivity that is directly used in the Stefan-Boltzmann law for the
+  ! cooling flux due to thermal radiation,
+  ! Very few available measurements of the total hemispherical emissivity at elevated temperatures. The
+  ! sparse spectral emissivity results refer to a very narrow wavelength range that does not cover the
+  ! Wien maximum in a satisfactory manner rendering them useless.
+  ! For solid iridium, a synthetic dataset has been constructed that features 4 measured values, 1
+  ! extrapolated value and 1 interpolated value. The dataset was fitted with a quadratic polynomial.
+  ! For liquid iridium, a constant value was assumed.
   ! -----------------------------------------------------------------
   subroutine get_emissivity_iridium(temp, eps_t)
 
@@ -262,6 +316,21 @@ contains
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the absolute thermoelectric power
+  ! The absolute thermoelectric power provided here can be employed in order to confirm that the
+  ! Thomson heating effect is negligible. The discontinuity jump at the melting point has not been
+  ! measured, thus it is impossible to justify our assumption that thermoelectric effects do not influence
+  ! the replacement current.
+  ! Solid iridium data (300-1400K) were adopted from Brodowsky, Albus, Chen, Xiao and Yin,
+  ! Measurement and Calculation of the Absolute Thermoelectric Power of Rhodium and Iridium, Journal
+  ! of Electronic Materials 40, 907 (2011). The measurements are between 100K and 1400K, but only the
+  ! values above 300K were selected in order to avoid the low temperature maximum.
+  ! There is a large extrapolation range (1400-2719K) but the behavior of the curve (in terms of values
+  ! and slopes) remains reasonable up to the melting point.
+  ! There are no liquid iridium measurements and any educated guess is impossible. Existing liquid metal
+  ! measurements focused on low melting point metals, for instance alkaline earths are characterized by
+  ! a positive small discontinuity but the Seebeck slope can either switch sign or not at the melting point,
+  ! lathanides are characterized by a negative small discontinuity but the Seebeck slope can either switch
+  ! sign or not at the melting point, palladium is characterized by a large negative discontinuity etc etc.
   ! -----------------------------------------------------------------
  subroutine get_thermelec_power_iridium(temp, S)
 
@@ -270,7 +339,7 @@ contains
 
    if(temp.lt.300.0) then
       S = 0.86738
-   elseif(temp.le.2719.0) then
+   elseif(temp.lt.2719.0) then
       S = 0.86738 - 1.9990E-3*(temp-300) - 0.75620E-6*(temp-300)**2
    else
        S = 0 ! No available data, place-holder value
