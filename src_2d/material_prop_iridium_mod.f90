@@ -241,9 +241,8 @@ contains
   ! The iridium enthalpy of vaporization has been adopted from Zhang, Evans and Yang, Corrected values for boiling points and 
   ! enthalpies of vaporization of elements in handbooks, J. Chem. Eng. Data 56, 328-337 (2011).
   ! -----------------------------------------------------------------
-  subroutine get_enthalpy_of_vap_iridium(temp, enth_vap)
+  subroutine get_enthalpy_of_vap_iridium(enth_vap)
 
-   real(amrex_real), intent(in) :: temp      ! Temperature [K]
    real(amrex_real), intent(out) :: enth_vap ! Enthalpy of vaporization [kj/mol]
 
    enth_vap = 564.0

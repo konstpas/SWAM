@@ -535,6 +535,17 @@ module material_properties_module
     real(amrex_real) :: rho
     real(amrex_real) :: rhocp_i
     real(amrex_real) :: rhocp_im1
+    real(amrex_real) :: rho_e
+    real(amrex_real) :: mu
+    real(amrex_real) :: sigma
+    real(amrex_real) :: pv
+    real(amrex_real) :: Wf
+    real(amrex_real) :: Aeff
+    real(amrex_real) :: eps_t
+    real(amrex_real) :: S
+    real(amrex_real) :: enth_vap
+
+
 
     ! Allocate the temperature and enthalpy tables
     allocate(temp_table(0:phiT_table_n_points))
@@ -624,93 +635,27 @@ module material_properties_module
     
     ! Output employed material properties to file
     open (2, file = 'material_properties_'//TRIM(material)//'.dat', status = 'unknown')
-    write(2,*) 'Material properties employed' 
-    write(2,*) 'Temperature[K], Cp [J/kgK], rho [kg/m^3], k [W/mk], enthalpy [J/m^3]' 
+    write(2, *) 'Material properties employed' 
+    write(2, *) 'Temperature[K], Cp [J/kgK], rho [kg/m^3], k [W/mk], enthalpy [J/m^3]', &
+               'Resistivity [Ohm m], Surface tension [N/m], Viscosity [sPa], Vapour pressure [Pa]', &
+               'Work function [J], Richardson constant [A/(m^2K^2)], Emissivity [-], Abs. Thermoelectric power [V/K]', &
+               'Enthalpy of vaporization [kJ/mol]' 
     do i = 0,phiT_table_n_points
        call get_Cp(temp_table(i),Cp) 
        call get_ktherm(temp_table(i),ktherm) 
        call get_rho(temp_table(i),rho)
-       write(2,*) temp_table(i), Cp, rho, ktherm, enth_table(i)
+       call get_electrical_resistivity(temp_table(i), rho_e)
+       call get_surf_tension(temp_table(i), sigma)
+       call get_viscosity(temp_table(i), mu)
+       call get_vapor_pressure(temp_table(i), pv)
+       call get_work_function(Wf)
+       call get_Richardson(Aeff)
+       call get_emissivity(temp_table(i),  eps_t)
+       call get_thermelec_power(temp_table(i), S)
+       call get_enthalpy_of_vap(temp_table(i), enth_vap)
+       write(2,*) temp_table(i), Cp, rho, ktherm, enth_table(i), rho_e, sigma, mu, pv, Wf, Aeff, S, enth_vap
     end do
     close(2) 
-
-    ! Write each property indiviually in a file. Commented out to reduce output clutter
-   !  open (2, file = 'cp'//TRIM(material)//'.dat', status = 'unknown')
-   !  do i = 0,phiT_table_n_points
-   !     call get_Cp(temp_table(i),Cp) 
-   !     write(2,*) temp_table(i), Cp
-   !  end do
-   !  close(2) 
-
-   !  open (2, file = 'ktherm'//TRIM(material)//'.dat', status = 'unknown')
-   !  do i = 0,phiT_table_n_points
-   !     call get_ktherm(temp_table(i),ktherm) 
-   !     write(2,*) temp_table(i), ktherm
-   !  end do
-   !  close(2) 
-
-   !  open (2, file = 'rho'//TRIM(material)//'.dat', status = 'unknown')
-   !  do i = 0,phiT_table_n_points
-   !     call get_rho(temp_table(i),rho)
-   !     write(2,*) temp_table(i), rho
-   !  end do
-   !  close(2) 
-
-   !  open (2, file = 'rho_e'//TRIM(material)//'.dat', status = 'unknown')
-   !  do i = 0,phiT_table_n_points
-   !     call get_electrical_resistivity(temp_table(i), rho_e)
-   !     write(2,*) temp_table(i), rho_e
-   !  end do 
-   !  close(2) 
-
-   !  open (2, file = 'sigma'//TRIM(material)//'.dat', status = 'unknown')
-   !  do i = 0,phiT_table_n_points
-   !     call get_surf_tension(temp_table(i), sigma)
-   !     write(2,*) temp_table(i), sigma
-   !  end do
-   !  close(2) 
-     
-   !  open (2, file = 'mu'//TRIM(material)//'.dat', status = 'unknown')
-   !  do i = 0,phiT_table_n_points
-   !     call get_viscosity(temp_table(i), mu)
-   !     write(2,*) temp_table(i), mu
-   !  end do
-   !  close(2) 
-
-   !  open (2, file = 'pv'//TRIM(material)//'.dat', status = 'unknown')
-   !  do i = 0,phiT_table_n_points
-   !     call get_vapor_pressure(temp_table(i), pv)
-   !     write(2,*) temp_table(i), pv
-   !  end do
-   !  close(2) 
-
-   !  open (2, file = 'wf'//TRIM(material)//'.dat', status = 'unknown')
-   !  do i = 0,phiT_table_n_points
-   !     call get_work_function(wf)
-   !     write(2,*) temp_table(i), wf
-   !  end do
-   !  close(2) 
-
-   !  open (2, file = 'Aeff'//TRIM(material)//'.dat', status = 'unknown')
-   !  do i = 0,phiT_table_n_points
-   !     call get_Richardson(Aeff)
-   !     write(2,*) temp_table(i), Aeff
-   !  end do
-   !  close(2) 
-
-   !  open (2, file = 'eps_t'//TRIM(material)//'.dat', status = 'unknown')
-   !  do i = 0,phiT_table_n_points
-   !     call get_emissivity(temp_table(i), eps_t)
-   !     write(2,*) temp_table(i), eps_t
-   !  end do
-   !  close(2) 
-
-   !  open (2, file = 'S'//TRIM(material)//'.dat', status = 'unknown')
-   !  do i = 0,phiT_table_n_points
-   !     call get_thermelec_power(temp_table(i), S)
-   !     write(2,*) temp_table(i), S
-   !  end do
-   !  close(2) 
 
 
   end subroutine init_mat_prop
