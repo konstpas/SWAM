@@ -14,11 +14,11 @@ module material_properties_solliq_test_module
   ! -----------------------------------------------------------------
   ! Public subroutines
   ! -----------------------------------------------------------------
-  public :: get_ktherm_solliq_test
-  public :: get_m_A_solliq_test
+  public :: get_heat_capacity_solliq_test
+  public :: get_conductivity_solliq_test
+  public :: get_atomic_mass_solliq_test
   public :: get_melting_point_solliq_test
-  public :: get_rho_solliq_test
-  public :: get_Cp_solliq_test
+  public :: get_mass_density_solliq_test
 
 contains 
 
@@ -26,7 +26,7 @@ contains
   ! -----------------------------------------------------------------
   ! Subroutine used to computed the thermal conductivity
   ! -----------------------------------------------------------------
-  subroutine get_ktherm_solliq_test(temp, ktherm)
+  subroutine get_conductivity_solliq_test(temp, ktherm)
 
     real(amrex_real), intent(in) :: temp ! Temperature [K]
     real(amrex_real), intent(out) :: ktherm ! Thermal conductivity [W/mK] 
@@ -38,13 +38,13 @@ contains
     endif
      
     
-  end subroutine get_ktherm_solliq_test
+  end subroutine get_conductivity_solliq_test
 
 
   ! -----------------------------------------------------------------
   ! Subroutine used to computed the mass density
   ! -----------------------------------------------------------------
-  subroutine get_rho_solliq_test(rho)
+  subroutine get_mass_density_solliq_test(rho)
 
     ! Input and output variables 
     real(amrex_real), intent(out) :: rho    ! Mass density [kg/m3]
@@ -53,13 +53,13 @@ contains
     ! Conversion from g/cm3 to kg/cm3 
     rho = rho*1E3  
    
-  end subroutine get_rho_solliq_test
+  end subroutine get_mass_density_solliq_test
   
 
   ! -----------------------------------------------------------------
   ! Subroutine used to computed the heat capacity
   ! -----------------------------------------------------------------
-  subroutine get_Cp_solliq_test(Cp) 
+  subroutine get_heat_capacity_solliq_test(Cp) 
 
     ! Input and output variables 
     real(amrex_real), intent(out) :: Cp     ! Specific heat capacity [J/kgK]
@@ -69,22 +69,22 @@ contains
     
     Cp = 20.0
     ! Conversion from J/(mol*K) to J/(kg*K) 
-    call get_m_A_solliq_test(m_A)
+    call get_atomic_mass_solliq_test(m_A)
     Cp = 1E3*(Cp/m_A)
     
-  end subroutine get_Cp_solliq_test
+  end subroutine get_heat_capacity_solliq_test
   
 
   ! -----------------------------------------------------------------
   ! Subroutine used to computed the atomic mass
   ! -----------------------------------------------------------------
-  subroutine get_m_A_solliq_test(m_A)
+  subroutine get_atomic_mass_solliq_test(m_A)
 
     real(amrex_real), intent(out) :: m_A ! Atomic mass [g/mol]
 
     m_A = 183.84
     
-  end subroutine get_m_A_solliq_test
+  end subroutine get_atomic_mass_solliq_test
 
   
   ! -----------------------------------------------------------------
