@@ -213,8 +213,8 @@ module heat_flux_module
     subroutine vaporization_cooling(Ts, q_vap)
  
       use material_properties_module, only : get_vapor_pressure, &
-                                             get_enthalpy_of_vap, &
-                                             get_m_A
+                                             get_enthalpy_of_vaporization, &
+                                             get_atomic_mass
  
       ! Input and output variables
       real(amrex_real), intent(in) :: Ts
@@ -228,9 +228,9 @@ module heat_flux_module
       real(amrex_real) :: pi = 3.1415927
       real(amrex_real) :: Na = 6.02214076E23 ! Avogadro's number [mol^-1]  
       
-      call get_m_A(m_A)
+      call get_atomic_mass(m_A)
       call get_vapor_pressure(Ts, pv)
-      call get_enthalpy_of_vap(Ts, h_vap)
+      call get_enthalpy_of_vaporization(Ts, h_vap)
       
       ! Conversion from g/mol to kg
       m_A = m_A*1E-3/Na

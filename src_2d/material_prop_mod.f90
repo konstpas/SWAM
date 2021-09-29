@@ -11,79 +11,80 @@ module material_properties_module
    use read_input_module, only : material, &
                                  phiT_table_max_T, &
                                  phiT_table_n_points
-   use material_properties_tungsten_module, only : get_ktherm_tungsten, &
-                                                   get_rho_tungsten, &
-                                                   get_Cp_tungsten, &
-                                                   get_m_A_tungsten, &
+   
+   use material_properties_tungsten_module, only : get_conductivity_tungsten, &
+                                                   get_mass_density_tungsten, &
+                                                   get_heat_capacity_tungsten, &
+                                                   get_atomic_mass_tungsten, &
                                                    get_melting_point_tungsten, &
                                                    get_electrical_resistivity_tungsten, &
                                                    get_emissivity_tungsten, &
-                                                   get_enthalpy_of_vap_tungsten, &
+                                                   get_enthalpy_of_vaporization_tungsten, &
                                                    get_Richardson_tungsten, &
-                                                   get_surf_tension_tungsten, &
-                                                   get_thermelec_power_tungsten, &
+                                                   get_surface_tension_tungsten, &
+                                                   get_thermelectric_power_tungsten, &
                                                    get_vapor_pressure_tungsten, &
                                                    get_viscosity_tungsten, &
                                                    get_work_function_tungsten
  
  
-   use material_properties_test_module, only : get_ktherm_test, &
-                                                   get_rho_test, &
-                                                   get_Cp_test, &
-                                                   get_m_A_test, &
-                                                   get_melting_point_test
+   use material_properties_test_module, only : get_conductivity_test, &
+                                               get_mass_density_test, &
+                                               get_heat_capacity_test, &
+                                               get_atomic_mass_test, &
+                                               get_melting_point_test
  
-   use material_properties_solliq_test_module, only : get_ktherm_solliq_test, &
-                                                             get_rho_solliq_test, &
-                                                             get_Cp_solliq_test, &
-                                                             get_m_A_solliq_test, &
-                                                             get_melting_point_solliq_test                                               
+   use material_properties_solliq_test_module, only : get_conductivity_solliq_test, &
+                                                      get_mass_density_solliq_test, &
+                                                      get_heat_capacity_solliq_test, &
+                                                      get_atomic_mass_solliq_test, &
+                                                      get_melting_point_solliq_test                                               
  
-   use material_properties_beryllium_module, only :   get_ktherm_beryllium, &
-                                                      get_rho_beryllium, &
-                                                      get_Cp_beryllium, &
-                                                      get_m_A_beryllium, &
+   use material_properties_beryllium_module, only :   get_conductivity_beryllium, &
+                                                      get_mass_density_beryllium, &
+                                                      get_heat_capacity_beryllium, &
+                                                      get_atomic_mass_beryllium, &
                                                       get_melting_point_beryllium, &
                                                       get_electrical_resistivity_beryllium, &
                                                       get_emissivity_beryllium, &
-                                                      get_enthalpy_of_vap_beryllium, &
+                                                      get_enthalpy_of_vaporization_beryllium, &
                                                       get_hcp_to_bcc_point_beryllium, &
                                                       get_Richardson_beryllium, &
-                                                      get_surf_tension_beryllium, &
-                                                      get_thermelec_power_beryllium, &
+                                                      get_surface_tension_beryllium, &
+                                                      get_thermelectric_power_beryllium, &
                                                       get_vapor_pressure_beryllium, &
                                                       get_viscosity_beryllium, &
                                                       get_work_function_beryllium
 
-  use material_properties_iridium_module, only :  get_Cp_iridium, &
-                                                get_electrical_resistivity_iridium,&
-                                                get_emissivity_iridium, &
-                                                get_enthalpy_of_vap_iridium, &
-                                                get_ktherm_iridium, &
-                                                get_m_A_iridium, &
-                                                get_melting_point_iridium, &
-                                                get_rho_iridium, &
-                                                get_Richardson_iridium, &
-                                                get_surf_tension_iridium, &
-                                                get_thermelec_power_iridium, &
-                                                get_vapor_pressure_iridium, &
-                                                get_viscosity_iridium, &
-                                                get_work_function_iridium
+  use material_properties_iridium_module, only :  get_heat_capacity_iridium, &
+                                                  get_electrical_resistivity_iridium,&
+                                                  get_emissivity_iridium, &
+                                                  get_enthalpy_of_vaporization_iridium, &
+                                                  get_conductivity_iridium, &
+                                                  get_atomic_mass_iridium, &
+                                                  get_melting_point_iridium, &
+                                                  get_mass_density_iridium, &
+                                                  get_Richardson_iridium, &
+                                                  get_surface_tension_iridium, &
+                                                  get_thermelectric_power_iridium, &
+                                                  get_vapor_pressure_iridium, &
+                                                  get_viscosity_iridium, &
+                                                  get_work_function_iridium
 
-  use material_properties_niobium_module,  only : get_Cp_niobium, &
-                                                get_electrical_resistivity_niobium, &
-                                                get_emissivity_niobium, &
-                                                get_enthalpy_of_vap_niobium, &
-                                                get_ktherm_niobium, &
-                                                get_m_A_niobium, &
-                                                get_melting_point_niobium, &
-                                                get_rho_niobium, &
-                                                get_Richardson_niobium, &
-                                                get_surf_tension_niobium, &
-                                                get_thermelec_power_niobium, &
-                                                get_vapor_pressure_niobium, &
-                                                get_viscosity_niobium, &
-                                                get_work_function_niobium
+  use material_properties_niobium_module,  only : get_heat_capacity_niobium, &
+                                                  get_electrical_resistivity_niobium, &
+                                                  get_emissivity_niobium, &
+                                                  get_enthalpy_of_vaporization_niobium, &
+                                                  get_conductivity_niobium, &
+                                                  get_atomic_mass_niobium, &
+                                                  get_melting_point_niobium, &
+                                                  get_mass_density_niobium, &
+                                                  get_Richardson_niobium, &
+                                                  get_surface_tension_niobium, &
+                                                  get_thermelectric_power_niobium, &
+                                                  get_vapor_pressure_niobium, &
+                                                  get_viscosity_niobium, &
+                                                  get_work_function_niobium
     
      
    implicit none 
@@ -104,15 +105,15 @@ module material_properties_module
    ! Public subroutines
    ! -----------------------------------------------------------------  
    public :: init_mat_prop
-   public :: get_ktherm
+   public :: get_conductivity
    public :: get_temp
    public :: get_enthalpy
    public :: get_emissivity
    public :: get_work_function
    public :: get_Richardson
    public :: get_vapor_pressure
-   public :: get_m_A
-   public :: get_enthalpy_of_vap
+   public :: get_atomic_mass
+   public :: get_enthalpy_of_vaporization
    public :: finalize_mat_prop
    
  
@@ -143,108 +144,108 @@ module material_properties_module
    ! ------------------------------------------------------------------
    ! Subroutine used to compute the thermal conductivity
    ! ------------------------------------------------------------------ 
-   subroutine get_ktherm(temp,ktherm)
+   subroutine get_conductivity(temp,ktherm)
      
      real(amrex_real), intent(in) :: temp    ! Temperature [K]
      real(amrex_real), intent(out) :: ktherm ! Thermal conductivity [W/mK] 
           
      if (material.eq.'Tungsten') then 
-        call get_ktherm_tungsten(temp, ktherm)
+        call get_conductivity_tungsten(temp, ktherm)
      elseif (material.eq.'Beryllium') then
-        call get_ktherm_beryllium(temp, ktherm)
+        call get_conductivity_beryllium(temp, ktherm)
      elseif (material.eq.'Iridium') then
-         call get_ktherm_iridium(temp, ktherm)
+         call get_conductivity_iridium(temp, ktherm)
      elseif (material.eq.'Niobium') then
-         call get_ktherm_niobium(temp, ktherm)
+         call get_conductivity_niobium(temp, ktherm)
      elseif(material.eq.'Test') then
-        call get_ktherm_test(temp, ktherm)
+        call get_conductivity_test(temp, ktherm)
      elseif(material.eq.'Test2') then
-       call get_ktherm_solliq_test(temp, ktherm)
+       call get_conductivity_solliq_test(temp, ktherm)
      else
         STOP 'Unknown material'
      end if
  
-   end subroutine get_ktherm
+   end subroutine get_conductivity
  
    
    ! ------------------------------------------------------------------
    ! Subroutine used to compute the mass density
    ! ------------------------------------------------------------------ 
-   subroutine get_rho(temp,rho)
+   subroutine get_mass_density(temp,rho)
      
      real(amrex_real), intent(in) :: temp   ! Temperature [K]
      real(amrex_real), intent(out) :: rho   ! Mass density [kg/m3] 
         
      if (material.eq.'Tungsten') then 
-        call get_rho_tungsten(temp,rho)
+        call get_mass_density_tungsten(temp,rho)
      elseif (material.eq.'Beryllium') then
-        call get_rho_beryllium(temp, rho)
+        call get_mass_density_beryllium(temp, rho)
      elseif (material.eq.'Iridium') then
-        call get_rho_iridium(temp, rho)
+        call get_mass_density_iridium(temp, rho)
      elseif (material.eq.'Niobium') then
-        call get_rho_niobium(temp, rho)
+        call get_mass_density_niobium(temp, rho)
      elseif (material.eq.'Test') then
-        call get_rho_test(temp, rho)
+        call get_mass_density_test(temp, rho)
      elseif (material.eq.'Test2') then
-        call get_rho_solliq_test(rho)
+        call get_mass_density_solliq_test(rho)
      else
         STOP 'Unknown material'
      end if
      
-   end subroutine get_rho
+   end subroutine get_mass_density
  
    
    ! ------------------------------------------------------------------
    ! Subroutine used to compute the heat capacity
    ! ------------------------------------------------------------------ 
-   subroutine get_Cp(temp,Cp)
+   subroutine get_heat_capacity(temp,Cp)
      
      real(amrex_real), intent(in) :: temp  ! Temperature [K]
      real(amrex_real), intent(out) :: Cp   ! Specific heat capacity [J/kgK] 
         
      if (material.eq.'Tungsten') then 
-        call get_Cp_tungsten(temp,Cp)
+        call get_heat_capacity_tungsten(temp,Cp)
      elseif (material.eq.'Beryllium') then
-        call get_Cp_beryllium(temp, Cp)
+        call get_heat_capacity_beryllium(temp, Cp)
      elseif (material.eq.'Iridium') then
-        call get_Cp_iridium(temp, Cp)
+        call get_heat_capacity_iridium(temp, Cp)
      elseif (material.eq.'Niobium') then
-        call get_Cp_niobium(temp, Cp)
+        call get_heat_capacity_niobium(temp, Cp)
      elseif (material.eq.'Test') then
-        call get_Cp_test(temp, Cp)
+        call get_heat_capacity_test(temp, Cp)
      elseif (material.eq.'Test2') then
-        call get_Cp_solliq_test(Cp)
+        call get_heat_capacity_solliq_test(Cp)
      else
         STOP 'Unknown material'
      end if
      
-   end subroutine get_Cp
+   end subroutine get_heat_capacity
          
  
    ! ------------------------------------------------------------------
    ! Subroutine used to compute the atomic mass
    ! ------------------------------------------------------------------ 
-   subroutine get_m_A(m_A)
+   subroutine get_atomic_mass(m_A)
 
       real(amrex_real), intent(out) :: m_A
  
      if (material.eq.'Tungsten') then 
-        call get_m_A_tungsten(m_A)
+        call get_atomic_mass_tungsten(m_A)
      elseif (material.eq.'Beryllium') then
-        call get_m_A_beryllium(m_A)
+        call get_atomic_mass_beryllium(m_A)
      elseif (material.eq.'Iridium') then
-        call get_m_A_iridium(m_A)
+        call get_atomic_mass_iridium(m_A)
      elseif (material.eq.'Niobium') then
-        call get_m_A_niobium(m_A)
+        call get_atomic_mass_niobium(m_A)
      elseif (material.eq.'Test') then
-        call get_m_A_test(m_A)
+        call get_atomic_mass_test(m_A)
      elseif (material.eq.'Test2') then
-        call get_m_A_solliq_test(m_A)
+        call get_atomic_mass_solliq_test(m_A)
      else
         STOP 'Unknown material'
      end if
      
-   end subroutine get_m_A
+   end subroutine get_atomic_mass
    
  
    ! ------------------------------------------------------------------
@@ -324,25 +325,25 @@ module material_properties_module
    ! ------------------------------------------------------------------
    ! Subroutine used to compute the surface tension
    ! ------------------------------------------------------------------ 
-   subroutine get_surf_tension(temp, sigma)
+   subroutine get_surface_tension(temp, sigma)
      
       real(amrex_real), intent(in) :: temp    ! Temperature [K]
       real(amrex_real), intent(out) :: sigma  ! Surface tension [N/m]
 
       if (material.eq.'Tungsten') then
-         call get_surf_tension_tungsten(temp, sigma)
+         call get_surface_tension_tungsten(temp, sigma)
       elseif (material.eq.'Beryllium') then
-         call get_surf_tension_beryllium(temp, sigma)
+         call get_surface_tension_beryllium(temp, sigma)
       elseif (material.eq.'Iridium') then
-         call get_surf_tension_iridium(temp, sigma)
+         call get_surface_tension_iridium(temp, sigma)
       elseif (material.eq.'Niobium') then
-         call get_surf_tension_niobium(temp, sigma)
+         call get_surface_tension_niobium(temp, sigma)
       elseif (material.eq.'Test' .or. material.eq.'Test2') then
          sigma = 0 ! surface tension not defined for test materials, placeholder value
       else
          STOP 'Unknown material'
       endif
-   end subroutine get_surf_tension
+   end subroutine get_surface_tension
 
 
    ! ------------------------------------------------------------------
@@ -396,25 +397,25 @@ module material_properties_module
    ! ------------------------------------------------------------------
    ! Subroutine used to compute the enthalpy of vaporization
    ! ------------------------------------------------------------------ 
-   subroutine get_enthalpy_of_vap(temp, enth_vap)
+   subroutine get_enthalpy_of_vaporization(temp, enth_vap)
      
       real(amrex_real), intent(in) :: temp      ! Temperature [K]
       real(amrex_real), intent(out) :: enth_vap ! Enthalpy of vaporization [kj/mol] 
 
       if (material.eq.'Tungsten') then
-         call get_enthalpy_of_vap_tungsten(temp, enth_vap)
+         call get_enthalpy_of_vaporization_tungsten(temp, enth_vap)
       elseif (material.eq.'Beryllium') then
-         call get_enthalpy_of_vap_beryllium(enth_vap)
+         call get_enthalpy_of_vaporization_beryllium(enth_vap)
       elseif (material.eq.'Iridium') then
-         call get_enthalpy_of_vap_iridium(enth_vap)
+         call get_enthalpy_of_vaporization_iridium(enth_vap)
       elseif (material.eq.'Niobium') then
-         call get_enthalpy_of_vap_niobium(enth_vap)
+         call get_enthalpy_of_vaporization_niobium(enth_vap)
       elseif (material.eq.'Test' .or. material.eq.'Test2') then
          enth_vap = 0 ! enthalpy of vaporization not defined for test materials, placeholder value
       else
          STOP 'Unknown material'
       endif
-   end subroutine get_enthalpy_of_vap
+   end subroutine get_enthalpy_of_vaporization
 
 
 
@@ -494,25 +495,25 @@ module material_properties_module
    ! ------------------------------------------------------------------
    ! Subroutine used to compute the absolute thermoelectric power
    ! ------------------------------------------------------------------ 
-   subroutine get_thermelec_power(temp, S)
+   subroutine get_thermelectric_power(temp, S)
      
       real(amrex_real), intent(in) :: temp   ! Temperature [K]
       real(amrex_real), intent(out) :: S     ! Absolute thermoelectric power [V/K] 
 
       if (material.eq.'Tungsten') then
-         call get_thermelec_power_tungsten(temp, S)
+         call get_thermelectric_power_tungsten(temp, S)
       elseif (material.eq.'Beryllium') then
-         call get_thermelec_power_beryllium(temp, S)
+         call get_thermelectric_power_beryllium(temp, S)
       elseif (material.eq.'Iridium') then
-         call get_thermelec_power_iridium(temp, S)
+         call get_thermelectric_power_iridium(temp, S)
       elseif (material.eq.'Niobium') then
-         call get_thermelec_power_niobium(temp, S)
+         call get_thermelectric_power_niobium(temp, S)
       elseif (material.eq.'Test' .or. material.eq.'Test2') then
          S = 0 ! Thermoelectric power not defined for test materials, placeholder value
       else
          STOP 'Unknown material'
       endif
-   end subroutine get_thermelec_power
+   end subroutine get_thermelectric_power
    
 
   
@@ -555,7 +556,7 @@ module material_properties_module
     max_diffus = 0.
     
     ! Atomic mass and thermodynamic properties at the melting point
-    call get_m_A(m_A)
+    call get_atomic_mass(m_A)
     call get_melting_point
     
     ! The enthalpy is phi = int_0^T rho(T')*Cp(T') dT' and trapezoidal integration is used
@@ -567,8 +568,8 @@ module material_properties_module
 
     ! Properties at zero temperature
     temp_table(0) = 0_amrex_real
-    call get_rho(temp_table(0),rho) 
-    call get_Cp(temp_table(0),Cp)  
+    call get_mass_density(temp_table(0),rho) 
+    call get_heat_capacity(temp_table(0),Cp)  
     rhocp_i = rho*Cp ! product of density and heat capacity 
     enth_table(0) = 0_amrex_real
 
@@ -589,8 +590,8 @@ module material_properties_module
              temp_table(i) = temp_melt 
              phiT_table_dT = temp_melt - temp_table(i-1)
              rhocp_im1 = rhocp_i 
-             call get_rho(temp_table(i),rho) 
-             call get_Cp(temp_table(i),Cp)  
+             call get_mass_density(temp_table(i),rho) 
+             call get_heat_capacity(temp_table(i),Cp)  
              rhocp_i = rho*Cp  
              enth_table(i) = enth_table(i-1) + (rhocp_i+rhocp_im1)*phiT_table_dT/2_amrex_real   ! Enthalpy at melt onset 
              enth_at_melt = enth_table(i) 
@@ -608,8 +609,8 @@ module material_properties_module
           elseif(imelt.ne.i) then
              
              rhocp_im1 = rhocp_i 
-             call get_rho(temp_table(i),rho) 
-             call get_Cp(temp_table(i),Cp)  
+             call get_mass_density(temp_table(i),rho) 
+             call get_heat_capacity(temp_table(i),Cp)  
              rhocp_i = rho*Cp       
              enth_table(i) = enth_table(i-1) + (rhocp_i+rhocp_im1)*phiT_table_dT/2_amrex_real  ! Trapezoidal integration
              
@@ -619,15 +620,15 @@ module material_properties_module
 
           ! Compute enthalpy for all the state points below the melting point
           rhocp_im1 = rhocp_i 
-          call get_rho(temp_table(i),rho) 
-          call get_Cp(temp_table(i),Cp)  
+          call get_mass_density(temp_table(i),rho) 
+          call get_heat_capacity(temp_table(i),Cp)  
           rhocp_i = rho*Cp 
           enth_table(i) = enth_table(i-1) + (rhocp_i+rhocp_im1)*phiT_table_dT/2_amrex_real  ! Trapezoidal integration
           
        end if
 
        ! Initialize the maximum diffusivity  
-       call get_ktherm(temp_table(i),ktherm)
+       call get_conductivity(temp_table(i),ktherm)
        diffus = ktherm/rhocp_i  
        if (diffus.gt.max_diffus) max_diffus=diffus
       
@@ -641,18 +642,18 @@ module material_properties_module
                'Work function [J], Richardson constant [A/(m^2K^2)], Emissivity [-], Abs. Thermoelectric power [V/K]', &
                'Enthalpy of vaporization [kJ/mol]' 
     do i = 0,phiT_table_n_points
-       call get_Cp(temp_table(i),Cp) 
-       call get_ktherm(temp_table(i),ktherm) 
-       call get_rho(temp_table(i),rho)
+       call get_heat_capacity(temp_table(i),Cp) 
+       call get_conductivity(temp_table(i),ktherm) 
+       call get_mass_density(temp_table(i),rho)
        call get_electrical_resistivity(temp_table(i), rho_e)
-       call get_surf_tension(temp_table(i), sigma)
+       call get_surface_tension(temp_table(i), sigma)
        call get_viscosity(temp_table(i), mu)
        call get_vapor_pressure(temp_table(i), pv)
        call get_work_function(Wf)
        call get_Richardson(Aeff)
        call get_emissivity(temp_table(i),  eps_t)
-       call get_thermelec_power(temp_table(i), S)
-       call get_enthalpy_of_vap(temp_table(i), enth_vap)
+       call get_thermelectric_power(temp_table(i), S)
+       call get_enthalpy_of_vaporization(temp_table(i), enth_vap)
        write(2,*) temp_table(i), Cp, rho, ktherm, enth_table(i), rho_e, sigma, mu, pv, Wf, Aeff, S, enth_vap
     end do
     close(2) 
@@ -712,9 +713,9 @@ module material_properties_module
           
           ! Update maximum diffusivity (consider only material grid points and not the background)
           if (temp(i,j).gt.0) then
-             call get_ktherm(temp(i,j),ktherm)
-             call get_rho(temp(i,j),rho) 
-             call get_Cp(temp(i,j),Cp)
+             call get_conductivity(temp(i,j),ktherm)
+             call get_mass_density(temp(i,j),rho) 
+             call get_heat_capacity(temp(i,j),Cp)
              diffus = ktherm/(rho*Cp)
              if (diffus.gt.max_diffus) then
                 max_diffus = diffus
