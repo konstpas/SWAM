@@ -9,7 +9,12 @@ module plotfile_module
                               temp, &
                               idomain, &
                               t_new, &
+                              surf_pos, &
+                              melt_pos, &
+                              surf_ind, &
+                              surf_dx, &
                               stepno
+  
   use read_input_module, only : plot_file
   
   implicit none
@@ -37,11 +42,13 @@ contains
   ! -----------------------------------------------------------------
   subroutine writeplotfile()
 
+    integer :: i
     integer :: nlevs
     character(len=127) :: name
     character(len=16)  :: current_step
-    type(amrex_string) :: varname(1)
-    
+    character(len=15)  :: dashfmt
+    real(amrex_real) :: xpos
+    type(amrex_string) :: varname(1)    
 
     ! Time step output
     if      (stepno(0) .lt. 1000000) then
@@ -59,7 +66,7 @@ contains
     ! Get number of levels
     nlevs = amrex_get_numlevels()
 
-    ! Enthalpy output
+    ! Output enthalpy
     name = trim(plot_file) // "_enthalpy_" //current_step 
     call amrex_string_build(varname(1), "phi")
     call amrex_write_plotfile(name, nlevs, phi_new, &
@@ -67,7 +74,7 @@ contains
                               t_new(0), stepno, &
                               amrex_ref_ratio)
 
-    ! Temperature output
+    ! Output temperature
     name = trim(plot_file) // "_temperature_" //current_step 
     call amrex_string_build(varname(1), "Temperature")
     call amrex_write_plotfile(name, nlevs, temp, &
@@ -82,6 +89,18 @@ contains
                               varname, amrex_geom, &
                               t_new(0), stepno, &
                               amrex_ref_ratio)
+
+    ! Output melt thickness
+    name = "melt_thickness_" //trim(current_step)//".dat"
+    open(2, file = name, status = 'unknown', action = "write")
+    write(2, *) 'x-coordinate     Free Surface     Melt Surface'
+    dashfmt = '(3(es13.6, 4x))'
+    do i=surf_ind(1,1), surf_ind(1,2)
+      ! i starts from 0 so to output the x-coord at the center of the cell add 0.5
+      xpos = (i+0.5)*surf_dx(1)
+      write(2, dashfmt) xpos, surf_pos(i), melt_pos(i)
+    end do
+    close(2)
     
   end subroutine writeplotfile
 
