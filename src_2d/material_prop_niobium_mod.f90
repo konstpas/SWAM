@@ -148,7 +148,6 @@ contains
     real(amrex_real), intent(out) :: rho_e    ! Mass density [Ohm*m]
 
     ! Local variables
-    real(amrex_real) :: temp_0 = 300.0
     real(amrex_real) :: temp_m = 2745.0
     
     if (temp.lt.300.0) then

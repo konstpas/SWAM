@@ -1,5 +1,5 @@
 # SIMULATION LENGTH
-length.max_step  = 500	                     # Maximum number of time-steps
+length.max_step  = 1	                     # Maximum number of time-steps
 length.stop_time = 0.7                       # Maximum simulated time [s]
 
 # MESH GENERATION (SOME PARAMETERS ARE NOT USED BUT NECESSARY FOR AMREX)
@@ -28,10 +28,12 @@ heat.temp_free_surface = -4000	             	 # Fixed temperature at the free su
 heat.cooling_thermionic = 1		     	 # Activate or deactivate thermionic cooling flux (1 = on, 0 = off)
 heat.cooling_vaporization = 1		     	 # Activate or deactivate vaporization cooling flux (1 = on, 0 = off)
 heat.cooling_radiation = 1		     	 # Activate or deactivate radiative cooling flux (1 = on, 0 = off)
-heat.thermionic_lim_current = 15E6	     	 # Thermionic current limited by space-charge limitation [A/m^2]
-heat.thermionic_lim_current_ne = 10E18       	 # Plasma electron density [m^-3] (only used if thermionic_lim_current is not specified)
-heat.thermionic_lim_current_vTe = 4E5        	 # Plasma elctron thermal velocity [m/s] (only used if thermionic_lim_current is not specified)
-heat.thermionic_lim_current_alpha = 2        	 # Magnetic inclination [deg] (only used if thermionic_lim_current is not specified)
+heat.cooling_debug = 1 2000 4000 2000 1e9	 # Plot cooling fluxes as a function of temperature (on/off switch, 1 = on, 0 = off,
+		                                 #  		   		       	    	     minimum temperature, min_T
+						 #					             maximum temperature, max_T
+						 #						     number of points between min_T and max_T
+						 #						     plasma flux for the thermionic cooling)
+heat.thermionic_alpha = 90        	 	 # Magnetic inclination [deg]
 
 # SHALLOW WATER SOLVER
 sw.solve = 0                                 # Flag to control if the melt motion is on (1 = on, 0 = off)

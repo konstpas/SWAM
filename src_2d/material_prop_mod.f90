@@ -2,9 +2,6 @@ module material_properties_module
 
   ! -----------------------------------------------------------------
   ! This module is used to compute the material properties.
-  ! NOTE: As of July 24, 2021 the maximum diffusivity is set in
-  ! init_mat_prop and never changed again. This should probably
-  ! be changed
   ! -----------------------------------------------------------------
   
    use amrex_amr_module

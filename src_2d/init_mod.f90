@@ -27,8 +27,11 @@ contains
   subroutine run_init()
 
     use amr_data_module, only : amr_data_init
-    use read_input_module, only : read_input_file, restart
+    use read_input_module, only : cooling_debug, &
+                                  read_input_file, &
+                                  restart
     use material_properties_module, only : init_mat_prop
+    use heat_flux_module, only : debug_cooling_fluxes
     use regrid_module, only : averagedown, &
                               my_make_new_level_from_scratch, &
                               my_make_new_level_from_coarse, &
@@ -46,6 +49,9 @@ contains
     ! Initialize tables with material properties
     call init_mat_prop
 
+    ! Print cooling fluxes to table if debug is on
+    if (nint(cooling_debug(1)) .eq. 1) call debug_cooling_fluxes
+    
     ! Initialize amrex data used in the simulation
     call amr_data_init
 

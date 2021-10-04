@@ -44,6 +44,7 @@ module read_input_module
   public :: cfl
   public :: check_file
   public :: check_int
+  public :: cooling_debug
   public :: cooling_thermionic
   public :: cooling_vaporization
   public :: cooling_radiation
@@ -68,10 +69,7 @@ module read_input_module
   public :: surf_pos_init
   public :: temp_fs
   public :: temp_init
-  public :: thermionic_lim_current
-  public :: thermionic_lim_current_ne
-  public :: thermionic_lim_current_vTe
-  public :: thermionic_lim_current_alpha
+  public :: thermionic_alpha
   public :: verbose
 
   ! -----------------------------------------------------------------
@@ -108,13 +106,11 @@ module read_input_module
   real(amrex_real), save :: surf_pos_init
   real(amrex_real), save :: temp_fs
   real(amrex_real), save :: temp_init
-  real(amrex_real), save :: thermionic_lim_current
-  real(amrex_real), save :: thermionic_lim_current_ne
-  real(amrex_real), save :: thermionic_lim_current_vTe
-  real(amrex_real), save :: thermionic_lim_current_alpha
+  real(amrex_real), save :: thermionic_alpha
+  real(amrex_real), allocatable, save :: cooling_debug(:)
   real(amrex_real), allocatable, save :: surfdist(:)
   real(amrex_real), allocatable, save :: plasma_flux_params(:)
-
+  
 contains
 
   ! ------------------------------------------------------------------
@@ -168,10 +164,8 @@ contains
     call pp%query("cooling_thermionic",cooling_thermionic)
     call pp%query("cooling_vaporization",cooling_vaporization)
     call pp%query("cooling_radiation",cooling_radiation)
-    call pp%query("thermionic_lim_current",thermionic_lim_current)
-    call pp%query("thermionic_lim_current_ne",thermionic_lim_current_ne)
-    call pp%query("thermionic_lim_current_vTe",thermionic_lim_current_vTe)
-    call pp%query("thermionic_lim_current_alpha",thermionic_lim_current_alpha)
+    call pp%getarr("cooling_debug",cooling_debug)
+    call pp%query("thermionic_alpha",thermionic_alpha)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the heat solver
@@ -207,12 +201,18 @@ contains
     allocate(character(len=9)::phase_init)
     allocate(character(len=3)::plot_file)
     allocate(character(len=0)::restart)
+    allocate(cooling_debug(5))    
     allocate(surfdist(0:amrex_max_level))
     allocate(plasma_flux_params(100))
-    
+
     cfl = 0.70
     check_file = "chk"
     check_int = -1
+    cooling_debug(1) = 0
+    cooling_debug(2) = 300
+    cooling_debug(3) = 301
+    cooling_debug(4) = 1
+    cooling_debug(5) = 1e6
     cooling_thermionic = .true.
     cooling_vaporization = .true.
     cooling_radiation = .true.
@@ -239,10 +239,7 @@ contains
        surfdist(i) = 0.0
     end do
     surf_pos_init = 0.020
-    thermionic_lim_current = -1.0
-    thermionic_lim_current_ne = 0.0
-    thermionic_lim_current_vTe = 0.0
-    thermionic_lim_current_alpha = 0.0
+    thermionic_alpha = 90.0
     temp_fs = -1.0
     verbose = 0
     

@@ -15,7 +15,8 @@ module heat_flux_module
    ! Public subroutines
    ! -----------------------------------------------------------------
    public :: get_boundary_heat_flux
- 
+   public :: debug_cooling_fluxes
+   
  contains
    
    ! -----------------------------------------------------------------
@@ -76,7 +77,7 @@ module heat_flux_module
 
                ! Thermionic cooling flux
                if (cooling_thermionic) then
-                  call thermionic_cooling(temp(i,j), q_therm)
+                  call thermionic_cooling(temp(i,j), q_plasma, q_therm)
                end if
 
                ! Vaporization cooling flux
@@ -155,18 +156,16 @@ module heat_flux_module
    ! thermionic emission given the surface temperature temperature
    ! see E. Thorén et al. Plasma Phys. Control. Fusion 63 035021 (2021)
    ! -----------------------------------------------------------------   
-   subroutine thermionic_cooling(Ts, q_therm)
+   subroutine thermionic_cooling(Ts, q_plasma, q_therm)
  
      use material_properties_module, only : get_work_function, &
                                             get_Richardson
      
-     use read_input_module, only : thermionic_lim_current, &
-                                   thermionic_lim_current_ne, &
-                                   thermionic_lim_current_vTe, &
-                                   thermionic_lim_current_alpha
+     use read_input_module, only : thermionic_alpha
  
      ! Input and output variables                                       
      real(amrex_real), intent(in) :: Ts        ! Temperature at the center of cells adjacent to the free surface [K]
+     real(amrex_real), intent(in) :: q_plasma  ! Plasma heat flux [K]
      real(amrex_real), intent(out) :: q_therm  ! Flux of energy due to thermionic emission [W/m^2]
      
      ! Local variables
@@ -185,16 +184,8 @@ module heat_flux_module
      ! Nominal thermionic current from the Richardson-Dushman formula
      Jth_nom = Aeff*EXP(-Wf/(kb*Ts))*Ts**2
 
-     ! Space-charge limited current
-     if (thermionic_lim_current .gt. 0.0) then
-        ! From input
-        Jth_lim = thermionic_lim_current
-     else
-        ! Semi-empirical expression from PIC simulations
-        Jth_lim = 0.43*e*thermionic_lim_current_ne * &
-                  thermionic_lim_current_vTe * &
-                  (SIN(thermionic_lim_current_alpha/180*pi))**2
-     end if
+     ! Space-charge limited current (semi-empirical expression)
+     Jth_lim = 1.51e4 * q_plasma**(1.0/3.0) * (SIN(thermionic_alpha/180*pi))**2
 
      ! Minimum between nominal and space-charge limited
      Jth = MIN(Jth_lim, Jth_nom)
@@ -243,6 +234,38 @@ module heat_flux_module
       
     end subroutine vaporization_cooling
 
+    ! -----------------------------------------------------------------
+    ! Subroutine used to print the cooling fluxes as a function of
+    ! the temperature to a file. Only useful for debugging purposes
+    ! -----------------------------------------------------------------   
+    subroutine debug_cooling_fluxes() 
  
+      use read_input_module, only : cooling_debug, &
+                                    thermionic_alpha
+
+      integer :: i
+      real(amrex_real) :: dT
+      real(amrex_real) :: temp
+      real(amrex_real) :: q_therm
+      real(amrex_real) :: q_vap
+      real(amrex_real) :: q_rad
+      
+      dT = (cooling_debug(3) - cooling_debug(2))/nint(cooling_debug(4))
+      temp = cooling_debug(2)
+      
+      open (2, file = 'cooling_fluxes.dat', status = 'unknown')
+      write(2, *) '# plasma flux and magnetic inclination: ', cooling_debug(5), thermionic_alpha
+      write(2, *) '# Temperature[K], Thermionic flux [W/m^2], Radiative flux [W/m^2], Vaporization flux [W/m^2]'
+      do i = 0,nint(cooling_debug(4)) 
+         call thermionic_cooling(temp, cooling_debug(5), q_therm)
+         call vaporization_cooling(temp, q_vap)
+         call radiation_cooling(temp, q_rad)
+         write(2,*) temp, q_therm, q_vap, q_rad
+         temp = temp + dT
+      end do
+      close(2) 
+      
+    end subroutine debug_cooling_fluxes
+    
  end module heat_flux_module
  
