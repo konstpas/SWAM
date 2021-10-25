@@ -71,6 +71,8 @@ module heat_flux_module
                ! Plasma flux
                if (plasma_flux_type.eq.'Gaussian') then
                   call gaussian_heat_flux(time, xpos, q_plasma)
+               elseif (plasma_flux_type.eq.'Uniform') then
+                  call uniform_heat_flux(time, xpos, q_plasma)
                else
                   STOP "Unknown plasma heat flux type"
                end if
@@ -128,7 +130,30 @@ module heat_flux_module
      
    end subroutine gaussian_heat_flux
    
-
+   ! -----------------------------------------------------------------
+   ! Subroutine used to prescribe a uniform heat flux active for
+   ! time <= time_exposure
+   ! -----------------------------------------------------------------   
+   subroutine uniform_heat_flux(time, xpos, qb) 
+ 
+      use read_input_module, only : plasma_flux_params
+      
+      ! Input and output variables
+      real(amrex_real), intent(in) :: time
+      real(amrex_real), intent(in) :: xpos
+      real(amrex_real), intent(out) :: qb
+      
+      
+      qb = 0_amrex_real
+      
+      if (time.ge.plasma_flux_params(1) .and. time.lt.plasma_flux_params(2)) then
+         if(xpos.ge.plasma_flux_params(4) .and. xpos.lt.plasma_flux_params(5)) then
+            qb = plasma_flux_params(3) 
+         end if
+      end if
+      
+    end subroutine uniform_heat_flux   
+   
    ! -----------------------------------------------------------------
    ! Subroutine used to find the surface cooling flux due to 
    ! radiation given the surface temperature

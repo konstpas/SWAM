@@ -109,6 +109,7 @@ module material_properties_module
    public :: get_vapor_pressure
    public :: get_atomic_mass
    public :: get_enthalpy_of_vaporization
+   public :: get_mass_density
    public :: finalize_mat_prop
    
   ! -----------------------------------------------------------------

@@ -111,6 +111,7 @@ module material_properties_module
    public :: get_vapor_pressure
    public :: get_atomic_mass
    public :: get_enthalpy_of_vaporization
+   public :: get_mass_density
    public :: finalize_mat_prop
    
  
@@ -673,8 +674,10 @@ module material_properties_module
              if (ui(i,j) .le. enth_table(idx) ) exit 
           end do
           
-          if (idx.eq.phiT_table_n_points) STOP 'Temperature table exceeded' 
-          
+          if (idx.ge.phiT_table_n_points) then
+             STOP 'Temperature table exceeded' 
+          end if
+         
           int_coeff = (ui(i,j)-enth_table(idx-1))/ &
                (enth_table(idx)-enth_table(idx-1))
           temp(i,j) = temp_table(idx-1) + &

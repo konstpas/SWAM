@@ -196,8 +196,12 @@ contains
     
     real(amrex_real), intent(in) :: temp    ! Temperature [K]
     real(amrex_real), intent(out) :: pv     ! Vapor pressure [Pa]
-    
-    pv = 10**(12.108 - 40387.965/(temp-141.51))
+
+    if(temp.lt.300.0) then
+      pv = 0.0
+    else
+      pv = 10**(12.108 - 40387.965/(temp-141.51))
+    end if
     
   end subroutine get_vapor_pressure_tungsten
 

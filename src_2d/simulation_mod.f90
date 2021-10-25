@@ -325,8 +325,29 @@ contains
     call amrex_multifab_swap(idomain_tmp, idomain(lev))
     
     ! Propagate SW equations (only at max level)
-    if (solve_sw .and. lev.eq.amrex_max_level) then 
-       call increment_SW(dt)
+    if (solve_sw .and. lev.eq.amrex_max_level) then
+
+       call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)  
+    						 
+       do while(mfi%next())
+
+          ! Box
+          bx = mfi%validbox()   
+
+          ! Pointers
+          ptemp   => temp(lev)%dataptr(mfi)
+          pidin => idomain(lev)%dataptr(mfi)
+
+          ! Increment shallow water solution
+          call increment_SW(bx%lo, bx%hi, &
+                            ptemp, lbound(ptemp), ubound(ptemp), &
+                            pidin, lbound(pidin), ubound(pidin), dt)
+
+       end do
+
+       ! Clean memory
+       call amrex_mfiter_destroy(mfi)    
+    
     end if
 
     ! Set melt interface position array equal to free interface position array 
@@ -377,15 +398,15 @@ contains
        ! Increment enthalpy at given box depending on the condition of the free surface
        if (temp_fs.gt.0) then
           call increment_enthalpy_fixT(bx%lo, bx%hi, &
-                                    pin, lbound(pin),     ubound(pin),     &
-                                    pout,    lbound(pout),    ubound(pout),    &
-                                    ptempin, lbound(ptempin), ubound(ptempin), &
-                                    ptemp,   lbound(ptemp),   ubound(ptemp),   &
-                                    pfx, lbound(pfx), ubound(pfx), &
-                                    pfy, lbound(pfy), ubound(pfy), &
-                                    pidin, lbound(pidin), ubound(pidin), &
-                                    pidout, lbound(pidout), ubound(pidout), &
-                                    geom, dt)
+                                       pin, lbound(pin),     ubound(pin),     &
+                                       pout,    lbound(pout),    ubound(pout),    &
+                                       ptempin, lbound(ptempin), ubound(ptempin), &
+                                       ptemp,   lbound(ptemp),   ubound(ptemp),   &
+                                       pfx, lbound(pfx), ubound(pfx), &
+                                       pfy, lbound(pfy), ubound(pfy), &
+                                       pidin, lbound(pidin), ubound(pidin), &
+                                       pidout, lbound(pidout), ubound(pidout), &
+                                       geom, dt)
        else
           call increment_enthalpy(time, bx%lo, bx%hi, &
                                   pin, lbound(pin),     ubound(pin),     &

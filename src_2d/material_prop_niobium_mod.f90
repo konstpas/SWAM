@@ -197,8 +197,12 @@ contains
     real(amrex_real), intent(in) :: temp    ! Temperature [K]
     real(amrex_real), intent(out) :: pv     ! Vapor pressure [Pa]
     
-    pv = 10**(12.0502-35189.3/(temp-21.93))
-    
+    if(temp.lt.300.0) then
+      pv = 0.0
+    else
+      pv = 10**(12.0502-35189.3/(temp-21.93))
+   end if
+   
   end subroutine get_vapor_pressure_niobium  
   
 

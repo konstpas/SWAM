@@ -117,10 +117,12 @@ contains
     
     if (temp.lt.300.0) then
        Cp = 16.5438629378 
-    else if(temp.lt.1543.0) then 
-       Cp = 21.5390 + 4.94572E-3*temp + 1.356324E-6*temp**2 - 0.594083E6/temp**2
-    else if(temp.lt.1560) then
-       Cp = 30.0 
+    ! else if(temp.lt.1543.0) then 
+    !    Cp = 21.5390 + 4.94572E-3*temp + 1.356324E-6*temp**2 - 0.594083E6/temp**2
+    ! else if(temp.lt.1560) then
+       !    Cp = 30.0
+    else if(temp.lt.1560.0) then 
+       Cp = 21.5390 + 4.94572E-3*temp + 1.356324E-6*temp**2 - 0.594083E6/temp**2   
     else 
        Cp = 25.4345+2.15008E-3*temp 
     end if
@@ -206,8 +208,12 @@ contains
     
     real(amrex_real), intent(in) :: temp    ! Temperature [K]
     real(amrex_real), intent(out) :: pv     ! Vapor pressure [Pa]
-    
-    pv = 10**(10.2089-13696.6/(temp-124.63))
+
+    if(temp.lt.300.0) then
+      pv = 0.0
+    else
+      pv = 10**(10.2089-13696.6/(temp-124.63))
+    end if
     
   end subroutine get_vapor_pressure_beryllium  
   
