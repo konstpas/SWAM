@@ -163,7 +163,7 @@ contains
                               flxz, fz_lo, fz_hi, &
                               temp, t_lo, t_hi)
   				
-    use material_properties_module, only: get_ktherm
+    use material_properties_module, only: get_conductivity
 
     ! Input and output variables
     integer, intent(in) :: lo(3), hi(3)
@@ -189,7 +189,7 @@ contains
                 
              ! Diffusive component
              temp_face = (temp(i,j,k) + temp(i-1,j,k))/2_amrex_real
-             call get_ktherm(temp_face, ktherm)
+             call get_conductivity(temp_face, ktherm)
              flxx(i,j,k) = -ktherm*(temp(i,j,k)-temp(i-1,j,k))/dx(1)
                                 
           end do
@@ -203,7 +203,7 @@ contains
              
              ! Diffusive component (there is no advection in the y direction)
              temp_face = (temp(i,j,k) + temp(i,j-1,k))/2_amrex_real
-             call get_ktherm(temp_face, ktherm)
+             call get_conductivity(temp_face, ktherm)
              flxy(i,j,k) = -ktherm*(temp(i,j,k)-temp(i,j-1,k))/dx(2)
              
           end do
@@ -217,7 +217,7 @@ contains
                 
              ! Diffusive component
              temp_face = (temp(i,j,k) + temp(i,j,k-1))/2_amrex_real
-             call get_ktherm(temp_face, ktherm)
+             call get_conductivity(temp_face, ktherm)
              flxz(i,j,k) = -ktherm*(temp(i,j,k)-temp(i,j,k-1))/dx(3)
                 
           end do

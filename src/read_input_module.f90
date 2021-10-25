@@ -44,10 +44,14 @@ module read_input_module
   public :: cfl
   public :: check_file
   public :: check_int
+  public :: cooling_debug
+  public :: cooling_thermionic
+  public :: cooling_vaporization
+  public :: cooling_radiation
   public :: do_reflux
   public :: dt_change_max
-  public :: flux_type
-  public :: flux_params
+  public :: plasma_flux_type
+  public :: plasma_flux_params
   public :: material
   public :: max_grid_size_2d
   public :: max_step
@@ -65,6 +69,7 @@ module read_input_module
   public :: surf_pos_init
   public :: temp_fs
   public :: temp_init
+  public :: thermionic_alpha
   public :: verbose
 
   ! -----------------------------------------------------------------
@@ -77,7 +82,7 @@ module read_input_module
   ! -----------------------------------------------------------------
   character(len=:), allocatable, save :: check_file
   character(len=:), allocatable, save :: material
-  character(len=:), allocatable, save :: flux_type
+  character(len=:), allocatable, save :: plasma_flux_type
   character(len=:), allocatable, save :: phase_init
   character(len=:), allocatable, save :: plot_file
   character(len=:), allocatable, save :: restart
@@ -88,6 +93,9 @@ module read_input_module
   integer, save :: plot_int
   integer, save :: regrid_int
   integer, save :: verbose
+  logical, save :: cooling_thermionic
+  logical, save :: cooling_vaporization
+  logical, save :: cooling_radiation
   logical, save :: do_reflux
   logical, save :: solve_sw
   real(amrex_real), save :: cfl
@@ -98,8 +106,10 @@ module read_input_module
   real(amrex_real), save :: surf_pos_init
   real(amrex_real), save :: temp_fs
   real(amrex_real), save :: temp_init
+  real(amrex_real), save :: thermionic_alpha
+  real(amrex_real), allocatable, save :: cooling_debug(:)
   real(amrex_real), allocatable, save :: surfdist(:)
-  real(amrex_real), allocatable, save :: flux_params(:)
+  real(amrex_real), allocatable, save :: plasma_flux_params(:)
   
 contains
 
@@ -148,9 +158,14 @@ contains
     call pp%query("meltvel", meltvel)  
     call pp%query("temp_init", temp_init)
     call pp%query("phase_init", phase_init)
-    call pp%query("flux_type", flux_type) 
-    call pp%getarr("flux_params", flux_params)
+    call pp%query("plasma_flux_type", plasma_flux_type) 
+    call pp%getarr("plasma_flux_params", plasma_flux_params)
     call pp%query("temp_free_surface", temp_fs)
+    call pp%query("cooling_thermionic",cooling_thermionic)
+    call pp%query("cooling_vaporization",cooling_vaporization)
+    call pp%query("cooling_radiation",cooling_radiation)
+    call pp%getarr("cooling_debug",cooling_debug)
+    call pp%query("thermionic_alpha",thermionic_alpha)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the heat solver
@@ -181,27 +196,36 @@ contains
     integer :: i
         
     allocate(character(len=3)::check_file)
-    allocate(character(len=8)::flux_type)
+    allocate(character(len=8)::plasma_flux_type)
     allocate(character(len=8)::material)
     allocate(character(len=9)::phase_init)
     allocate(character(len=3)::plot_file)
     allocate(character(len=0)::restart)
+    allocate(cooling_debug(5))
     allocate(surfdist(0:amrex_max_level))
-    allocate(flux_params(100))
+    allocate(plasma_flux_params(100))
     
     cfl = 0.70
     check_file = "chk"
     check_int = -1
+    cooling_debug(1) = 0
+    cooling_debug(2) = 300
+    cooling_debug(3) = 301
+    cooling_debug(4) = 1
+    cooling_debug(5) = 1e6
+    cooling_thermionic = .true.
+    cooling_vaporization = .true.
+    cooling_radiation = .true.
     do_reflux = .true.
     dt_change_max = 1.1
-    flux_params(1) = 0.0
-    flux_params(2) = 1.0
-    flux_params(3) = 300E6
-    flux_params(4) = 0.0
-    flux_params(5) = 0.01
-    flux_params(6) = 0.0
-    flux_params(7) = 0.01
-    flux_type = "Gaussian"
+    plasma_flux_params(1) = 0.0
+    plasma_flux_params(2) = 1.0
+    plasma_flux_params(3) = 300E6
+    plasma_flux_params(4) = 0.0
+    plasma_flux_params(5) = 0.01
+    plasma_flux_params(6) = 0.0
+    plasma_flux_params(7) = 0.01
+    plasma_flux_type = "Gaussian"
     material = "Tungsten"
     max_grid_size_2d = 16
     max_step = 10000
@@ -217,6 +241,7 @@ contains
        surfdist(i) = 0.0_amrex_real
     end do
     surf_pos_init = 0.020
+    thermionic_alpha = 90.0
     temp_fs = -1
     verbose = 0
     
@@ -228,10 +253,10 @@ contains
   subroutine deallocate_input()
     
     deallocate(check_file)
-    deallocate(flux_params)
-    deallocate(flux_type)
     deallocate(material)
     deallocate(phase_init)
+    deallocate(plasma_flux_params)
+    deallocate(plasma_flux_type)
     deallocate(plot_file)
     deallocate(restart)
     deallocate(surfdist)

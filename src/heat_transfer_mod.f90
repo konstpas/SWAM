@@ -108,7 +108,7 @@ contains
     call get_boundary_heat_flux(time, lo_phys, &
                                 dx, lo, hi, &
                                 idom_new, idn_lo, idn_hi, &
-                                qbound)
+                                temp_old, to_lo, to_hi, qbound)
     
     ! Compute enthalpy at the new timestep
     do   i = lo(1),hi(1)
@@ -237,7 +237,7 @@ contains
                               temp, t_lo, t_hi, &
                               idom, id_lo, id_hi)
   				
-    use material_properties_module, only: get_ktherm
+    use material_properties_module, only: get_conductivity
 
     ! Input and output variables
     integer, intent(in) :: lo(3), hi(3)  
@@ -289,7 +289,7 @@ contains
                 
                 ! Diffusive component
                 temp_face = (temp(i,j,k) + temp(i-1,j,k))/2_amrex_real
-                call get_ktherm(temp_face, ktherm)
+                call get_conductivity(temp_face, ktherm)
                 flxx(i,j,k) = flxx(i,j,k) - ktherm*(temp(i,j,k)-temp(i-1,j,k))/dx(1)
                                 
                 end if
@@ -312,7 +312,7 @@ contains
                 
                 ! Diffusive component (there is no advection in the y direction)
                 temp_face = (temp(i,j,k) + temp(i,j-1,k))/2_amrex_real
-                call get_ktherm(temp_face, ktherm)
+                call get_conductivity(temp_face, ktherm)
                 flxy(i,j,k) = -ktherm*(temp(i,j,k)-temp(i,j-1,k))/dx(2)
                                
              end if
@@ -342,7 +342,7 @@ contains
                 
                 ! Diffusive component
                 temp_face = (temp(i,j,k) + temp(i,j,k-1))/2_amrex_real
-                call get_ktherm(temp_face, ktherm)
+                call get_conductivity(temp_face, ktherm)
                 flxz(i,j,k) = flxz(i,j,k) - ktherm*(temp(i,j,k)-temp(i,j,k-1))/dx(3)
                 
              end if

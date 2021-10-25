@@ -26,7 +26,7 @@ module material_properties_beryllium_module
   public :: get_viscosity_beryllium
   public :: get_work_function_beryllium
   public :: get_enthalpy_of_vaporization_beryllium
-  public :: get_hcp_to_bcc_point_beryllium
+  ! public :: get_hcp_to_bcc_point_beryllium
   public :: get_vapor_pressure_beryllium
   public :: get_thermelectric_power_beryllium
 
@@ -265,7 +265,7 @@ contains
     real(amrex_real), intent(out) :: rho_melt   ! Density at metling [Kg/m^3]
 
     temp_melt = 1560.0
-    enth_fus = 7.959
+    enth_fus = 7.959 + 6.855 ! The latent heat of the hcp-to-bcc transition is included in the enthalpy of fusion
     rho_melt = 1705.0
     
   end subroutine get_melting_point_beryllium
@@ -287,25 +287,25 @@ contains
   end subroutine get_enthalpy_of_vaporization_beryllium  
 
 
-  ! -----------------------------------------------------------------
-  ! Subroutine used to compute the hcp to bcc point properties 
-  ! -----------------------------------------------------------------
-  subroutine get_hcp_to_bcc_point_beryllium(enth_hcp2bcc, hcp2bcc_point, rho_hcp2bcc)
+  ! ! -----------------------------------------------------------------
+  ! ! Subroutine used to compute the hcp to bcc point properties 
+  ! ! -----------------------------------------------------------------
+  ! subroutine get_hcp_to_bcc_point_beryllium(enth_hcp2bcc, hcp2bcc_point, rho_hcp2bcc)
 
-    ! The beryllium enthalpy of hcp-to-bcc transformation has been adopted from J. W. Arblaster, Thermodynamic Properties
-    ! of Beryllium, Journal of Phase Equilibria and Diffusion 37, 581-591 (2016). A rather close value is provided by H. Kleykamp,
-    ! Selected thermal properties of beryllium and phase equilibria in beryllium systems relevant for nuclear fusion reactor
-    ! blankets, Journal of Nuclear Materials 294, 88-93 (2001).
+  !   ! The beryllium enthalpy of hcp-to-bcc transformation has been adopted from J. W. Arblaster, Thermodynamic Properties
+  !   ! of Beryllium, Journal of Phase Equilibria and Diffusion 37, 581-591 (2016). A rather close value is provided by H. Kleykamp,
+  !   ! Selected thermal properties of beryllium and phase equilibria in beryllium systems relevant for nuclear fusion reactor
+  !   ! blankets, Journal of Nuclear Materials 294, 88-93 (2001).
     
-    real(amrex_real), intent(out) :: enth_hcp2bcc     ! Enthalpy of vaporization [kj/mol]
-    real(amrex_real), intent(out) :: hcp2bcc_point    ! Temperature of phase transition [K]
-    real(amrex_real), intent(out) :: rho_hcp2bcc      ! Density at solid phase transition point [kg/m^3]
+  !   real(amrex_real), intent(out) :: enth_hcp2bcc     ! Enthalpy of vaporization [kj/mol]
+  !   real(amrex_real), intent(out) :: hcp2bcc_point    ! Temperature of phase transition [K]
+  !   real(amrex_real), intent(out) :: rho_hcp2bcc      ! Density at solid phase transition point [kg/m^3]
 
-    enth_hcp2bcc = 6.855
-    hcp2bcc_point = 1543.0
-    rho_hcp2bcc = 1722.1
+  !   enth_hcp2bcc = 6.855
+  !   hcp2bcc_point = 1543.0
+  !   rho_hcp2bcc = 1722.1
     
-  end subroutine get_hcp_to_bcc_point_beryllium  
+  ! end subroutine get_hcp_to_bcc_point_beryllium  
 
 
 

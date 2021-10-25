@@ -101,7 +101,7 @@ contains
     call get_boundary_heat_flux(time, lo_phys, &
                                 dx, lo, hi, &
                                 idom_new, idn_lo, idn_hi, &
-                                temp_old, tn_lo, tn_hi, qbound)
+                                temp_old, to_lo, to_hi, qbound)
 
     ! Compute enthalpy at the new timestep
     do i = lo(1),hi(1)

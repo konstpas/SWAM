@@ -45,7 +45,7 @@ module material_properties_module
                                                       get_electrical_resistivity_beryllium, &
                                                       get_emissivity_beryllium, &
                                                       get_enthalpy_of_vaporization_beryllium, &
-                                                      get_hcp_to_bcc_point_beryllium, &
+                                                      ! get_hcp_to_bcc_point_beryllium, &
                                                       get_Richardson_beryllium, &
                                                       get_surface_tension_beryllium, &
                                                       get_thermelectric_power_beryllium, &
@@ -125,15 +125,10 @@ module material_properties_module
    ! Declare private variables shared by all subroutines
    ! -----------------------------------------------------------------
    real(amrex_real), save :: enth_fus
-   real(amrex_real), save :: enth_of_solid_trans
-   real(amrex_real), save :: rho_sol_trans
    real(amrex_real), save :: m_A
    real(amrex_real), save :: rho_melt   
    real(amrex_real), allocatable, save :: enth_table(:)
    real(amrex_real), allocatable, save :: temp_table(:)
-   real(amrex_real), save :: enth_at_solid_trans
-   real(amrex_real), save :: solid_trans_point
-   logical, save :: solid_trans_exists
  
  contains 
    
@@ -267,33 +262,6 @@ module material_properties_module
      end if
      
    end subroutine get_melting_point
-
-
-   ! ------------------------------------------------------------------
-   ! Subroutine used to compute the properties at solid phase transition
-   ! ------------------------------------------------------------------ 
-   subroutine get_solid_phase_transition_point ()
-
-      if (material.eq.'Tungsten') then 
-         solid_trans_exists = .false.
-      elseif (material.eq.'Test') then
-         solid_trans_exists = .false.
-      elseif (material.eq.'Test2') then
-         solid_trans_exists = .false.
-      elseif (material.eq.'Iridium') then
-         solid_trans_exists = .false.
-      elseif (material.eq.'Niobium') then
-         solid_trans_exists = .false.
-      elseif (material.eq.'Beryllium') then
-         call get_hcp_to_bcc_point_beryllium(enth_of_solid_trans, solid_trans_point, rho_sol_trans)
-         solid_trans_exists = .true.
-      else
-         STOP 'Unknown material'
-      end if
-      
-
-   end subroutine get_solid_phase_transition_point
-
    
    ! ------------------------------------------------------------------
    ! Subroutine used to compute the electrical resistivity
@@ -316,7 +284,8 @@ module material_properties_module
       else
          STOP 'Unknown material'
       endif
-   end subroutine get_electrical_resistivity
+
+    end subroutine get_electrical_resistivity
 
 
    ! ------------------------------------------------------------------
@@ -340,7 +309,8 @@ module material_properties_module
       else
          STOP 'Unknown material'
       endif
-   end subroutine get_surface_tension
+
+    end subroutine get_surface_tension
 
 
    ! ------------------------------------------------------------------
@@ -364,7 +334,8 @@ module material_properties_module
       else
          STOP 'Unknown material'
       endif
-   end subroutine get_viscosity
+
+    end subroutine get_viscosity
 
 
    ! ------------------------------------------------------------------
@@ -388,7 +359,8 @@ module material_properties_module
       else
          STOP 'Unknown material'
       endif
-   end subroutine get_vapor_pressure
+
+    end subroutine get_vapor_pressure
 
 
    ! ------------------------------------------------------------------
@@ -412,6 +384,7 @@ module material_properties_module
       else
          STOP 'Unknown material'
       endif
+      
    end subroutine get_enthalpy_of_vaporization
 
 
@@ -461,6 +434,7 @@ module material_properties_module
       else
          STOP 'Unknown material'
       endif
+      
    end subroutine get_Richardson
 
 
@@ -485,6 +459,7 @@ module material_properties_module
       else
          STOP 'Unknown material'
       endif
+      
    end subroutine get_emissivity
    
    
@@ -510,6 +485,7 @@ module material_properties_module
       else
          STOP 'Unknown material'
       endif
+      
    end subroutine get_thermelectric_power
    
 
@@ -521,8 +497,6 @@ module material_properties_module
   ! ------------------------------------------------------------------ 
   subroutine init_mat_prop()
 
-    use read_input_module, only : temp_init, temp_fs
-    
     integer :: i
     integer :: imelt = 0
     logical :: isolid = .true.  ! for enthalpy table, true before phase transfer
@@ -542,8 +516,6 @@ module material_properties_module
     real(amrex_real) :: eps_t
     real(amrex_real) :: S
     real(amrex_real) :: enth_vap
-
-
 
     ! Allocate the temperature and enthalpy tables
     allocate(temp_table(0:phiT_table_n_points))
@@ -685,39 +657,39 @@ module material_properties_module
     real(amrex_real), intent(out) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2))
 
     ! Local variables
-    integer :: e_ind 
+    integer :: idx 
     integer :: i,j
-    real(amrex_real) :: Cp
-    real(amrex_real) :: diffus
-    real(amrex_real) :: int_coeff 
-    real(amrex_real) :: ktherm
-    real(amrex_real) :: rho
+    real(amrex_real) :: int_coeff
+    ! real(amrex_real) :: Cp
+    ! real(amrex_real) :: diffus 
+    ! real(amrex_real) :: ktherm
+    ! real(amrex_real) :: rho
      
     ! Obtain the temperature from linear interpolation of the enthalpy-temperature tables
     do i = lo(1),hi(1)
        do j = lo(2),hi(2)
           
-          do e_ind = 0,phiT_table_n_points 
-             if (ui(i,j) .le. enth_table(e_ind) ) exit 
+          do idx = 0,phiT_table_n_points 
+             if (ui(i,j) .le. enth_table(idx) ) exit 
           end do
           
-          if (e_ind.eq.phiT_table_n_points) STOP 'Temperature table exceeded' 
+          if (idx.eq.phiT_table_n_points) STOP 'Temperature table exceeded' 
           
-          int_coeff = (ui(i,j)-enth_table(e_ind-1))/ &
-               (enth_table(e_ind)-enth_table(e_ind-1))
-          temp(i,j) = temp_table(e_ind-1) + &
-               int_coeff*(temp_table(e_ind)-temp_table(e_ind-1))
+          int_coeff = (ui(i,j)-enth_table(idx-1))/ &
+               (enth_table(idx)-enth_table(idx-1))
+          temp(i,j) = temp_table(idx-1) + &
+                      int_coeff*(temp_table(idx)-temp_table(idx-1))
           
           ! Update maximum diffusivity (consider only material grid points and not the background)
-          if (temp(i,j).gt.0) then
-             call get_conductivity(temp(i,j),ktherm)
-             call get_mass_density(temp(i,j),rho) 
-             call get_heat_capacity(temp(i,j),Cp)
-             diffus = ktherm/(rho*Cp)
-             if (diffus.gt.max_diffus) then
-                max_diffus = diffus
-             end if
-          end if
+          ! if (temp(i,j).gt.0) then
+          !    call get_conductivity(temp(i,j),ktherm)
+          !    call get_mass_density(temp(i,j),rho) 
+          !    call get_heat_capacity(temp(i,j),Cp)
+          !    diffus = ktherm/(rho*Cp)
+          !    if (diffus.gt.max_diffus) then
+          !       max_diffus = diffus
+          !    end if
+          ! end if
           
        end do
     end do

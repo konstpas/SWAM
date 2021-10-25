@@ -6,7 +6,6 @@ module init_module
   
   use iso_c_binding
   use amrex_amr_module
-  use amr_data_module
   
   implicit none
 
@@ -26,16 +25,20 @@ contains
   ! restart file)
   ! -----------------------------------------------------------------
   subroutine run_init()
-    
-    use read_input_module, only : read_input_file, restart
+
+    use amr_data_module, only : amr_data_init
+    use read_input_module, only : cooling_debug, &
+                                  read_input_file, &
+                                  restart
     use material_properties_module, only : init_mat_prop
+    use heat_flux_module, only : debug_cooling_fluxes
     use regrid_module, only : averagedown, &
                               my_make_new_level_from_scratch, &
                               my_make_new_level_from_coarse, &
                               my_remake_level, &
                               my_clear_level, &
                               my_error_estimate
-
+    
     ! Initialize amrex 
     call amrex_init 
     call amrex_amrcore_init
@@ -46,6 +49,9 @@ contains
     ! Initialize tables with material properties
     call init_mat_prop
 
+    ! Print cooling fluxes to table if debug is on
+    if (nint(cooling_debug(1)) .eq. 1) call debug_cooling_fluxes
+    
     ! Initialize amrex data used in the simulation
     call amr_data_init
 
@@ -71,9 +77,15 @@ contains
   ! -----------------------------------------------------------------
   subroutine run_finalize()
 
+    use amr_data_module, only : amr_data_finalize
+    use material_properties_module, only : finalize_mat_prop
+    
     ! Free amrex data
     call amr_data_finalize
 
+    ! Free tables with material properties
+    call finalize_mat_prop
+    
     ! Finalize amrex
     call amrex_amrcore_finalize 
     call amrex_finalize
