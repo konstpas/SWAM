@@ -47,15 +47,16 @@ module shallow_water_module
     integer :: i,j
 
     ! Update melt thickness (only evaporation erosion)
-    do i = lo(1), hi(1)
-       do j = lo(2),hi(2)
+    xdot_vap = 0.0
+    do j = lo(2), hi(2)
+       do i = lo(1),hi(1)
           if(nint(idom(i,j)).ne.0 .and. nint(idom(i,j+1)).eq.0) then
              call get_evaporation_flux(temp(i,j), xdot_vap(i))
+             surf_pos(i) = surf_pos(i) - xdot_vap(i)*dt
           end if
        end do
-       surf_pos(i) = surf_pos(i) - xdot_vap(i)*dt
     end do   
-    
+
     ! real(amrex_real) :: melt_height(surf_ind(1,1):surf_ind(1,2))
     ! real(amrex_real) :: height_flux(surf_ind(1,1):surf_ind(1,2)+1,1)
     ! real(amrex_real) :: xfluxp, xfluxm, zfluxp, zfluxm
