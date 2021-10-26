@@ -18,9 +18,9 @@ grid.max_grid_size_1d =  16	             # Maximum number of cells per grid in e
 grid.surfdist = 0.01  0.005  0.001           # Distance from the free surface that triggers regridding (one value per level)
 
 # HEAT SOLVER
-heat.meltvel = 0.0	                     # Prescribed melt velocity
-heat.temp_init = 300			     # Initial temperature of the sample
-heat.phase_init = solid			     # Initial phase of the sample (solid or liquid, relevant only if the sample is initialized at the melting temperature)
+heat.meltvel = 0.0				 # Prescribed melt velocity
+heat.temp_init = 300			     	 # Initial temperature of the sample
+heat.phase_init = solid			     	 # Initial phase of the sample (solid or liquid, relevant only if the sample is initialized at the melting temperature)
 heat.surf_pos = 0.020                            # Position of the free surface inside the domain (assumed horizontal and perpendicular to the y-direction)
 heat.plasma_flux_type = Gaussian		 # Type of plasma heat flux
 heat.plasma_flux_params = 0.0 0.4 3e6 0.01 0.003 # Parameters for the plasma heat flux (dependent on the type of heat flux selected)

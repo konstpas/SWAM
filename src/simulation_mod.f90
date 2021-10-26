@@ -325,11 +325,32 @@ contains
 
     ! Swap idomain solution before computing the surface deformation
     call amrex_multifab_swap(idomain_tmp, idomain(lev))
-    
+
     ! Propagate SW equations (only at max level)
-    if (solve_sw .and. lev.eq.amrex_max_level) then 
-       call increment_SW(dt)
-    end if
+    if (solve_sw .and. lev.eq.amrex_max_level) then
+       
+       call amrex_mfiter_build(mfi, idomain_tmp, tiling=.false.)  
+    						 
+       do while(mfi%next())
+
+          ! Box
+          bx = mfi%validbox()   
+          
+          ! Pointers
+          ptemp   => temp(lev)%dataptr(mfi)
+          pidin => idomain_tmp%dataptr(mfi)
+          
+          ! Increment shallow water solution
+          call increment_SW(bx%lo, bx%hi, &
+                            ptemp, lbound(ptemp), ubound(ptemp), &
+                            pidin, lbound(pidin), ubound(pidin), dt)
+       
+       end do
+
+       ! Clean memory
+       call amrex_mfiter_destroy(mfi)    
+    
+    end if 
 
     ! Set melt interface position array equal to free interface position array 
     ! Since melt layer may span several tile boxes in y-direction (in mfiterator below), we cannot reset within each loop 

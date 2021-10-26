@@ -43,16 +43,15 @@ module shallow_water_module
     real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2))
 
     ! Local variables
-    real(amrex_real) :: xdot_vap(lo(1):hi(1))
+    real(amrex_real) :: xdot_vap
     integer :: i,j
 
     ! Update melt thickness (only evaporation erosion)
-    xdot_vap = 0.0
     do j = lo(2), hi(2)
        do i = lo(1),hi(1)
           if(nint(idom(i,j)).ne.0 .and. nint(idom(i,j+1)).eq.0) then
-             call get_evaporation_flux(temp(i,j), xdot_vap(i))
-             surf_pos(i) = surf_pos(i) - xdot_vap(i)*dt
+             call get_evaporation_flux(temp(i,j), xdot_vap)
+             surf_pos(i) = surf_pos(i) - xdot_vap*dt
           end if
        end do
     end do   

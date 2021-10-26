@@ -123,7 +123,7 @@ module heat_flux_module
      
      qb = 0_amrex_real
      
-     if (time.ge.plasma_flux_params(1) .and. time.lt.plasma_flux_params(2)) then
+     if (time.ge.plasma_flux_params(1) .and. time.le.plasma_flux_params(2)) then
         qb = plasma_flux_params(3) &
              *EXP(-((xpos-plasma_flux_params(4))**2)/(plasma_flux_params(5)**2))
      end if
@@ -146,8 +146,8 @@ module heat_flux_module
       
       qb = 0_amrex_real
       
-      if (time.ge.plasma_flux_params(1) .and. time.lt.plasma_flux_params(2)) then
-         if(xpos.ge.plasma_flux_params(4) .and. xpos.lt.plasma_flux_params(5)) then
+      if (time.ge.plasma_flux_params(1) .and. time.le.plasma_flux_params(2)) then
+         if(xpos.ge.plasma_flux_params(4) .and. xpos.le.plasma_flux_params(5)) then
             qb = plasma_flux_params(3) 
          end if
       end if

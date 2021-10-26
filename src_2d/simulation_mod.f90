@@ -325,30 +325,30 @@ contains
     call amrex_multifab_swap(idomain_tmp, idomain(lev))
     
     ! Propagate SW equations (only at max level)
-    call amrex_mfiter_build(mfi, temp(lev), tiling=.false.)  
+    if (solve_sw .and. lev.eq.amrex_max_level) then
+       
+       call amrex_mfiter_build(mfi, idomain_tmp, tiling=.false.)  
     						 
-    do while(mfi%next())
+       do while(mfi%next())
 
-       ! Box
-       bx = mfi%validbox()   
-       
-       ! Pointers
-       ptemp   => temp(lev)%dataptr(mfi)
-       pidin => idomain_tmp%dataptr(mfi)
-       
-       ! Increment shallow water solution
-       if (solve_sw .and. lev.eq.amrex_max_level) then
+          ! Box
+          bx = mfi%validbox()   
           
+          ! Pointers
+          ptemp   => temp(lev)%dataptr(mfi)
+          pidin => idomain_tmp%dataptr(mfi)
+          
+          ! Increment shallow water solution
           call increment_SW(bx%lo, bx%hi, &
                             ptemp, lbound(ptemp), ubound(ptemp), &
                             pidin, lbound(pidin), ubound(pidin), dt)
-          
-       end if
        
-    end do
+       end do
+
+       ! Clean memory
+       call amrex_mfiter_destroy(mfi)    
     
-    ! Clean memory
-    call amrex_mfiter_destroy(mfi)    
+    end if 
     
     ! Set melt interface position array equal to free interface position array 
     ! Since melt layer may span several tile boxes in y-direction (in mfiterator below), we cannot reset within each loop 
