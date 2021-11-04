@@ -35,7 +35,23 @@ module material_properties_module
                                                       get_mass_density_solliq_test, &
                                                       get_heat_capacity_solliq_test, &
                                                       get_atomic_mass_solliq_test, &
-                                                      get_melting_point_solliq_test                                               
+                                                      get_melting_point_solliq_test    
+                                                      
+   use material_properties_test3_module, only :    get_conductivity_test3, &
+                                                   get_mass_density_test3, &
+                                                   get_heat_capacity_test3, &
+                                                   get_atomic_mass_test3, &
+                                                   get_melting_point_test3, &
+                                                   get_electrical_resistivity_test3, &
+                                                   get_emissivity_test3, &
+                                                   get_enthalpy_of_vaporization_test3, &
+                                                   ! get_hcp_to_bcc_point_beryllium, &
+                                                   get_Richardson_test3, &
+                                                   get_surface_tension_test3, &
+                                                   get_thermelectric_power_test3, &
+                                                   get_vapor_pressure_test3, &
+                                                   get_viscosity_test3, &
+                                                   get_work_function_test3                                                      
  
    use material_properties_beryllium_module, only :   get_conductivity_beryllium, &
                                                       get_mass_density_beryllium, &
@@ -153,7 +169,9 @@ module material_properties_module
      elseif(material.eq.'Test') then
         call get_conductivity_test(temp, ktherm)
      elseif(material.eq.'Test2') then
-       call get_conductivity_solliq_test(temp, ktherm)
+        call get_conductivity_solliq_test(temp, ktherm)
+     elseif(material.eq.'Test3') then
+        call get_conductivity_test3(temp, ktherm)
      else
         STOP 'Unknown material'
      end if
@@ -181,6 +199,8 @@ module material_properties_module
         call get_mass_density_test(temp, rho)
      elseif (material.eq.'Test2') then
         call get_mass_density_solliq_test(rho)
+      elseif (material.eq.'Test3') then
+         call get_mass_density_test3(rho)
      else
         STOP 'Unknown material'
      end if
@@ -208,6 +228,8 @@ module material_properties_module
         call get_heat_capacity_test(temp, Cp)
      elseif (material.eq.'Test2') then
         call get_heat_capacity_solliq_test(Cp)
+     elseif (material.eq.'Test3') then
+        call get_heat_capacity_test3(temp, Cp)
      else
         STOP 'Unknown material'
      end if
@@ -234,6 +256,8 @@ module material_properties_module
         call get_atomic_mass_test(m_A)
      elseif (material.eq.'Test2') then
         call get_atomic_mass_solliq_test(m_A)
+     elseif (material.eq.'Test3') then
+        call get_atomic_mass_test3(m_A)
      else
         STOP 'Unknown material'
      end if
@@ -258,6 +282,8 @@ module material_properties_module
         call get_melting_point_test(temp_melt, enth_fus, rho_melt)
      elseif (material.eq.'Test2') then
         call get_melting_point_solliq_test(temp_melt, enth_fus, rho_melt)
+     elseif (material.eq.'Test3') then
+        call get_melting_point_test3(temp_melt, enth_fus, rho_melt)
      else
         STOP 'Unknown material'
      end if
@@ -282,6 +308,8 @@ module material_properties_module
          call get_electrical_resistivity_niobium(temp, rho_e)
       elseif (material.eq.'Test' .or. material.eq.'Test2') then
          rho_e = 0 ! resistivity not defined for test materials, placeholder value
+      elseif (material.eq.'Test3') then
+         call get_electrical_resistivity_test3(temp, rho_e)
       else
          STOP 'Unknown material'
       endif
@@ -307,6 +335,8 @@ module material_properties_module
          call get_surface_tension_niobium(temp, sigma)
       elseif (material.eq.'Test' .or. material.eq.'Test2') then
          sigma = 0 ! surface tension not defined for test materials, placeholder value
+      elseif (material.eq.'Test3') then
+         call get_surface_tension_test3(temp, sigma)
       else
          STOP 'Unknown material'
       endif
@@ -332,6 +362,8 @@ module material_properties_module
          call get_viscosity_niobium(temp, mu)
       elseif (material.eq.'Test' .or. material.eq.'Test2') then
          mu = 0 ! viscosity not defined for test materials, placeholder value
+      elseif (material.eq.'Test3') then
+         call get_viscosity_test3(temp, mu)
       else
          STOP 'Unknown material'
       endif
@@ -357,6 +389,8 @@ module material_properties_module
          call get_vapor_pressure_niobium(temp, pv)
       elseif (material.eq.'Test' .or. material.eq.'Test2') then
          pv = 0 ! vapor pressure not defined for test materials, placeholder value
+      elseif (material.eq.'Test3') then
+         call get_vapor_pressure_test3(temp, pv)
       else
          STOP 'Unknown material'
       endif
@@ -382,6 +416,8 @@ module material_properties_module
          call get_enthalpy_of_vaporization_niobium(enth_vap)
       elseif (material.eq.'Test' .or. material.eq.'Test2') then
          enth_vap = 0 ! enthalpy of vaporization not defined for test materials, placeholder value
+      elseif (material.eq.'Test3') then
+         call get_enthalpy_of_vaporization_test3(enth_vap)
       else
          STOP 'Unknown material'
       endif
@@ -407,6 +443,8 @@ module material_properties_module
          call get_work_function_niobium(wf)
       elseif (material.eq.'Test' .or. material.eq.'Test2') then
          wf = 0 ! Work function not defined for test materials, placeholder value
+      elseif (material.eq.'Test3') then
+         call get_work_function_test3(wf)
       else
          STOP 'Unknown material'
       endif
@@ -432,6 +470,8 @@ module material_properties_module
          call get_Richardson_niobium(Aeff)
       elseif (material.eq.'Test' .or. material.eq.'Test2') then
          Aeff = 0 ! Richardson constant not defined for test materials, placeholder value
+      elseif (material.eq.'Test3') then
+         call get_Richardson_test3(Aeff)
       else
          STOP 'Unknown material'
       endif
@@ -457,6 +497,8 @@ module material_properties_module
          call get_emissivity_niobium(temp, eps_t)
       elseif (material.eq.'Test' .or. material.eq.'Test2') then
          eps_t = 0 ! Richardson constant not defined for test materials, placeholder value
+      elseif (material.eq.'Test3') then
+         call get_emissivity_test3(eps_t)
       else
          STOP 'Unknown material'
       endif
@@ -483,6 +525,8 @@ module material_properties_module
          call get_thermelectric_power_niobium(temp, S)
       elseif (material.eq.'Test' .or. material.eq.'Test2') then
          S = 0 ! Thermoelectric power not defined for test materials, placeholder value
+      elseif (material.eq.'Test3') then
+         call get_thermelectric_power_test3(temp, S)
       else
          STOP 'Unknown material'
       endif

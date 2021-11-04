@@ -26,6 +26,8 @@ module amr_data_module
   public :: hi_bc
   ! Bottom of the melt pool (1D)
   public :: melt_pos
+  ! Top of the melt pool (1D)
+  public :: melt_top
   ! Melt velocity (1D)
   public :: melt_vel 
   ! Enthalpy
@@ -63,6 +65,7 @@ module amr_data_module
   integer, allocatable, save :: nsubsteps(:)
   real(amrex_real), allocatable, save :: dt(:)
   real(amrex_real), allocatable, save :: melt_pos(:)
+  real(amrex_real), allocatable, save :: melt_top(:)
   real(amrex_real), allocatable, save :: melt_vel(:,:)
   real(amrex_real), allocatable, save :: t_new(:)
   real(amrex_real), allocatable, save :: t_old(:)
@@ -104,6 +107,7 @@ contains
     allocate(lo_bc(amrex_spacedim,1)) ! The second argument is the number of components
     allocate(hi_bc(amrex_spacedim,1))
     allocate(melt_pos(lo_x:hi_x))
+    allocate(melt_top(lo_x:hi_x))
     allocate(melt_vel(lo_x:hi_x+1, 1:amrex_spacedim-1))
     allocate(phi_new(0:amrex_max_level))
     allocate(phi_old(0:amrex_max_level))
@@ -124,6 +128,7 @@ contains
     ! It is assumed that there is no melting pool at the beginning of the
     ! simulation (melt_pos = surf_pos)
     melt_pos = surf_pos_init
+    melt_top = surf_pos_init
     melt_vel = 0.0_amrex_real
     surf_dx(1) = amrex_geom(amrex_max_level)%dx(1)
     surf_ind(1,1) = lo_x

@@ -438,7 +438,7 @@ contains
        ! Find melt interface y position 
        if (lev.eq.amrex_max_level) then
           call get_melt_pos(bx%lo, bx%hi, &
-                            ptemp, lbound(ptemp), ubound(ptemp), &
+                            pidout, lbound(pidout), ubound(pidout), &
                             geom)
        end if
 

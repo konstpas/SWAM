@@ -255,7 +255,8 @@ module heat_flux_module
       h_vap = h_vap*1E3/Na
       
       gm = pv*sqrt(m_A/(2*pi*kb*Ts))    
-      q_vap = gm/m_A*(h_vap + 2*kb*Ts) 
+      ! q_vap = gm/m_A*(h_vap + 2*kb*Ts) 
+      q_vap = gm/m_A*(h_vap) 
       
     end subroutine vaporization_cooling
 

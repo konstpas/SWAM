@@ -382,12 +382,13 @@ contains
   ! -----------------------------------------------------------------      
   subroutine reset_melt_pos()
     
-    use amr_data_module, only : surf_pos, melt_pos, surf_ind
+    use amr_data_module, only : surf_pos, melt_pos, melt_top, surf_ind
     
     integer :: i
   
     do i =  surf_ind(1,1), surf_ind(1,2) 
        melt_pos(i) = surf_pos(i)
+       melt_top(i) = surf_pos(i)
     end do
  
   end subroutine reset_melt_pos
@@ -397,15 +398,14 @@ contains
   ! Subroutine used to get the position of the bottom of the melt
   ! pool
   ! -----------------------------------------------------------------
-  subroutine get_melt_pos(lo, hi, temp, t_lo, t_hi, geom)
+  subroutine get_melt_pos(lo, hi, idom, id_lo, id_hi, geom)
        
-    use amr_data_module, only : melt_pos
-    use material_properties_module, only : temp_melt
+    use amr_data_module, only : melt_pos, melt_top
        
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) 
-    integer, intent(in) :: t_lo(2), t_hi(2)    
-    real(amrex_real),     intent(in) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2)) 
+    integer, intent(in) :: id_lo(2), id_hi(2)    
+    real(amrex_real),     intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2)) 
     type(amrex_geometry), intent(in) :: geom
     
     ! Local variables
@@ -417,15 +417,22 @@ contains
     do i = lo(1), hi(1)  ! x-direction
        do j = lo(2), hi(2) 
              
-          if (temp(i,j).gt.temp_melt) then
+          if (nint(idom(i,j)).eq.3 .and. nint(idom(i,j-1)).ne.3) then
              
              it(1) = i
              it(2) = j
              grid_pos = geom%get_physical_location(it)
-             if (grid_pos(2).lt.melt_pos(i)) then    
-                melt_pos(i) = grid_pos(2) 
-             end if
+             melt_pos(i) = grid_pos(2) 
              
+          elseif(nint(idom(i,j)).ne.3 .and. nint(idom(i,j-1)).eq.3) then
+
+            it(1) = i
+            it(2) = j
+            grid_pos = geom%get_physical_location(it)
+            melt_top(i) = grid_pos(2)
+            if (nint(idom(i,j)).ne.0) write(*,*) &
+             'WARNING: Melt top not at free surface. Caution in shallow waters solver.'
+
           end if
           
        end do   
@@ -438,7 +445,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine integrate_surf(melt_vol)
 
-    use amr_data_module, only : surf_pos, melt_pos, surf_ind, surf_dx
+    use amr_data_module, only : melt_top, melt_pos, surf_ind, surf_dx
 
     ! Input and output variables
     real(amrex_real), intent(out) :: melt_vol ! Integrated melt area [mm2]
@@ -449,7 +456,7 @@ contains
     melt_vol = 0 
     
     do i =  surf_ind(1,1), surf_ind(1,2) 
-       melt_vol = melt_vol +  surf_pos(i) - melt_pos(i)
+       melt_vol = melt_vol +  melt_top(i) - melt_pos(i)
     end do
     
     melt_vol = melt_vol*surf_dx(1)*1E6  
