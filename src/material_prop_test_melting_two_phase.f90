@@ -1,4 +1,4 @@
-module material_properties_solliq_test_module  
+module material_properties_test_melting_two_phase_module  
 
   use amrex_amr_module
   
@@ -6,7 +6,8 @@ module material_properties_solliq_test_module
 
   ! -----------------------------------------------------------------
   ! This module is used to compute the material properties of
-  ! a test material 
+  ! the material used to test the melting module via the
+  ! two region stephan problem
   ! -----------------------------------------------------------------
   
   private
@@ -14,11 +15,11 @@ module material_properties_solliq_test_module
   ! -----------------------------------------------------------------
   ! Public subroutines
   ! -----------------------------------------------------------------
-  public :: get_heat_capacity_solliq_test
-  public :: get_conductivity_solliq_test
-  public :: get_atomic_mass_solliq_test
-  public :: get_melting_point_solliq_test
-  public :: get_mass_density_solliq_test
+  public :: get_heat_capacity_test_melting_two_phase
+  public :: get_conductivity_test_melting_two_phase
+  public :: get_atomic_mass_test_melting_two_phase
+  public :: get_melting_point_test_melting_two_phase
+  public :: get_mass_density_test_melting_two_phase
 
 contains 
 
@@ -26,7 +27,7 @@ contains
   ! -----------------------------------------------------------------
   ! Subroutine used to computed the thermal conductivity
   ! -----------------------------------------------------------------
-  subroutine get_conductivity_solliq_test(temp, ktherm)
+  subroutine get_conductivity_test_melting_two_phase(temp, ktherm)
 
     real(amrex_real), intent(in) :: temp ! Temperature [K]
     real(amrex_real), intent(out) :: ktherm ! Thermal conductivity [W/mK] 
@@ -38,13 +39,13 @@ contains
     endif
      
     
-  end subroutine get_conductivity_solliq_test
+  end subroutine get_conductivity_test_melting_two_phase
 
 
   ! -----------------------------------------------------------------
   ! Subroutine used to computed the mass density
   ! -----------------------------------------------------------------
-  subroutine get_mass_density_solliq_test(rho)
+  subroutine get_mass_density_test_melting_two_phase(rho)
 
     ! Input and output variables 
     real(amrex_real), intent(out) :: rho    ! Mass density [kg/m3]
@@ -53,13 +54,13 @@ contains
     ! Conversion from g/cm3 to kg/cm3 
     rho = rho*1E3  
    
-  end subroutine get_mass_density_solliq_test
+  end subroutine get_mass_density_test_melting_two_phase
   
 
   ! -----------------------------------------------------------------
   ! Subroutine used to computed the heat capacity
   ! -----------------------------------------------------------------
-  subroutine get_heat_capacity_solliq_test(Cp) 
+  subroutine get_heat_capacity_test_melting_two_phase(Cp) 
 
     ! Input and output variables 
     real(amrex_real), intent(out) :: Cp     ! Specific heat capacity [J/kgK]
@@ -69,28 +70,28 @@ contains
     
     Cp = 20.0
     ! Conversion from J/(mol*K) to J/(kg*K) 
-    call get_atomic_mass_solliq_test(m_A)
+    call get_atomic_mass_test_melting_two_phase(m_A)
     Cp = 1E3*(Cp/m_A)
     
-  end subroutine get_heat_capacity_solliq_test
+  end subroutine get_heat_capacity_test_melting_two_phase
   
 
   ! -----------------------------------------------------------------
   ! Subroutine used to computed the atomic mass
   ! -----------------------------------------------------------------
-  subroutine get_atomic_mass_solliq_test(m_A)
+  subroutine get_atomic_mass_test_melting_two_phase(m_A)
 
     real(amrex_real), intent(out) :: m_A ! Atomic mass [g/mol]
 
     m_A = 183.84
     
-  end subroutine get_atomic_mass_solliq_test
+  end subroutine get_atomic_mass_test_melting_two_phase
 
   
   ! -----------------------------------------------------------------
   ! Subroutine used to computed the melting point properties
   ! -----------------------------------------------------------------
-  subroutine get_melting_point_solliq_test(temp_melt, enth_fus, rho_melt)
+  subroutine get_melting_point_test_melting_two_phase(temp_melt, enth_fus, rho_melt)
 
     real(amrex_real), intent(out) :: temp_melt ! Temperature at melting [K] 
     real(amrex_real), intent(out) :: enth_fus ! Enthalpy of fusion [kJ/mol] 
@@ -100,7 +101,7 @@ contains
     enth_fus = 52.3
     rho_melt = 20.0E3
     
-  end subroutine get_melting_point_solliq_test
+  end subroutine get_melting_point_test_melting_two_phase
   
  
-end module material_properties_solliq_test_module
+end module material_properties_test_melting_two_phase_module

@@ -3,8 +3,8 @@ module material_properties_module
   ! -----------------------------------------------------------------
   ! This module is used to compute the material properties.
   ! -----------------------------------------------------------------
-
-  use amrex_amr_module
+  
+   use amrex_amr_module
    use read_input_module, only : material, &
                                  phiT_table_max_T, &
                                  phiT_table_n_points
@@ -24,17 +24,33 @@ module material_properties_module
                                                    get_viscosity_tungsten, &
                                                    get_work_function_tungsten
  
-   use material_properties_test_module, only : get_conductivity_test, &
-                                               get_mass_density_test, &
-                                               get_heat_capacity_test, &
-                                               get_atomic_mass_test, &
-                                               get_melting_point_test
  
-   use material_properties_solliq_test_module, only : get_conductivity_solliq_test, &
-                                                      get_mass_density_solliq_test, &
-                                                      get_heat_capacity_solliq_test, &
-                                                      get_atomic_mass_solliq_test, &
-                                                      get_melting_point_solliq_test                                               
+   use material_properties_test_melting_one_phase_module, only : get_conductivity_test_melting_one_phase, &
+                                                                 get_mass_density_test_melting_one_phase, &
+                                                                 get_heat_capacity_test_melting_one_phase, &
+                                                                 get_atomic_mass_test_melting_one_phase, &
+                                                                 get_melting_point_test_melting_one_phase
+ 
+   use material_properties_test_melting_two_phase_module, only : get_conductivity_test_melting_two_phase, &
+                                                                 get_mass_density_test_melting_two_phase, &
+                                                                 get_heat_capacity_test_melting_two_phase, &
+                                                                 get_atomic_mass_test_melting_two_phase, &
+                                                                 get_melting_point_test_melting_two_phase    
+                                                      
+   use material_properties_test_evaporation_module, only :    get_conductivity_test_evaporation, &
+                                                              get_mass_density_test_evaporation, &
+                                                              get_heat_capacity_test_evaporation, &
+                                                              get_atomic_mass_test_evaporation, &
+                                                              get_melting_point_test_evaporation, &
+                                                              get_electrical_resistivity_test_evaporation, &
+                                                              get_emissivity_test_evaporation, &
+                                                              get_enthalpy_of_vaporization_test_evaporation, &
+                                                              get_Richardson_test_evaporation, &
+                                                              get_surface_tension_test_evaporation, &
+                                                              get_thermelectric_power_test_evaporation, &
+                                                              get_vapor_pressure_test_evaporation, &
+                                                              get_viscosity_test_evaporation, &
+                                                              get_work_function_test_evaporation                                                      
  
    use material_properties_beryllium_module, only :   get_conductivity_beryllium, &
                                                       get_mass_density_beryllium, &
@@ -81,12 +97,13 @@ module material_properties_module
                                                   get_vapor_pressure_niobium, &
                                                   get_viscosity_niobium, &
                                                   get_work_function_niobium
-  
-  implicit none 
-
-  private
-
-  ! -----------------------------------------------------------------
+    
+     
+   implicit none 
+ 
+   private
+ 
+   ! -----------------------------------------------------------------
    ! Public variables
    ! -----------------------------------------------------------------
    ! Enthalpy at the onset of melting
@@ -112,26 +129,27 @@ module material_properties_module
    public :: get_mass_density
    public :: finalize_mat_prop
    
-  ! -----------------------------------------------------------------
-  ! Declare public variables
-  ! -----------------------------------------------------------------
-  real(amrex_real), save :: enth_at_melt
-  real(amrex_real), save :: temp_melt
-  real(amrex_real), save :: max_diffus
-  
-  ! -----------------------------------------------------------------
-  ! Declare private variables shared by all subroutines
-  ! -----------------------------------------------------------------
-  real(amrex_real), save :: enth_fus
-  real(amrex_real), save :: m_A
-  real(amrex_real), save :: rho_melt   
-  real(amrex_real), allocatable, save :: enth_table(:)
-  real(amrex_real), allocatable, save :: temp_table(:)
-
-contains 
-  
-
-     ! ------------------------------------------------------------------
+ 
+   ! -----------------------------------------------------------------
+   ! Declare public variables
+   ! -----------------------------------------------------------------
+   real(amrex_real), save :: enth_at_melt
+   real(amrex_real), save :: temp_melt
+   real(amrex_real), save :: max_diffus
+   
+   ! -----------------------------------------------------------------
+   ! Declare private variables shared by all subroutines
+   ! -----------------------------------------------------------------
+   real(amrex_real), save :: enth_fus
+   real(amrex_real), save :: m_A
+   real(amrex_real), save :: rho_melt   
+   real(amrex_real), allocatable, save :: enth_table(:)
+   real(amrex_real), allocatable, save :: temp_table(:)
+ 
+ contains 
+   
+ 
+   ! ------------------------------------------------------------------
    ! Subroutine used to compute the thermal conductivity
    ! ------------------------------------------------------------------ 
    subroutine get_conductivity(temp,ktherm)
@@ -147,10 +165,12 @@ contains
          call get_conductivity_iridium(temp, ktherm)
      elseif (material.eq.'Niobium') then
          call get_conductivity_niobium(temp, ktherm)
-     elseif(material.eq.'Test') then
-        call get_conductivity_test(temp, ktherm)
-     elseif(material.eq.'Test2') then
-       call get_conductivity_solliq_test(temp, ktherm)
+     elseif(material.eq.'Test_melting_one_phase') then
+        call get_conductivity_test_melting_one_phase(temp, ktherm)
+     elseif(material.eq.'Test_melting_two_phase') then
+        call get_conductivity_test_melting_two_phase(temp, ktherm)
+     elseif(material.eq.'Test_Evaporation') then
+        call get_conductivity_test_evaporation(temp, ktherm)
      else
         STOP 'Unknown material'
      end if
@@ -174,10 +194,12 @@ contains
         call get_mass_density_iridium(temp, rho)
      elseif (material.eq.'Niobium') then
         call get_mass_density_niobium(temp, rho)
-     elseif (material.eq.'Test') then
-        call get_mass_density_test(temp, rho)
-     elseif (material.eq.'Test2') then
-        call get_mass_density_solliq_test(rho)
+     elseif (material.eq.'Test_melting_one_phase') then
+        call get_mass_density_test_melting_one_phase(temp, rho)
+     elseif (material.eq.'Test_melting_two_phase') then
+        call get_mass_density_test_melting_two_phase(rho)
+      elseif (material.eq.'Test_Evaporation') then
+         call get_mass_density_test_evaporation(rho)
      else
         STOP 'Unknown material'
      end if
@@ -201,10 +223,12 @@ contains
         call get_heat_capacity_iridium(temp, Cp)
      elseif (material.eq.'Niobium') then
         call get_heat_capacity_niobium(temp, Cp)
-     elseif (material.eq.'Test') then
-        call get_heat_capacity_test(temp, Cp)
-     elseif (material.eq.'Test2') then
-        call get_heat_capacity_solliq_test(Cp)
+     elseif (material.eq.'Test_melting_one_phase') then
+        call get_heat_capacity_test_melting_one_phase(temp, Cp)
+     elseif (material.eq.'Test_melting_two_phase') then
+        call get_heat_capacity_test_melting_two_phase(Cp)
+     elseif (material.eq.'Test_Evaporation') then
+        call get_heat_capacity_test_evaporation(temp, Cp)
      else
         STOP 'Unknown material'
      end if
@@ -227,10 +251,12 @@ contains
         call get_atomic_mass_iridium(m_A)
      elseif (material.eq.'Niobium') then
         call get_atomic_mass_niobium(m_A)
-     elseif (material.eq.'Test') then
-        call get_atomic_mass_test(m_A)
-     elseif (material.eq.'Test2') then
-        call get_atomic_mass_solliq_test(m_A)
+     elseif (material.eq.'Test_melting_one_phase') then
+        call get_atomic_mass_test_melting_one_phase(m_A)
+     elseif (material.eq.'Test_melting_two_phase') then
+        call get_atomic_mass_test_melting_two_phase(m_A)
+     elseif (material.eq.'Test_Evaporation') then
+        call get_atomic_mass_test_evaporation(m_A)
      else
         STOP 'Unknown material'
      end if
@@ -251,10 +277,12 @@ contains
          call get_melting_point_iridium(temp_melt, enth_fus, rho_melt)
      elseif (material.eq.'Niobium') then
          call get_melting_point_niobium(temp_melt, enth_fus, rho_melt)
-     elseif (material.eq.'Test') then
-        call get_melting_point_test(temp_melt, enth_fus, rho_melt)
-     elseif (material.eq.'Test2') then
-        call get_melting_point_solliq_test(temp_melt, enth_fus, rho_melt)
+     elseif (material.eq.'Test_melting_one_phase') then
+        call get_melting_point_test_melting_one_phase(temp_melt, enth_fus, rho_melt)
+     elseif (material.eq.'Test_melting_two_phase') then
+        call get_melting_point_test_melting_two_phase(temp_melt, enth_fus, rho_melt)
+     elseif (material.eq.'Test_Evaporation') then
+        call get_melting_point_test_evaporation(temp_melt, enth_fus, rho_melt)
      else
         STOP 'Unknown material'
      end if
@@ -277,13 +305,15 @@ contains
          call get_electrical_resistivity_iridium(temp, rho_e)
       elseif (material.eq.'Niobium') then
          call get_electrical_resistivity_niobium(temp, rho_e)
-      elseif (material.eq.'Test' .or. material.eq.'Test2') then
+      elseif (material.eq.'Test_melting_one_phase' .or. material.eq.'Test_melting_two_phase') then
          rho_e = 0 ! resistivity not defined for test materials, placeholder value
+      elseif (material.eq.'Test_Evaporation') then
+         call get_electrical_resistivity_test_evaporation(temp, rho_e)
       else
          STOP 'Unknown material'
       endif
-      
-   end subroutine get_electrical_resistivity
+
+    end subroutine get_electrical_resistivity
 
 
    ! ------------------------------------------------------------------
@@ -302,13 +332,15 @@ contains
          call get_surface_tension_iridium(temp, sigma)
       elseif (material.eq.'Niobium') then
          call get_surface_tension_niobium(temp, sigma)
-      elseif (material.eq.'Test' .or. material.eq.'Test2') then
+      elseif (material.eq.'Test_melting_one_phase' .or. material.eq.'Test_melting_two_phase') then
          sigma = 0 ! surface tension not defined for test materials, placeholder value
+      elseif (material.eq.'Test_Evaporation') then
+         call get_surface_tension_test_evaporation(temp, sigma)
       else
          STOP 'Unknown material'
       endif
-      
-   end subroutine get_surface_tension
+
+    end subroutine get_surface_tension
 
 
    ! ------------------------------------------------------------------
@@ -327,13 +359,15 @@ contains
          call get_viscosity_iridium(temp, mu)
       elseif (material.eq.'Niobium') then
          call get_viscosity_niobium(temp, mu)
-      elseif (material.eq.'Test' .or. material.eq.'Test2') then
+      elseif (material.eq.'Test_melting_one_phase' .or. material.eq.'Test_melting_two_phase') then
          mu = 0 ! viscosity not defined for test materials, placeholder value
+      elseif (material.eq.'Test_Evaporation') then
+         call get_viscosity_test_evaporation(temp, mu)
       else
          STOP 'Unknown material'
       endif
-      
-   end subroutine get_viscosity
+
+    end subroutine get_viscosity
 
 
    ! ------------------------------------------------------------------
@@ -352,13 +386,15 @@ contains
          call get_vapor_pressure_iridium(temp, pv)
       elseif (material.eq.'Niobium') then
          call get_vapor_pressure_niobium(temp, pv)
-      elseif (material.eq.'Test' .or. material.eq.'Test2') then
+      elseif (material.eq.'Test_melting_one_phase' .or. material.eq.'Test_melting_two_phase') then
          pv = 0 ! vapor pressure not defined for test materials, placeholder value
+      elseif (material.eq.'Test_Evaporation') then
+         call get_vapor_pressure_test_evaporation(temp, pv)
       else
          STOP 'Unknown material'
       endif
-      
-   end subroutine get_vapor_pressure
+
+    end subroutine get_vapor_pressure
 
 
    ! ------------------------------------------------------------------
@@ -377,12 +413,14 @@ contains
          call get_enthalpy_of_vaporization_iridium(enth_vap)
       elseif (material.eq.'Niobium') then
          call get_enthalpy_of_vaporization_niobium(enth_vap)
-      elseif (material.eq.'Test' .or. material.eq.'Test2') then
+      elseif (material.eq.'Test_melting_one_phase' .or. material.eq.'Test_melting_two_phase') then
          enth_vap = 0 ! enthalpy of vaporization not defined for test materials, placeholder value
+      elseif (material.eq.'Test_Evaporation') then
+         call get_enthalpy_of_vaporization_test_evaporation(enth_vap)
       else
          STOP 'Unknown material'
       endif
-
+      
    end subroutine get_enthalpy_of_vaporization
 
 
@@ -402,8 +440,10 @@ contains
          call get_work_function_iridium(wf)
       elseif (material.eq.'Niobium') then
          call get_work_function_niobium(wf)
-      elseif (material.eq.'Test' .or. material.eq.'Test2') then
+      elseif (material.eq.'Test_melting_one_phase' .or. material.eq.'Test_melting_two_phase') then
          wf = 0 ! Work function not defined for test materials, placeholder value
+      elseif (material.eq.'Test_Evaporation') then
+         call get_work_function_test_evaporation(wf)
       else
          STOP 'Unknown material'
       endif
@@ -427,8 +467,10 @@ contains
          call get_Richardson_iridium(Aeff)
       elseif (material.eq.'Niobium') then
          call get_Richardson_niobium(Aeff)
-      elseif (material.eq.'Test' .or. material.eq.'Test2') then
+      elseif (material.eq.'Test_melting_one_phase' .or. material.eq.'Test_melting_two_phase') then
          Aeff = 0 ! Richardson constant not defined for test materials, placeholder value
+      elseif (material.eq.'Test_Evaporation') then
+         call get_Richardson_test_evaporation(Aeff)
       else
          STOP 'Unknown material'
       endif
@@ -452,8 +494,10 @@ contains
          call get_emissivity_iridium(temp, eps_t)
       elseif (material.eq.'Niobium') then
          call get_emissivity_niobium(temp, eps_t)
-      elseif (material.eq.'Test' .or. material.eq.'Test2') then
+      elseif (material.eq.'Test_melting_one_phase' .or. material.eq.'Test_melting_two_phase') then
          eps_t = 0 ! Richardson constant not defined for test materials, placeholder value
+      elseif (material.eq.'Test_Evaporation') then
+         call get_emissivity_test_evaporation(eps_t)
       else
          STOP 'Unknown material'
       endif
@@ -478,15 +522,16 @@ contains
          call get_thermelectric_power_iridium(temp, S)
       elseif (material.eq.'Niobium') then
          call get_thermelectric_power_niobium(temp, S)
-      elseif (material.eq.'Test' .or. material.eq.'Test2') then
+      elseif (material.eq.'Test_melting_one_phase' .or. material.eq.'Test_melting_two_phase') then
          S = 0 ! Thermoelectric power not defined for test materials, placeholder value
+      elseif (material.eq.'Test_Evaporation') then
+         call get_thermelectric_power_test_evaporation(temp, S)
       else
          STOP 'Unknown material'
       endif
       
    end subroutine get_thermelectric_power
    
-
 
   
   ! ------------------------------------------------------------------
@@ -599,10 +644,9 @@ contains
        call get_conductivity(temp_table(i),ktherm)
        diffus = ktherm/rhocp_i  
        if (diffus.gt.max_diffus) max_diffus=diffus
-       
-   
+      
     end do
-		
+    
     ! Output employed material properties to file
     open (2, file = 'material_properties_'//TRIM(material)//'.dat', status = 'unknown')
     write(2, *) 'Material properties employed' 
@@ -625,10 +669,11 @@ contains
        call get_enthalpy_of_vaporization(temp_table(i), enth_vap)
        write(2,*) temp_table(i), Cp, rho, ktherm, enth_table(i), rho_e, sigma, mu, pv, Wf, Aeff, S, enth_vap
     end do
-    close(2)
-    
+    close(2) 
+
+
   end subroutine init_mat_prop
-  
+
   ! ------------------------------------------------------------------
   ! Subroutine used to deallocate the tables that relate the enthalpy
   ! and the temperature
@@ -640,6 +685,7 @@ contains
     
   end subroutine finalize_mat_prop
   
+
   ! ------------------------------------------------------------------
   ! Subroutine used to obtain the temperature given the enthalpy
   ! ------------------------------------------------------------------ 
@@ -700,7 +746,9 @@ contains
   ! ------------------------------------------------------------------
   ! Subroutine used to obtain the enthalpy given the temperature. It
   ! is only used during the initialization phase when the temperature
-  ! passed in input should be translated into an enthalpy
+  ! passed in input should be translated into an enthalpy or for
+  ! simulations with fixed temperature on the free surface in order
+  ! to prescribe the temperature on the free surface
   ! ------------------------------------------------------------------ 
   subroutine get_enthalpy(temp,enth) 
 
@@ -711,12 +759,11 @@ contains
     real(amrex_real), intent(out) :: enth
 
     ! Local variables
-    integer :: idx 
-    real(amrex_real) :: int_coeff
+    integer :: idx
+    real(amrex_real) :: int_coeff 
 
-    ! Obtain the enthalpy from linear interpolation of the enthalpy-temperature tables
     do idx = 0,phiT_table_n_points 
-       if (temp .le. temp_table(idx) ) exit 
+       if (temp .le. temp_table(idx)) exit 
     end do
     
     if (idx.eq.phiT_table_n_points) STOP 'Temperature table exceeded'
@@ -739,8 +786,8 @@ contains
        enth = enth_table(idx-1) + int_coeff*(enth_table(idx)-enth_table(idx-1))
     
     end if
-     
+    
   end subroutine get_enthalpy
-  
+
 
 end module material_properties_module 
