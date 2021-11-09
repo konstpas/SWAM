@@ -8,7 +8,7 @@ COMP_OPT = -Wall -O2
 LINK_NAME = g++
 
 # Amrex
-AMREX_LIBRARY_HOME ?= /home/federico/amrex_local
+AMREX_LIBRARY_HOME ?= /home/flc/nobackup/amrex_3D
 LIBDIR := $(AMREX_LIBRARY_HOME)/lib
 INCDIR := $(AMREX_LIBRARY_HOME)/include
 COMP_FLAGS := -I$(INCDIR) 

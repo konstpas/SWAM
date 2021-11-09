@@ -1,4 +1,4 @@
-module material_properties_test3_module  
+module material_properties_test_evaporation_module  
 
   use amrex_amr_module
   
@@ -6,7 +6,7 @@ module material_properties_test3_module
 
   ! -----------------------------------------------------------------
   ! This module is used to compute the material properties of
-  ! test3.
+  ! the material used to test the evaporation routines.
   ! -----------------------------------------------------------------
   
   private
@@ -14,21 +14,20 @@ module material_properties_test3_module
   ! -----------------------------------------------------------------
   ! Public subroutines
   ! -----------------------------------------------------------------
-  public :: get_heat_capacity_test3
-  public :: get_conductivity_test3
-  public :: get_atomic_mass_test3
-  public :: get_melting_point_test3 
-  public :: get_mass_density_test3
-  public :: get_electrical_resistivity_test3
-  public :: get_emissivity_test3
-  public :: get_Richardson_test3
-  public :: get_surface_tension_test3
-  public :: get_viscosity_test3
-  public :: get_work_function_test3
-  public :: get_enthalpy_of_vaporization_test3
-  ! public :: get_hcp_to_bcc_point_test3
-  public :: get_vapor_pressure_test3
-  public :: get_thermelectric_power_test3
+  public :: get_heat_capacity_test_evaporation
+  public :: get_conductivity_test_evaporation
+  public :: get_atomic_mass_test_evaporation
+  public :: get_melting_point_test_evaporation 
+  public :: get_mass_density_test_evaporation
+  public :: get_electrical_resistivity_test_evaporation
+  public :: get_emissivity_test_evaporation
+  public :: get_Richardson_test_evaporation
+  public :: get_surface_tension_test_evaporation
+  public :: get_viscosity_test_evaporation
+  public :: get_work_function_test_evaporation
+  public :: get_enthalpy_of_vaporization_test_evaporation
+  public :: get_vapor_pressure_test_evaporation
+  public :: get_thermelectric_power_test_evaporation
 
 contains 
 
@@ -36,7 +35,7 @@ contains
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the thermal conductivity
   ! -----------------------------------------------------------------
-  subroutine get_conductivity_test3(temp,ktherm)
+  subroutine get_conductivity_test_evaporation(temp,ktherm)
 
     real(amrex_real), intent(in) :: temp    ! Temperature [K]
     real(amrex_real), intent(out) :: ktherm ! Thermal conductivity [W/mK] 
@@ -47,26 +46,26 @@ contains
        ktherm = 75
     end if
     
-  end subroutine get_conductivity_test3
+  end subroutine get_conductivity_test_evaporation
 
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the mass density
   ! -----------------------------------------------------------------
-  subroutine get_mass_density_test3(rho)
+  subroutine get_mass_density_test_evaporation(rho)
 
     ! Input and output variables 
     real(amrex_real), intent(out) :: rho    ! Mass density [kg/m3]
     
     rho = 1705.0
    
-  end subroutine get_mass_density_test3
+  end subroutine get_mass_density_test_evaporation
   
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the heat capacity
   ! -----------------------------------------------------------------
-  subroutine get_heat_capacity_test3(temp,Cp) 
+  subroutine get_heat_capacity_test_evaporation(temp,Cp) 
 
     ! Input and output variables 
     real(amrex_real), intent(in) :: temp   ! Temperature [K]
@@ -81,16 +80,16 @@ contains
        Cp = 30.0
     end if
     ! Conversion from J/(mol*K) to J/(kg*K) 
-    call get_atomic_mass_test3(m_A)
+    call get_atomic_mass_test_evaporation(m_A)
     Cp = 1E3*(Cp/m_A)
     
-  end subroutine get_heat_capacity_test3
+  end subroutine get_heat_capacity_test_evaporation
   
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the electrical resistivity
   ! -----------------------------------------------------------------
-  subroutine get_electrical_resistivity_test3(temp,rho_e)
+  subroutine get_electrical_resistivity_test_evaporation(temp,rho_e)
 
     ! Input and output variables 
     real(amrex_real), intent(in) :: temp      ! Temperature [K]
@@ -111,13 +110,13 @@ contains
     ! Conversion from uOhm*cm to Ohm*m 
     rho_e = rho_e*1E-8  
    
-  end subroutine get_electrical_resistivity_test3
+  end subroutine get_electrical_resistivity_test_evaporation
 
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the surface tension
   ! -----------------------------------------------------------------
-  subroutine get_surface_tension_test3(temp,sigma)
+  subroutine get_surface_tension_test_evaporation(temp,sigma)
 
     real(amrex_real), intent(in) :: temp    ! Temperature [K]
     real(amrex_real), intent(out) :: sigma  ! Surface tension [N/m] 
@@ -128,13 +127,13 @@ contains
        sigma = 1.143 - 0.20E-3*(temp-1560.0)
     end if
     
-  end subroutine get_surface_tension_test3
+  end subroutine get_surface_tension_test_evaporation
 
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute vapor pressure
   ! -----------------------------------------------------------------
-  subroutine get_vapor_pressure_test3(temp,pv)
+  subroutine get_vapor_pressure_test_evaporation(temp,pv)
 
     real(amrex_real), intent(in) :: temp    ! Temperature [K]
     real(amrex_real), intent(out) :: pv     ! Vapor pressure [Pa]
@@ -145,13 +144,13 @@ contains
       pv = 10**(10.2089-13696.6/(temp-124.63))
     end if
     
-  end subroutine get_vapor_pressure_test3  
+  end subroutine get_vapor_pressure_test_evaporation  
   
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the viscosity
   ! -----------------------------------------------------------------
-  subroutine get_viscosity_test3(temp,mu)
+  subroutine get_viscosity_test_evaporation(temp,mu)
 
     real(amrex_real), intent(in) :: temp ! Temperature [K]
     real(amrex_real), intent(out) :: mu  ! Viscosity [Pa*s] 
@@ -162,24 +161,24 @@ contains
        mu = 0.1E-3*EXP(3.93*1560.0/temp)
     end if
     
-  end subroutine get_viscosity_test3  
+  end subroutine get_viscosity_test_evaporation  
   
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the atomic mass
   ! -----------------------------------------------------------------
-  subroutine get_atomic_mass_test3(m_A)
+  subroutine get_atomic_mass_test_evaporation(m_A)
 
     real(amrex_real), intent(out) :: m_A ! Atomic mass [g/mol]
 
     m_A = 9.0121831
     
-  end subroutine get_atomic_mass_test3
+  end subroutine get_atomic_mass_test_evaporation
 
   
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the melting point properties
   ! -----------------------------------------------------------------
-  subroutine get_melting_point_test3(temp_melt, enth_fus, rho_melt)
+  subroutine get_melting_point_test_evaporation(temp_melt, enth_fus, rho_melt)
 
     real(amrex_real), intent(out) :: temp_melt ! Temperature at melting [K] 
     real(amrex_real), intent(out) :: enth_fus   ! Enthalpy of fusion [kJ/mol]
@@ -189,25 +188,25 @@ contains
     enth_fus = 7.959 + 6.855 ! The latent heat of the hcp-to-bcc transition is included in the enthalpy of fusion
     rho_melt = 1705.0
     
-  end subroutine get_melting_point_test3
+  end subroutine get_melting_point_test_evaporation
 
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the enthalpy of vaporization
   ! -----------------------------------------------------------------
-  subroutine get_enthalpy_of_vaporization_test3(enth_vap)
+  subroutine get_enthalpy_of_vaporization_test_evaporation(enth_vap)
 
     real(amrex_real), intent(out) :: enth_vap ! Enthalpy of vaporization [kj/mol]
 
     enth_vap = 324.0
     
-  end subroutine get_enthalpy_of_vaporization_test3  
+  end subroutine get_enthalpy_of_vaporization_test_evaporation  
 
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the work function
   ! -----------------------------------------------------------------
-  subroutine get_work_function_test3(Wf)
+  subroutine get_work_function_test_evaporation(Wf)
 
     real(amrex_real), intent(out) :: Wf ! Enthalpy of vaporization [J]
 
@@ -215,36 +214,36 @@ contains
     ! Conversion from eV to Joule
     Wf = Wf*1.60218E-19
     
-  end subroutine get_work_function_test3    
+  end subroutine get_work_function_test_evaporation    
 
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute Richardson constant
   ! -----------------------------------------------------------------
-  subroutine get_Richardson_test3(Aeff)
+  subroutine get_Richardson_test_evaporation(Aeff)
     
     real(amrex_real), intent(out) :: Aeff ! Richardson constant [A/m^2*K^2]
 
     Aeff = 120E4
     
-  end subroutine get_Richardson_test3
+  end subroutine get_Richardson_test_evaporation
 
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute emissivity
   ! -----------------------------------------------------------------
-  subroutine get_emissivity_test3(eps_t)
+  subroutine get_emissivity_test_evaporation(eps_t)
 
     real(amrex_real), intent(out) :: eps_t ! Emissivity [dimensionless]
 
     eps_t = 0.0
     
-  end subroutine get_emissivity_test3      
+  end subroutine get_emissivity_test_evaporation      
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the absolute thermoelectric power
   ! -----------------------------------------------------------------
-  subroutine get_thermelectric_power_test3(temp, S)
+  subroutine get_thermelectric_power_test_evaporation(temp, S)
 
     real(amrex_real), intent(in) :: temp   ! Temperature [K]
     real(amrex_real), intent(out) :: S     ! Thermoelectric power [V/K]
@@ -261,7 +260,7 @@ contains
     ! Conversion from uV/K to V/K
     S = S*1E-6
     
-  end subroutine get_thermelectric_power_test3
+  end subroutine get_thermelectric_power_test_evaporation
 
   
-end module material_properties_test3_module
+end module material_properties_test_evaporation_module
