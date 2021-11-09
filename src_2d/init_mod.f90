@@ -17,9 +17,7 @@ module init_module
   public :: run_init
   public :: run_finalize
 
-contains
-
-  
+  contains
   ! -----------------------------------------------------------------
   ! Subroutine to initialize a simulation (from scratch or from
   ! restart file)
@@ -29,6 +27,7 @@ contains
     use amr_data_module, only : amr_data_init
     use read_input_module, only : cooling_debug, &
                                   read_input_file, &
+                                  plasma_flux_type, &
                                   restart
     use material_properties_module, only : init_mat_prop
     use heat_flux_module, only : debug_cooling_fluxes
@@ -51,6 +50,9 @@ contains
 
     ! Print cooling fluxes to table if debug is on
     if (nint(cooling_debug(1)) .eq. 1) call debug_cooling_fluxes
+
+    ! Read in the heat flux file, if necessery
+    if (plasma_flux_type.eq.'Input_file') call construct_healflux_matrix
     
     ! Initialize amrex data used in the simulation
     call amr_data_init
@@ -91,6 +93,31 @@ contains
     call amrex_finalize
   
   end subroutine run_finalize
+
+  subroutine construct_healflux_matrix
+
+    use read_heat_flux_module, only: get_mesh_dimensions, &
+                                     read_heatflux_file
+    use heat_flux_module, only: input_time_mesh, &
+                                input_surf_mesh, &
+                                heatflux_table
+    use read_input_module, only: plasma_input_file
+        
+    implicit none
+
+    integer :: dims(1:2)
+
+    call get_mesh_dimensions (plasma_input_file, dims)
+
+    allocate (input_time_mesh(1:dims(1)) )
+    allocate (input_surf_mesh(1:dims(2)) )
+    allocate (heatflux_table(1:dims(1),1:dims(2)) )
+
+    call read_heatflux_file(plasma_input_file, input_time_mesh, &
+                            input_surf_mesh, heatflux_table)
+
+                            
+  end subroutine construct_healflux_matrix
   
   
 end module init_module

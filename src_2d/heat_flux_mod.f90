@@ -15,7 +15,18 @@ module heat_flux_module
    ! Public subroutines
    ! -----------------------------------------------------------------
    public :: get_boundary_heat_flux
-   public :: debug_cooling_fluxes
+   public :: debug_cooling_fluxes  
+   
+   ! ------------------------------------------------------------------
+   ! Public variables
+   ! ------------------------------------------------------------------
+   public :: input_time_mesh
+   public :: input_surf_mesh
+   public :: heatflux_table
+   real(amrex_real), allocatable, dimension(:), save :: input_time_mesh
+   real(amrex_real), allocatable, dimension(:), save :: input_surf_mesh
+   real(amrex_real), allocatable, dimension(:,:), save :: heatflux_table
+   ! real(8), dimension(1:2,1:8), save :: heatflux_table
    
  contains
    
@@ -73,6 +84,8 @@ module heat_flux_module
                   call gaussian_heat_flux(time, xpos, q_plasma)
                elseif (plasma_flux_type.eq.'Uniform') then
                   call uniform_heat_flux(time, xpos, q_plasma)
+               elseif (plasma_flux_type.eq.'Input_file') then
+                  call get_input_heat_flux (time, xpos, q_plasma)
                else
                   STOP "Unknown plasma heat flux type"
                end if
@@ -152,7 +165,73 @@ module heat_flux_module
          end if
       end if
       
-    end subroutine uniform_heat_flux   
+    end subroutine uniform_heat_flux  
+    
+   ! -----------------------------------------------------------------
+   ! Subroutine used to prescribe a gaussian heat flux active for
+   ! time <= time_exposure
+   ! -----------------------------------------------------------------   
+    subroutine get_input_heat_flux(time, xpos, qb) 
+      
+      ! Input and output variables
+      real(amrex_real), intent(in) :: time
+      real(amrex_real), intent(in) :: xpos
+      real(amrex_real), intent(out) :: qb
+
+      ! Local variables 
+      integer :: i_x, i_t, n, m
+      real(amrex_real) :: x(2), t(2), val(4)
+      real(amrex_real) :: tx_query(2)
+      
+      
+      qb = 0_amrex_real
+      
+      n = size(input_time_mesh,1)
+      m = size(input_surf_mesh,1)
+      call locate(input_time_mesh, n, time, i_t)
+      call locate(input_surf_mesh, m, xpos, i_x)
+
+      ! If query point is outside the 4 bounds
+      ! then take the closest corner
+      if(i_t.eq.0 .and. i_x.eq.0) then
+         qb = heatflux_table(1,1)
+      elseif (i_t.eq.n .and. i_x.eq.m) then
+         qb = heatflux_table(n,m)
+      elseif (i_t.eq.0 .and. i_x.eq.m) then
+         qb = heatflux_table(1,m)
+      elseif (i_t.eq.n .and. i_x.eq.0) then
+         qb = heatflux_table(n,1)
+      ! If query point is outside 2 bounds
+      ! then linear interpolation
+      elseif (i_t.eq.0 .or. i_t.eq.n) then
+         x(1) = input_surf_mesh(i_x)
+         x(2) = input_surf_mesh(i_x+1)
+         if(i_t.eq.0) i_t = 1
+         val(1) = heatflux_table(i_t, i_x)
+         val(2) = heatflux_table(i_t, i_x+1)
+         call lin_intrp(x, val(1:2), xpos, qb)
+      elseif (i_x.eq.0 .or. i_x.eq.m) then
+         t(1) = input_time_mesh(i_t)
+         t(2) = input_time_mesh(i_t+1)
+         if(i_x.eq.0) i_x = 1
+         val(1) = heatflux_table(i_t, i_x)
+         val(2) = heatflux_table(i_t+1, i_x)
+         call lin_intrp(t, val(1:2), time, qb)
+      else
+         t(1) = input_time_mesh(i_t)
+         t(2) = input_time_mesh(i_t+1)
+         x(1) = input_surf_mesh(i_x)
+         x(2) = input_surf_mesh(i_x+1)
+         val(1) = heatflux_table(i_t,i_x)
+         val(2) = heatflux_table(i_t+1,i_x)
+         val(3) = heatflux_table(i_t+1,i_x+1)
+         val(4) = heatflux_table(i_t,i_x+1)
+         tx_query(1) = time
+         tx_query(2) = xpos
+         call bilin_intrp(t, x, val, tx_query, qb)
+      endif
+      
+    end subroutine get_input_heat_flux
    
    ! -----------------------------------------------------------------
    ! Subroutine used to find the surface cooling flux due to 
@@ -292,6 +371,77 @@ module heat_flux_module
       close(2) 
       
     end subroutine debug_cooling_fluxes
+
+
+   ! Given an array xx(1:n), and given a value x, returns a value j such that x is between
+   ! xx(j) and xx(j+1). xx(1:n) must be monotonic, either increasing or decreasing. j=0
+   ! or j=n is returned to indicate that x is out of range.
+   subroutine locate(xx,n,x,j)
+
+      ! Input and output variables
+
+      integer, intent(in) :: n
+      real(amrex_real), intent(in) :: xx(n)
+      real(amrex_real), intent(in) :: x
+      integer, intent(out) :: j
+
+      ! Local variables
+
+      integer jl,jm,ju
+
+      jl=0 ! Initialize lower
+      ju=n+1 ! upper limits.
+      do while(ju-jl.gt.1)
+         jm=(ju+jl)/2
+         if((xx(n).ge.xx(1)).eqv.(x.ge.xx(jm)))then
+            jl=jm
+         else
+            ju=jm
+         endif
+      end do
+      if(x.eq.xx(1)) then
+         j=1
+      else if(x.eq.xx(n)) then
+         j=n-1
+      else
+         j=jl
+      endif
+   end subroutine locate
+
+   subroutine bilin_intrp(x, y, val, xy_query, val_query)
+      ! Input and output variables
+      real(amrex_real), intent(in) :: x(1:2)
+      real(amrex_real), intent(in) :: y(1:2)
+      real(amrex_real), intent(in) :: val(1:4)
+      real(amrex_real), intent(in) :: xy_query(1:2)
+      real(amrex_real), intent(out) :: val_query
+
+      ! Local variables
+      real(amrex_real) t, u
+
+      t = (xy_query(1)-x(1))/(x(2)-x(1))
+      u = (xy_query(2)-y(1))/(y(2)-y(1))
+
+      val_query = (1-t)*(1-u)*val(1) + t*(1-u)*val(2) &
+                  + t*u*val(3) + (1-t)*u*val(4)
+
+   end subroutine bilin_intrp
+
+   subroutine lin_intrp(x, val, x_query, val_query)
+      ! Input and output variables
+      real(amrex_real), intent(in) :: x(1:2)
+      real(amrex_real), intent(in) :: val(1:2)
+      real(amrex_real), intent(in) :: x_query
+      real(amrex_real), intent(out) :: val_query
+
+      ! Local variables
+      real(amrex_real) t
+
+      t = (x_query-x(1))/(x(2)-x(1))
+
+      val_query = (1-t)*val(1) + t*val(2)
+
+   end subroutine lin_intrp
     
  end module heat_flux_module
  
