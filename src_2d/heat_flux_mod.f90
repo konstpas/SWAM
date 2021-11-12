@@ -26,7 +26,6 @@ module heat_flux_module
    real(amrex_real), allocatable, dimension(:), save :: input_time_mesh
    real(amrex_real), allocatable, dimension(:), save :: input_surf_mesh
    real(amrex_real), allocatable, dimension(:,:), save :: heatflux_table
-   ! real(8), dimension(1:2,1:8), save :: heatflux_table
    
  contains
    
@@ -168,8 +167,8 @@ module heat_flux_module
     end subroutine uniform_heat_flux  
     
    ! -----------------------------------------------------------------
-   ! Subroutine used to prescribe a gaussian heat flux active for
-   ! time <= time_exposure
+   ! Subroutine used to prescribe a heat flux defined in the
+   ! an input file.
    ! -----------------------------------------------------------------   
     subroutine get_input_heat_flux(time, xpos, qb) 
       
@@ -334,8 +333,7 @@ module heat_flux_module
       h_vap = h_vap*1E3/Na
       
       gm = pv*sqrt(m_A/(2*pi*kb*Ts))    
-      ! q_vap = gm/m_A*(h_vap + 2*kb*Ts) 
-      q_vap = gm/m_A*(h_vap) 
+      q_vap = gm/m_A*(h_vap + 2*kb*Ts) 
       
     end subroutine vaporization_cooling
 
