@@ -15,6 +15,11 @@ module read_heat_flux_module
     public :: read_heatflux_file
 
     contains
+
+    ! -----------------------------------------------------------------
+    ! Subroutine used to get the dimensions of the cartesian mesh 
+    ! described in the heat flux input file.
+    ! -----------------------------------------------------------------
     subroutine get_mesh_dimensions(input_filename, dims)
 
         ! Input and output variable
@@ -40,27 +45,34 @@ module read_heat_flux_module
         end if
     
         got_one = .false.
-        do while (.not.got_one)
-            read ( input_unit, '(a)', iostat = input_status ) line
+        do while (.not.got_one) ! Go through the document until you find a non
+                                ! empty line that is not a comment line
+
+            read ( input_unit, '(a)', iostat = input_status ) line ! Reads one line
         
             if ( input_status /= 0 ) then
                 stop 'No data lines given'
             end if
         
             if ( line(1:1) == '#' .or. len_trim ( line ) == 0 ) then
-                cycle
+                cycle ! If the line starts with #, then it's a comment line, start over the do loop.
             end if  
         
             call s_to_i4vec ( line, 2, dims, ierror)  
             if ( ierror /= 0 ) then
                 cycle
             end if
-            got_one = .true.
+            got_one = .true. ! The dimensions of the mesh ("dims") have been found.
         end do
     
         close ( unit = input_unit )
-    end
+    end subroutine get_mesh_dimensions
 
+    ! -----------------------------------------------------------------
+    ! Subroutine used to read the heat flux described in an input.
+    ! It also returns arrays for the vectors that generated the heat
+    ! flux mesh in the input file.
+    ! -----------------------------------------------------------------
     subroutine read_heatflux_file(input_filename, tpoints, &
                                 xpoints, heatflux)
 
@@ -91,37 +103,48 @@ module read_heat_flux_module
     
     
         got_one = .false.
-        do while (.not.got_one)
-            read ( input_unit, '(a)', iostat = input_status ) line
+        do while (.not.got_one) ! Go through the document until you find a non
+                                ! empty line that is not a comment line
+
+            read ( input_unit, '(a)', iostat = input_status ) line ! Reads one line
         
             if ( input_status /= 0 ) then
                 stop 'No data given.'
             end if
         
             if ( line(1:1) == '#' .or. len_trim ( line ) == 0 ) then
-                cycle
+                cycle ! If the line starts with #, then it's a comment line, start over the do loop.
             end if  
         
             call s_to_i4vec ( line, 2, dims, ierror)  
             if ( ierror /= 0 ) then
                 cycle
             end if
-            got_one = .true.
+            got_one = .true. ! The dimensions of the mesh ("dims") have been found.
         end do
+
         allocate (heatflux(1:dims(1),1:dims(2)))
         allocate (tpoints(1:dims(1)))
         allocate (xpoints(1:dims(2)))
 
-        call r8vec_data_read (input_unit, input_status, dims(1), tpoints)
-        call r8vec_data_read (input_unit, input_status, dims(2), xpoints)
-        do i = 1, dims(1)
+        call r8vec_data_read (input_unit, input_status, dims(1), tpoints) ! Reads dims(1) amount of lines and finds the 
+                                                                          ! vector that describes the time coordinates
+        call r8vec_data_read (input_unit, input_status, dims(2), xpoints) ! Reads dims(2) amount of lines and finds the 
+                                                                          ! vector that describes the space coordinates
+
+        do i = 1, dims(1) ! Fills the heatflux table, line by line (one line corresponds to the heat-flux at all locations
+                          ! at a given time.)
             call r8vec_data_read (input_unit, input_status, dims(2), heatflux(i,1:dims(2)))
         end do
 
     
         close ( unit = input_unit )
-    end
+    end subroutine read_heatflux_file
 
+    ! -----------------------------------------------------------------
+    ! Subroutine used to find an available i/o unit. Taken from 
+    ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
+    ! -----------------------------------------------------------------
     subroutine get_unit ( iunit )
 
     !*****************************************************************************80
@@ -183,8 +206,12 @@ module read_heat_flux_module
             end if
 
         end do
-    end
+    end subroutine get_unit
 
+    ! -----------------------------------------------------------------
+    ! Subroutine used  through a string "s" and returns an integer(kind=4)
+    ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
+    ! -----------------------------------------------------------------
     subroutine s_to_i4 ( s, ival, ierror, length )
 
     !*****************************************************************************80
@@ -297,8 +324,12 @@ module read_heat_flux_module
             length = 0
         end if
 
-    end
-
+    end subroutine s_to_i4
+    
+    ! -----------------------------------------------------------------
+    ! Goes through a string "s" and returns "n" an integers(kind=4).
+    ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
+    ! -----------------------------------------------------------------
     subroutine s_to_i4vec ( s, n, ivec, ierror )
 
     !*****************************************************************************80
@@ -360,8 +391,13 @@ module read_heat_flux_module
 
         end do
 
-    end
-            
+    end subroutine s_to_i4vec
+ 
+    ! -----------------------------------------------------------------
+    ! Subroutine that takes an open file and reads "n" real numbers 
+    ! from in. Taken from 
+    ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
+    ! -----------------------------------------------------------------             
     subroutine r8vec_data_read (input_unit, input_status, n, table )
 
     !*****************************************************************************80
@@ -448,8 +484,13 @@ module read_heat_flux_module
 
         end do
 
-    end
+    end subroutine r8vec_data_read
 
+    ! -----------------------------------------------------------------
+    ! Subroutine that takes a string "s" and reads a real number 
+    ! from in. Taken from 
+    ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
+    ! -----------------------------------------------------------------
     subroutine s_to_r8 ( s, dval, ierror, length )
 
     !*****************************************************************************80
@@ -725,9 +766,13 @@ module read_heat_flux_module
         dval = real ( isgn, kind = amrex_real) * rexp * rtop / rbot
 
         return
-    end
+    end subroutine s_to_r8
 
-
+    ! -----------------------------------------------------------------
+    ! A functions that takes two characters and check if they are 
+    ! equal (case insensitive). Taken from
+    ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
+    ! -----------------------------------------------------------------
     function ch_eqi ( c1, c2 )
 
     !*****************************************************************************80
@@ -776,8 +821,13 @@ module read_heat_flux_module
             ch_eqi = .false.
         end if
 
-    end
+    end function ch_eqi
 
+    ! -----------------------------------------------------------------
+    ! A subroutine that takes a character and returns an integer with
+    ! the same value (if character is an integer). Taken from
+    ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
+    ! -----------------------------------------------------------------
     subroutine ch_to_digit ( c, digit )
 
     !*****************************************************************************80
@@ -834,7 +884,13 @@ module read_heat_flux_module
 
         end if
 
-    end
+    end subroutine ch_to_digit
+    
+    ! -----------------------------------------------------------------
+    ! A subroutine that takes a character and capcapitalizes it. 
+    ! Taken from
+    ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
+    ! -----------------------------------------------------------------
     subroutine ch_cap ( c )
 
     !*****************************************************************************80
@@ -868,5 +924,5 @@ module read_heat_flux_module
         c = char ( itemp - 32 )
         end if
 
-    end
+    end subroutine ch_cap
 end module read_heat_flux_module

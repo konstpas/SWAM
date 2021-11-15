@@ -52,7 +52,7 @@ module init_module
     if (nint(cooling_debug(1)) .eq. 1) call debug_cooling_fluxes
 
     ! Read in the heat flux file, if necessery
-    if (plasma_flux_type.eq.'Input_file') call construct_healflux_matrix
+    if (plasma_flux_type.eq.'Input_file') call construct_heat_flux_table
     
     ! Initialize amrex data used in the simulation
     call amr_data_init
@@ -94,30 +94,30 @@ module init_module
   
   end subroutine run_finalize
 
-  subroutine construct_healflux_matrix
+  subroutine construct_heat_flux_table
 
     use read_heat_flux_module, only: get_mesh_dimensions, &
                                      read_heatflux_file
-    use heat_flux_module, only: input_time_mesh, &
-                                input_surf_mesh, &
-                                heatflux_table
-    use read_input_module, only: plasma_input_file
+    use heat_flux_module, only: plasma_flux_time_mesh, &
+                                plasma_flux_surf_mesh, &
+                                heat_flux_table
+    use read_input_module, only: plasma_flux_input_file
         
     implicit none
 
     integer :: dims(1:2)
 
-    call get_mesh_dimensions (plasma_input_file, dims)
+    call get_mesh_dimensions (plasma_flux_input_file, dims)
 
-    allocate (input_time_mesh(1:dims(1)) )
-    allocate (input_surf_mesh(1:dims(2)) )
-    allocate (heatflux_table(1:dims(1),1:dims(2)) )
+    allocate (plasma_flux_time_mesh(1:dims(1)) )
+    allocate (plasma_flux_surf_mesh(1:dims(2)) )
+    allocate (heat_flux_table(1:dims(1),1:dims(2)) )
 
-    call read_heatflux_file(plasma_input_file, input_time_mesh, &
-                            input_surf_mesh, heatflux_table)
+    call read_heatflux_file(plasma_flux_input_file, plasma_flux_time_mesh, &
+                            plasma_flux_surf_mesh, heat_flux_table)
 
                             
-  end subroutine construct_healflux_matrix
+  end subroutine construct_heat_flux_table
   
   
 end module init_module
