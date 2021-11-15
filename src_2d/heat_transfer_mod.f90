@@ -62,7 +62,7 @@ contains
     real(amrex_real), intent(in) :: idom_new(idn_lo(1):idn_hi(1),idn_lo(2):idn_hi(2))
     type(amrex_geometry), intent(in) :: geom ! geometry
     
-    !Local variables
+    ! Local variables
     integer :: i,j
     real(amrex_real) :: dx(2) ! Grid size
     real(amrex_real) :: lo_phys(2) ! Physical location of the lowest corner of the tile box
@@ -75,6 +75,8 @@ contains
           ! Points added to the domain
           if (nint(idom_old(i,j)).eq.0 .and. nint(idom_new(i,j)).ne.0) then
              u_old(i,j) = u_old(i,j-1)
+             write(*,*) 'That shouldnt happen'
+             write(*,*) i, j
           ! Points removed from the domain
           else if (nint(idom_new(i,j)).eq.0) then
              u_old(i,j) = 0_amrex_real
@@ -88,7 +90,12 @@ contains
 
     ! Get physical location of the lowest corner of the tile box
     lo_phys = geom%get_physical_location(lo)
+
     
+    call get_temp(lo-1, hi+1, &
+                  u_old, uo_lo, uo_hi, &
+                  temp_old, to_lo , to_hi)
+                  
     ! Get enthalpy flux 
     call create_face_flux(dx, lo, hi, &
                           u_old, uo_lo, uo_hi, &
@@ -130,7 +137,16 @@ contains
     ! Get temperature corresponding to the output enthalpy
     call get_temp(lo, hi, &
                   u_new, un_lo, un_hi, &
-                  temp_new, tn_lo , tn_hi) 
+                  temp_new, tn_lo , tn_hi)
+
+   do i = lo(1),hi(1)
+      do  j = lo(2),hi(2)
+         if(temp_new(i,j).eq.0 .and. idom_new(i,j).ne.0) then
+            write(*,*) 'Something is weird I think'
+            write(*,*) i,j
+         end if
+      end do
+   end do 
     
   end subroutine increment_enthalpy
 
@@ -143,7 +159,8 @@ contains
                          idom, id_lo, id_hi, &
                          temp, t_lo, t_hi)
 
-    use material_properties_module, only : temp_melt    
+    use material_properties_module, only : temp_melt      
+    use amr_data_module, only : surf_ind, surf_pos   
     
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)
@@ -162,6 +179,7 @@ contains
 
     ! Get location of the free surface
     call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
+   !  surf_pos_heat_domain = surf_pos(id_lo(1):id_hi(1))
 
     ! Check whether the liquid should be distinguished from the solid or not
     if (t_lo(1).eq.lo(1)-1 .and. t_hi(1).eq.hi(1)+1 .and. &
@@ -187,8 +205,10 @@ contains
                    idom(i,j) = 3
                 else if (temp(i,j).eq.temp_melt) then
                    idom(i,j) = 2
-                else
+                else if (temp(i,j).gt.0) then
                    idom(i,j) = 1
+                else
+                   idom(i,j) = 0
                 end if
              else
                 idom(i,j) = 1

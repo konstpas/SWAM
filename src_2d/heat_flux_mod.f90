@@ -58,10 +58,10 @@ module heat_flux_module
       real(amrex_real), intent(out) :: qb(lo(1):hi(1),lo(2):hi(2))
 
       ! Local variables
-      integer :: i, j
+      integer :: i, j, k, l
       real(amrex_real) :: q_plasma
       real(amrex_real) :: q_vap, q_rad, q_therm
-      real(amrex_real) :: xpos
+      real(amrex_real) :: xpos, ypos
 
       qb = 0.0
       q_plasma = 0.0
@@ -110,7 +110,35 @@ module heat_flux_module
                ! Note: the term /dx(2) converts a surface heat flux [W/m^2]
                ! into a volumetric heat flux [W/m^3]
                qb(i,j) = qb(i,j)/dx(2)
+               ! if(qb(i,j).le.0) then
+               !    write(*,*) 'Negative surface heat flux at cell ' 
+               !    write(*,*) i, j
+               !    write(*,*) 'Where the surface temperature is '
+               !    write(*,*) temp(i,j)      
+               !    do k = lo(1), hi(1)
+               !       do l = lo(2), hi(2)
+               !          write(*,*) k,l
+               !          write(*,*) temp(k,l)   
+               !       end do 
+               !    end do
+               !    STOP 'Negative heat flux.'
+               ! end if      
                
+               if(qb(i,j).ne.qb(i,j)) then
+                  ypos = xlo(2) + (j-lo(2))*dx(2)
+                  write(*,*) 'Nan heat flux at cell ' 
+                  write(*,*) i, j
+                  write(*,*) xpos, ypos
+                  write(*,*) 'Where the surface temperature is '
+                  write(*,*) temp(i,j)
+                  do k = lo(1), hi(1)
+                     do l = lo(2), hi(2)
+                        write(*,*) k,l
+                        write(*,*) temp(k,l)   
+                     end do 
+                  end do
+                  STOP 'Nan heat flux.'
+               end if             
             end if
             
          end do

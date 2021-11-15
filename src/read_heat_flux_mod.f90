@@ -15,6 +15,11 @@ module read_heat_flux_module
     public :: read_heatflux_file
 
     contains
+
+    ! -----------------------------------------------------------------
+    ! Subroutine used to get the dimensions of the cartesian mesh 
+    ! described in the heat flux input file.
+    ! -----------------------------------------------------------------
     subroutine get_mesh_dimensions(input_filename, dims)
 
         ! Input and output variable
@@ -61,6 +66,11 @@ module read_heat_flux_module
         close ( unit = input_unit )
     end
 
+    ! -----------------------------------------------------------------
+    ! Subroutine used to read the heat flux described in an input.
+    ! It also returns arrays for the vectors that generated the heat
+    ! flux mesh in the input file.
+    ! -----------------------------------------------------------------
     subroutine read_heatflux_file(input_filename, tpoints, &
                                 xpoints, zpoints, heatflux)
 
@@ -127,6 +137,10 @@ module read_heat_flux_module
         close ( unit = input_unit )
     end
 
+    ! -----------------------------------------------------------------
+    ! Subroutine used to find an available i/o unit. Taken from 
+    ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
+    ! -----------------------------------------------------------------
     subroutine get_unit ( iunit )
 
     !*****************************************************************************80
@@ -190,6 +204,10 @@ module read_heat_flux_module
         end do
     end
 
+    ! -----------------------------------------------------------------
+    ! Subroutine used  through a string "s" and returns an integer(kind=4)
+    ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
+    ! -----------------------------------------------------------------
     subroutine s_to_i4 ( s, ival, ierror, length )
 
     !*****************************************************************************80
@@ -304,6 +322,10 @@ module read_heat_flux_module
 
     end
 
+    ! -----------------------------------------------------------------
+    ! Goes through a string "s" and returns "n" an integers(kind=4).
+    ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
+    ! -----------------------------------------------------------------
     subroutine s_to_i4vec ( s, n, ivec, ierror )
 
     !*****************************************************************************80
@@ -366,7 +388,12 @@ module read_heat_flux_module
         end do
 
     end
-            
+
+    ! -----------------------------------------------------------------
+    ! Subroutine that takes an open file and reads "n" real numbers 
+    ! from in. Taken from 
+    ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
+    ! -----------------------------------------------------------------         
     subroutine r8vec_data_read (input_unit, input_status, n, table )
 
     !*****************************************************************************80
@@ -455,6 +482,11 @@ module read_heat_flux_module
 
     end
 
+    ! -----------------------------------------------------------------
+    ! Subroutine that takes a string "s" and reads a real number 
+    ! from in. Taken from 
+    ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
+    ! -----------------------------------------------------------------
     subroutine s_to_r8 ( s, dval, ierror, length )
 
     !*****************************************************************************80
@@ -732,7 +764,11 @@ module read_heat_flux_module
         return
     end
 
-
+    ! -----------------------------------------------------------------
+    ! A subroutine that takes two characters and check if they are 
+    ! equal (case insensitive). Taken from
+    ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
+    ! -----------------------------------------------------------------
     function ch_eqi ( c1, c2 )
 
     !*****************************************************************************80
@@ -783,6 +819,11 @@ module read_heat_flux_module
 
     end
 
+    ! -----------------------------------------------------------------
+    ! A subroutine that takes a character and returns an integer with
+    ! the same value (if character is an integer). Taken from
+    ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
+    ! -----------------------------------------------------------------
     subroutine ch_to_digit ( c, digit )
 
     !*****************************************************************************80
@@ -840,6 +881,12 @@ module read_heat_flux_module
         end if
 
     end
+
+    ! -----------------------------------------------------------------
+    ! A subroutine that takes a character and capcapitalizes it. 
+    ! Taken from
+    ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
+    ! -----------------------------------------------------------------
     subroutine ch_cap ( c )
 
     !*****************************************************************************80

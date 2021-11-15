@@ -710,10 +710,26 @@ module material_properties_module
     ! real(amrex_real) :: ktherm
     ! real(amrex_real) :: rho
      
+
     ! Obtain the temperature from linear interpolation of the enthalpy-temperature tables
     do i = lo(1),hi(1)
        do j = lo(2),hi(2)
           
+
+
+          if(ui(i,j).ne.ui(i,j)) then
+             STOP 'Enthalpy query in temperature table is nan.'
+          end if
+
+          if(ui(i,j).eq.ui(i,j)-1) then
+             STOP 'Enthalpy query for temperature table is infinity.'
+          end if
+
+          if(ui(i,j).lt.0) then
+            write(*,*) ui(i,j)
+            STOP 'Enthalpy query for temperature table is negative.'
+          end if
+
           do idx = 0,phiT_table_n_points 
              if (ui(i,j) .le. enth_table(idx) ) exit 
           end do
@@ -761,13 +777,23 @@ module material_properties_module
 
     ! Local variables
     integer :: idx
-    real(amrex_real) :: int_coeff 
+    real(amrex_real) :: int_coeff
+
+    if(temp.ne.temp) then
+      STOP 'Temperature query for enthalpy table is nan.'
+    end if
+
+    if(temp.eq.temp-1) then
+      STOP 'Temperature query for enthalpy table is infinity.'
+    end if
 
     do idx = 0,phiT_table_n_points 
        if (temp .le. temp_table(idx)) exit 
     end do
     
-    if (idx.eq.phiT_table_n_points) STOP 'Temperature table exceeded'
+    if (idx.eq.phiT_table_n_points) then 
+      STOP 'Temperature table exceeded'
+    end if
     
     ! If the input temperature is the melting temperature the enthalpy is ambiguous and
     ! it should be specified if the system is to be considered solid or liquid
