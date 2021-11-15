@@ -15,7 +15,17 @@ module heat_flux_module
    ! Public subroutines
    ! -----------------------------------------------------------------
    public :: get_boundary_heat_flux
-   public :: debug_cooling_fluxes
+   public :: debug_cooling_fluxes  
+   
+   ! ------------------------------------------------------------------
+   ! Public variables
+   ! ------------------------------------------------------------------
+   public :: plasma_flux_time_mesh
+   public :: plasma_flux_surf_mesh
+   public :: heat_flux_table
+   real(amrex_real), allocatable, dimension(:), save :: plasma_flux_time_mesh
+   real(amrex_real), allocatable, dimension(:), save :: plasma_flux_surf_mesh
+   real(amrex_real), allocatable, dimension(:,:), save :: heat_flux_table
    
  contains
    
@@ -73,6 +83,8 @@ module heat_flux_module
                   call gaussian_heat_flux(time, xpos, q_plasma)
                elseif (plasma_flux_type.eq.'Uniform') then
                   call uniform_heat_flux(time, xpos, q_plasma)
+               elseif (plasma_flux_type.eq.'Input_file') then
+                  call file_heat_flux (time, xpos, q_plasma)
                else
                   STOP "Unknown plasma heat flux type"
                end if
@@ -152,7 +164,77 @@ module heat_flux_module
          end if
       end if
       
-    end subroutine uniform_heat_flux   
+    end subroutine uniform_heat_flux  
+    
+   ! -----------------------------------------------------------------
+   ! Subroutine used to prescribe a heat flux defined in
+   ! an input file.
+   ! -----------------------------------------------------------------   
+    subroutine file_heat_flux(time, xpos, qb) 
+      
+      ! Input and output variables
+      real(amrex_real), intent(in) :: time
+      real(amrex_real), intent(in) :: xpos
+      real(amrex_real), intent(out) :: qb
+
+      ! Local variables 
+      integer :: i_x, i_t, n, m
+      real(amrex_real) :: x(2), t(2), val(4)
+      real(amrex_real) :: tx_query(2)
+      
+      
+      qb = 0_amrex_real
+      
+      n = size(plasma_flux_time_mesh,1)
+      m = size(plasma_flux_surf_mesh,1)
+
+      ! Find the maximum index i_t such that the
+      ! time falls in-between plasma_flux_time_mesh(i_t)
+      ! and plasma_flux_time_mesh(i_t+1). Similar for i_x
+      call bisection(plasma_flux_time_mesh, n, time, i_t)
+      call bisection(plasma_flux_surf_mesh, m, xpos, i_x)
+
+      ! If query point is outside the 4 bounds
+      ! then take the closest corner
+      if(i_t.eq.0 .and. i_x.eq.0) then
+         qb = heat_flux_table(1,1)
+      elseif (i_t.eq.n .and. i_x.eq.m) then
+         qb = heat_flux_table(n,m)
+      elseif (i_t.eq.0 .and. i_x.eq.m) then
+         qb = heat_flux_table(1,m)
+      elseif (i_t.eq.n .and. i_x.eq.0) then
+         qb = heat_flux_table(n,1)
+      ! If query point is outside 2 bounds
+      ! then linear interpolation
+      elseif (i_t.eq.0 .or. i_t.eq.n) then
+         x(1) = plasma_flux_surf_mesh(i_x)
+         x(2) = plasma_flux_surf_mesh(i_x+1)
+         if(i_t.eq.0) i_t = 1
+         val(1) = heat_flux_table(i_t, i_x)
+         val(2) = heat_flux_table(i_t, i_x+1)
+         call lin_intrp(x, val(1:2), xpos, qb)
+      elseif (i_x.eq.0 .or. i_x.eq.m) then
+         t(1) = plasma_flux_time_mesh(i_t)
+         t(2) = plasma_flux_time_mesh(i_t+1)
+         if(i_x.eq.0) i_x = 1
+         val(1) = heat_flux_table(i_t, i_x)
+         val(2) = heat_flux_table(i_t+1, i_x)
+         call lin_intrp(t, val(1:2), time, qb)
+      else
+         t(1) = plasma_flux_time_mesh(i_t)
+         t(2) = plasma_flux_time_mesh(i_t+1)
+         x(1) = plasma_flux_surf_mesh(i_x)
+         x(2) = plasma_flux_surf_mesh(i_x+1)
+         val(1) = heat_flux_table(i_t,i_x)
+         val(2) = heat_flux_table(i_t+1,i_x)
+         val(3) = heat_flux_table(i_t+1,i_x+1)
+         val(4) = heat_flux_table(i_t,i_x+1)
+         tx_query(1) = time
+         tx_query(2) = xpos
+         call bilin_intrp(t, x, val, tx_query, qb)
+      endif
+      
+    end subroutine file_heat_flux
    
    ! -----------------------------------------------------------------
    ! Subroutine used to find the surface cooling flux due to 
@@ -291,6 +373,88 @@ module heat_flux_module
       close(2) 
       
     end subroutine debug_cooling_fluxes
+
+   ! -----------------------------------------------------------------
+   ! Given an array xx(1:n), and given a value x, returns a value j 
+   ! such that x is between xx(j) and xx(j+1). xx(1:n) must be 
+   ! monotonic, either increasing or decreasing. j=0 or j=n is 
+   ! returned to indicate that x is out of range.
+   ! -----------------------------------------------------------------
+   subroutine bisection(xx,n,x,j)
+
+      ! Input and output variables
+      integer, intent(in) :: n
+      real(amrex_real), intent(in) :: xx(n)
+      real(amrex_real), intent(in) :: x
+      integer, intent(out) :: j
+
+      ! Local variables
+      integer jl,jm,ju
+
+      jl=0 ! Initialize lower
+      ju=n+1 ! upper limits.
+      do while(ju-jl.gt.1)
+         jm=(ju+jl)/2
+         if((xx(n).ge.xx(1)).eqv.(x.ge.xx(jm))) then ! eqv is used so that the subroutine can work with
+                                                     ! decreasing and increasing functions.
+            jl=jm ! If the guess overshoot the solution, set lower limit to current guess.
+         else
+            ju=jm ! If the guess undershoot the solution, set lower limit to current guess.
+         endif
+      end do
+      if(x.eq.xx(1)) then
+         j=1 ! Treament of edge-case (query point at beginning of values vector)
+      else if(x.eq.xx(n)) then
+         j=n-1 ! Treament of edge-case (query point at end of values vector)
+      else
+         j=jl
+      endif
+   end subroutine bisection
+
+   ! -----------------------------------------------------------------
+   ! Bilinear interpolation. Values "val" are ordered so that 
+   ! val(1)->val(4) correspond to accesing the grid starting from the 
+   ! bottom left corner and moving counter clockwise (x1,y1)->(x2,y1)
+   ! (x2->y2)->(x1,y2).
+   ! -----------------------------------------------------------------
+   subroutine bilin_intrp(x, y, val, xy_query, val_query)
+      ! Input and output variables
+      real(amrex_real), intent(in) :: x(1:2)
+      real(amrex_real), intent(in) :: y(1:2)
+      real(amrex_real), intent(in) :: val(1:4)
+      real(amrex_real), intent(in) :: xy_query(1:2)
+      real(amrex_real), intent(out) :: val_query
+
+      ! Local variables
+      real(amrex_real) t, u
+
+      t = (xy_query(1)-x(1))/(x(2)-x(1))
+      u = (xy_query(2)-y(1))/(y(2)-y(1))
+
+      val_query = (1-t)*(1-u)*val(1) + t*(1-u)*val(2) &
+                  + t*u*val(3) + (1-t)*u*val(4)
+
+   end subroutine bilin_intrp
+
+   ! -----------------------------------------------------------------
+   ! Linear interpolation. Values should be passed so that x1->val1
+   ! x2->val2.
+   ! -----------------------------------------------------------------
+   subroutine lin_intrp(x, val, x_query, val_query)
+      ! Input and output variables
+      real(amrex_real), intent(in) :: x(1:2)
+      real(amrex_real), intent(in) :: val(1:2)
+      real(amrex_real), intent(in) :: x_query
+      real(amrex_real), intent(out) :: val_query
+
+      ! Local variables
+      real(amrex_real) t
+
+      t = (x_query-x(1))/(x(2)-x(1))
+
+      val_query = (1-t)*val(1) + t*val(2)
+
+   end subroutine lin_intrp
     
  end module heat_flux_module
  

@@ -52,6 +52,7 @@ module read_input_module
   public :: dt_change_max
   public :: plasma_flux_type
   public :: plasma_flux_params
+  public :: plasma_flux_input_file
   public :: material
   public :: max_grid_size_1d
   public :: max_step
@@ -83,6 +84,7 @@ module read_input_module
   character(len=:), allocatable, save :: check_file
   character(len=:), allocatable, save :: material
   character(len=:), allocatable, save :: plasma_flux_type
+  character(len=:), allocatable, save :: plasma_flux_input_file
   character(len=:), allocatable, save :: phase_init
   character(len=:), allocatable, save :: plot_file
   character(len=:), allocatable, save :: restart   
@@ -160,6 +162,7 @@ contains
     call pp%query("phase_init", phase_init)
     call pp%query("plasma_flux_type", plasma_flux_type) 
     call pp%getarr("plasma_flux_params", plasma_flux_params)
+    call pp%query("plasma_flux_input_file", plasma_flux_input_file)
     call pp%query("temp_free_surface", temp_fs)
     call pp%query("cooling_thermionic",cooling_thermionic)
     call pp%query("cooling_vaporization",cooling_vaporization)
@@ -168,7 +171,7 @@ contains
     call pp%query("thermionic_alpha",thermionic_alpha)
     call amrex_parmparse_destroy(pp)
 
-    ! Parameters for the heat solver
+    ! Parameters for the shallow waters solver
     call amrex_parmparse_build(pp, "sw")
     call pp%query("solve", solve_sw)
     call amrex_parmparse_destroy(pp)
@@ -197,6 +200,7 @@ contains
         
     allocate(character(len=3)::check_file)
     allocate(character(len=8)::plasma_flux_type)
+    allocate(character(len=25)::plasma_flux_input_file)
     allocate(character(len=8)::material)
     allocate(character(len=9)::phase_init)
     allocate(character(len=3)::plot_file)
@@ -224,6 +228,7 @@ contains
     plasma_flux_params(4) = 0.0
     plasma_flux_params(5) = 0.01
     plasma_flux_type = "Gaussian"
+    plasma_flux_input_file = "plasma_flux.dat"
     material = "Tungsten"
     max_grid_size_1d = 16
     max_step = 10000
@@ -255,6 +260,7 @@ contains
     deallocate(phase_init)
     deallocate(plasma_flux_params)
     deallocate(plasma_flux_type)
+    deallocate(plasma_flux_input_file)
     deallocate(plot_file)
     deallocate(restart)
     deallocate(surfdist)
