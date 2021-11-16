@@ -129,7 +129,7 @@ contains
     ! Get temperature corresponding to the output enthalpy
     call get_temp(lo, hi, &
                   u_new, un_lo, un_hi, &
-                  temp_new, tn_lo , tn_hi) 
+                  temp_new, tn_lo , tn_hi, .true.) 
     
   end subroutine increment_enthalpy_fixT
 

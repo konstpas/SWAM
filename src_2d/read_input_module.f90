@@ -33,7 +33,8 @@ module read_input_module
   ! -----------------------------------------------------------------
   
   use amrex_amr_module
-
+  use amrex_linear_solver_module
+  
   implicit none 
 
   private
@@ -73,6 +74,19 @@ module read_input_module
   public :: thermionic_alpha
   public :: verbose
 
+  ! Linear solvers
+  public :: ls_composite_solve
+  public :: ls_verbose
+  public :: ls_bottom_verbose
+  public :: ls_max_iter
+  public :: ls_max_fmg_iter
+  public :: ls_bottom_solver
+  public :: ls_linop_maxorder
+  public :: ls_agglomeration
+  public :: ls_consolidation
+  public :: ls_max_coarsening_level
+  public :: ls_dt
+  
   ! -----------------------------------------------------------------
   ! Public subroutines
   ! -----------------------------------------------------------------
@@ -112,6 +126,18 @@ module read_input_module
   real(amrex_real), allocatable, save :: cooling_debug(:)
   real(amrex_real), allocatable, save :: surfdist(:)
   real(amrex_real), allocatable, save :: plasma_flux_params(:)
+
+  logical, save :: ls_composite_solve
+  integer, save :: ls_verbose
+  integer, save :: ls_bottom_verbose
+  integer, save :: ls_max_iter
+  integer, save :: ls_max_fmg_iter
+  integer, save :: ls_bottom_solver
+  integer, save :: ls_linop_maxorder
+  logical, save :: ls_agglomeration
+  logical, save :: ls_consolidation
+  integer, save :: ls_max_coarsening_level
+  real(amrex_real), save :: ls_dt
   
 contains
 
@@ -170,7 +196,7 @@ contains
     call pp%getarr("cooling_debug",cooling_debug)
     call pp%query("thermionic_alpha",thermionic_alpha)
     call amrex_parmparse_destroy(pp)
-
+    
     ! Parameters for the shallow waters solver
     call amrex_parmparse_build(pp, "sw")
     call pp%query("solve", solve_sw)
@@ -189,7 +215,21 @@ contains
     call pp%query("do_reflux", do_reflux)
     call pp%query("dt_change_max", dt_change_max)
     call amrex_parmparse_destroy(pp)
-	    
+
+    ! Parameters for the linear solver
+    call amrex_parmparse_build(pp, "linear_solvers")
+    call pp%query("composite_solve", ls_composite_solve)
+    call pp%query("verbose", ls_verbose)
+    call pp%query("bottom_verbose_ls", ls_bottom_verbose)
+    call pp%query("max_iter", ls_max_iter)
+    call pp%query("max_fmg_iter", ls_max_fmg_iter)
+    call pp%query("bottom_solver", ls_bottom_solver)
+    call pp%query("linop_maxorder", ls_linop_maxorder)
+    call pp%query("agglomeration", ls_agglomeration)
+    call pp%query("consolidation", ls_consolidation)
+    call pp%query("max_coarsening_level", ls_max_coarsening_level)
+    call pp%query("dt", ls_dt)
+    
   end subroutine read_input_file
 
 
@@ -247,6 +287,19 @@ contains
     thermionic_alpha = 90.0
     temp_fs = -1.0
     verbose = 0
+
+    ! Linear solvers
+    ls_composite_solve = .true.
+    ls_verbose = 2
+    ls_bottom_verbose = 0
+    ls_max_iter = 100
+    ls_max_fmg_iter = 0
+    ls_bottom_solver = amrex_bottom_default
+    ls_linop_maxorder = 2
+    ls_agglomeration = .true.
+    ls_consolidation = .true.
+    ls_max_coarsening_level = 30
+    ls_dt = 0.001
     
   end subroutine set_default_values
 

@@ -387,7 +387,7 @@ contains
        ! Get temperature corresponding to the enthalpy
        call get_temp(lbound(ptempin), ubound(ptempin), &
                      pin, lbound(pin), ubound(pin), &
-                     ptempin, lbound(ptempin), ubound(ptempin))
+                     ptempin, lbound(ptempin), ubound(ptempin),.true.)
        
        ! Get configuration of the system after the deformation
        call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &

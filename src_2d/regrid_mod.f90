@@ -13,7 +13,11 @@ module regrid_module
                               phi_old, &
                               temp, &
                               t_new, &
-                              t_old
+                              t_old, &
+                              ls_solution, &
+                              ls_acoef, &
+                              ls_bcoef, &
+                              ls_rhs
   
   implicit none
 
@@ -66,7 +70,9 @@ contains
     type(amrex_mfiter) :: mfi
     type(amrex_box) :: bx
     type(amrex_geometry) :: geom
-
+    logical :: nodal(2)
+    integer :: idim
+    
     ! Pointers for box array and distribution mapping
     ba = pba
     dm = pdm
@@ -86,7 +92,16 @@ contains
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(idomain(lev), ba, dm, ncomp, nghost)
-    
+    ! Linear solvers
+    call amrex_multifab_build(ls_solution(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(ls_rhs(lev), ba, dm, ncomp, 0)
+    call amrex_multifab_build(ls_acoef(lev), ba, dm, ncomp, 0)
+    do idim = 1, amrex_spacedim
+       nodal = .false.
+       nodal(idim) = .true.
+       call amrex_multifab_build(ls_bcoef(idim,lev), ba, dm, ncomp, 0, nodal)
+    end do
+       
     ! Build the flux registers
     if (lev > 0 .and. do_reflux) then
        call amrex_fluxregister_build(flux_reg(lev), ba, dm, &
@@ -108,7 +123,7 @@ contains
        ! Temperature
        call get_temp(bx%lo, bx%hi, &
                      phi, lbound(phi), ubound(phi), &
-                     ptemp, lbound(ptemp), ubound(ptemp))
+                     ptemp, lbound(ptemp), ubound(ptemp), .true.)
        
        ! Integer domain to distinguish material and background
        call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
@@ -176,7 +191,9 @@ contains
     type(amrex_mfiter) :: mfi
     type(amrex_box) :: bx
     type(amrex_geometry) :: geom
-
+    logical :: nodal(2)
+    integer :: idim
+    
     ! Pointers for box array and distribution mapping
     ba = pba
     dm = pdm
@@ -196,6 +213,15 @@ contains
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(idomain(lev), ba, dm, ncomp, nghost)
+    ! Linear solvers
+    call amrex_multifab_build(ls_solution(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(ls_rhs(lev), ba, dm, ncomp, 0)
+    call amrex_multifab_build(ls_acoef(lev), ba, dm, ncomp, 0)
+    do idim = 1, amrex_spacedim
+       nodal = .false.
+       nodal(idim) = .true.
+       call amrex_multifab_build(ls_bcoef(idim,lev), ba, dm, ncomp, 0, nodal)
+    end do
     
     ! Build the flux registers
     if (lev > 0 .and. do_reflux) then
@@ -218,7 +244,7 @@ contains
        ! Temperature
        call get_temp(bx%lo, bx%hi, & 
                      phi, lbound(phi), ubound(phi), &
-                     ptemp, lbound(ptemp), ubound(ptemp))
+                     ptemp, lbound(ptemp), ubound(ptemp), .true.)
        
        ! Integer domain to distinguish material and background
        call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
@@ -329,6 +355,8 @@ contains
     type(amrex_multifab) :: new_phi_new
     type(amrex_box) :: bx
     type(amrex_geometry) :: geom
+    logical :: nodal(2)
+    integer :: idim
     
     ! Pointers for box array and distribution mapping
     ba = pba
@@ -353,7 +381,16 @@ contains
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(idomain(lev), ba, dm, ncomp, nghost)
-
+    ! Linear solvers
+    call amrex_multifab_build(ls_solution(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(ls_rhs(lev), ba, dm, ncomp, 0)
+    call amrex_multifab_build(ls_acoef(lev), ba, dm, ncomp, 0)
+    do idim = 1, amrex_spacedim
+       nodal = .false.
+       nodal(idim) = .true.
+       call amrex_multifab_build(ls_bcoef(idim,lev), ba, dm, ncomp, 0, nodal)
+    end do
+    
     ! Build the flux registers
     if (lev > 0 .and. do_reflux) then
        call amrex_fluxregister_build(flux_reg(lev), ba, dm, &
@@ -376,7 +413,7 @@ contains
        ! Temperature
        call get_temp(bx%lo, bx%hi, & 
                      phi, lbound(phi), ubound(phi), &
-                     ptemp, lbound(ptemp), ubound(ptemp))
+                     ptemp, lbound(ptemp), ubound(ptemp), .true.)
 
        ! Integer domain to distinguish material and background
        call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
@@ -434,11 +471,18 @@ contains
   subroutine my_clear_level(lev) bind(c)
     
     integer, intent(in), value :: lev
+    integer :: idim
     
     call amrex_multifab_destroy(phi_new(lev))
     call amrex_multifab_destroy(phi_old(lev))
     call amrex_multifab_destroy(temp(lev))
     call amrex_multifab_destroy(idomain(lev))
+    call amrex_multifab_destroy(ls_solution(lev))
+    call amrex_multifab_destroy(ls_rhs(lev))
+    call amrex_multifab_destroy(ls_acoef(lev))
+    do idim = 1, amrex_spacedim
+       call amrex_multifab_destroy(ls_bcoef(idim,lev))
+    end do
     call amrex_fluxregister_destroy(flux_reg(lev))
     
   end subroutine my_clear_level

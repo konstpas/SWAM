@@ -127,6 +127,7 @@ module material_properties_module
    public :: get_atomic_mass
    public :: get_enthalpy_of_vaporization
    public :: get_mass_density
+   public :: get_heat_capacity
    public :: finalize_mat_prop
    
  
@@ -691,7 +692,7 @@ module material_properties_module
   ! ------------------------------------------------------------------ 
   subroutine get_temp(lo, hi, &
                       ui, uo_lo, uo_hi, & 
-                      temp, t_lo , t_hi) 
+                      temp, t_lo , t_hi, direct) 
 
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)
@@ -699,7 +700,8 @@ module material_properties_module
     integer, intent(in) :: t_lo(2), t_hi(2)
     real(amrex_real), intent(in) :: ui (uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))
     real(amrex_real), intent(out) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2))
-
+    logical, intent(in) :: direct
+    
     ! Local variables
     integer :: idx 
     integer :: i,j
@@ -710,36 +712,51 @@ module material_properties_module
     ! real(amrex_real) :: rho
      
     ! Obtain the temperature from linear interpolation of the enthalpy-temperature tables
-    do i = lo(1),hi(1)
-       do j = lo(2),hi(2)
-          
-          do idx = 0,phiT_table_n_points 
-             if (ui(i,j) .le. enth_table(idx) ) exit 
+    if (direct) then
+       
+       do i = lo(1),hi(1)
+          do j = lo(2),hi(2)
+             
+             do idx = 0,phiT_table_n_points 
+                if (ui(i,j) .le. enth_table(idx) ) exit 
+             end do
+             
+             if (idx.ge.phiT_table_n_points) then
+                STOP 'Temperature table exceeded' 
+             end if
+             
+             int_coeff = (ui(i,j)-enth_table(idx-1))/ &
+                  (enth_table(idx)-enth_table(idx-1))
+             temp(i,j) = temp_table(idx-1) + &
+                  int_coeff*(temp_table(idx)-temp_table(idx-1))
+             
           end do
-          
-          if (idx.ge.phiT_table_n_points) then
-             STOP 'Temperature table exceeded' 
-          end if
-         
-          int_coeff = (ui(i,j)-enth_table(idx-1))/ &
-               (enth_table(idx)-enth_table(idx-1))
-          temp(i,j) = temp_table(idx-1) + &
-                      int_coeff*(temp_table(idx)-temp_table(idx-1))
-          
-          ! Update maximum diffusivity (consider only material grid points and not the background)
-          ! if (temp(i,j).gt.0) then
-          !    call get_conductivity(temp(i,j),ktherm)
-          !    call get_mass_density(temp(i,j),rho) 
-          !    call get_heat_capacity(temp(i,j),Cp)
-          !    diffus = ktherm/(rho*Cp)
-          !    if (diffus.gt.max_diffus) then
-          !       max_diffus = diffus
-          !    end if
-          ! end if
-          
        end do
-    end do
-    
+       
+    else ! Obtain enthalpy
+
+       do i = lo(1),hi(1)
+          do j = lo(2),hi(2)
+             
+             do idx = 0,phiT_table_n_points 
+                if (ui(i,j) .le. temp_table(idx) ) exit 
+             end do
+             
+             if (idx.ge.phiT_table_n_points) then
+                STOP 'Temperature table exceeded' 
+             end if
+             
+             int_coeff = (ui(i,j)-temp_table(idx-1))/ &
+                  (temp_table(idx)-temp_table(idx-1))
+             temp(i,j) = enth_table(idx-1) + &
+                  int_coeff*(enth_table(idx)-enth_table(idx-1))
+               
+             
+          end do
+       end do
+       
+    end if
+      
   end subroutine get_temp
 
 
