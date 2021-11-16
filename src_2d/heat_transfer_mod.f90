@@ -75,8 +75,6 @@ contains
           ! Points added to the domain
           if (nint(idom_old(i,j)).eq.0 .and. nint(idom_new(i,j)).ne.0) then
              u_old(i,j) = u_old(i,j-1)
-             write(*,*) 'That shouldnt happen'
-             write(*,*) i, j
           ! Points removed from the domain
           else if (nint(idom_new(i,j)).eq.0) then
              u_old(i,j) = 0_amrex_real
@@ -91,10 +89,6 @@ contains
     ! Get physical location of the lowest corner of the tile box
     lo_phys = geom%get_physical_location(lo)
 
-    
-    call get_temp(lo-1, hi+1, &
-                  u_old, uo_lo, uo_hi, &
-                  temp_old, to_lo , to_hi)
                   
     ! Get enthalpy flux 
     call create_face_flux(dx, lo, hi, &
@@ -138,15 +132,6 @@ contains
     call get_temp(lo, hi, &
                   u_new, un_lo, un_hi, &
                   temp_new, tn_lo , tn_hi)
-
-   do i = lo(1),hi(1)
-      do  j = lo(2),hi(2)
-         if(temp_new(i,j).eq.0 .and. idom_new(i,j).ne.0) then
-            write(*,*) 'Something is weird I think'
-            write(*,*) i,j
-         end if
-      end do
-   end do 
     
   end subroutine increment_enthalpy
 
@@ -159,8 +144,7 @@ contains
                          idom, id_lo, id_hi, &
                          temp, t_lo, t_hi)
 
-    use material_properties_module, only : temp_melt      
-    use amr_data_module, only : surf_ind, surf_pos   
+    use material_properties_module, only : temp_melt   
     
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)
@@ -179,7 +163,6 @@ contains
 
     ! Get location of the free surface
     call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
-   !  surf_pos_heat_domain = surf_pos(id_lo(1):id_hi(1))
 
     ! Check whether the liquid should be distinguished from the solid or not
     if (t_lo(1).eq.lo(1)-1 .and. t_hi(1).eq.hi(1)+1 .and. &
@@ -208,7 +191,7 @@ contains
                 else if (temp(i,j).gt.0) then
                    idom(i,j) = 1
                 else
-                   idom(i,j) = 0
+                  STOP 'Temperature is 0 below surf_ind_heat_domain'
                 end if
              else
                 idom(i,j) = 1
@@ -370,26 +353,27 @@ contains
     integer :: i
     integer :: xind
     real(amrex_real) :: xpos
-    real(amrex_real) :: x_alpha
     
     do  i = lo(1),hi(1)
    
-       xpos = xlo(1) + (0.5 + i-lo(1))*dx(1) 
-       
-       ! In what follows -surf_dx(1)/2  and ceiling are used since
-       ! the surface is staggered 'backwards' on the faces with
-       ! respect to the xlo and xpos values which are defined on the
-       ! centers. 
-       xind = ceiling((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
-       x_alpha = mod(xpos - surf_dx(1)/2 - surf_xlo(1), surf_dx(1))
-       
+      
+      ! In what follows -surf_dx(1)/2 is used since
+      ! the surface is staggered 'backwards' on the faces with
+      ! respect to the xlo and xpos values which are defined on the
+      ! centers. 
+
+       xpos = xlo(1) + (0.5+i-lo(1))*dx(1) 
+
+       ! The nearest integer is taken to round of numerical
+       ! errors since we know that dx(1) is n*surf_dx(1) where
+       ! n is an integer which depends on the current level and
+       ! the refinment ratio between levels.
+       xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1))
+
        if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
        if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
        
-       ! Interpolation
-       surf_pos_heat_domain(i) = surf_pos(xind) + &
-            x_alpha * (surf_pos(xind+1)-surf_pos(xind))
-       
+       surf_pos_heat_domain(i) = surf_pos(xind)
     end do
     
   end subroutine get_surf_pos

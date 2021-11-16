@@ -427,9 +427,6 @@ contains
     integer :: i, k
     integer :: xind, zind
     real(amrex_real) :: xpos, zpos
-    real(amrex_real) :: x_alpha, z_alpha
-    real(amrex_real) :: valzp
-    real(amrex_real) :: valzm
     
     do  i = lo(1),hi(1)
        do k = lo(3),hi(3)
@@ -437,27 +434,20 @@ contains
           xpos = xlo(1) + (0.5 + i-lo(1))*dx(1) 
           zpos = xlo(3) + (0.5 + k-lo(3))*dx(3)
 
-          ! In what follows -surf_dx(1)/2  and ceiling are used since
-          ! staggered 'backwards' on faces w.r.t values which are centered.  
-          xind = ceiling((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
-          x_alpha = mod(xpos - surf_dx(1)/2 - surf_xlo(1), surf_dx(1))
-          zind = ceiling((zpos - surf_dx(2)/2 - surf_xlo(2))/surf_dx(2))
-          z_alpha = mod(zpos - surf_dx(2)/2 - surf_xlo(2), surf_dx(2))
+         ! The nearest integer is taken to round of numerical
+         ! errors since we know that dx(1) is n*surf_dx(1) where
+         ! n is an integer which depends on the current level and
+         ! the refinment ratio between levels. 
+          xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
+          zind = nint((zpos - surf_dx(2)/2 - surf_xlo(2))/surf_dx(2))
           
           if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
           if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
           if (zind.lt.surf_ind(2,1)) zind = surf_ind(2,1)
           if (zind.ge.surf_ind(2,2)) zind = surf_ind(2,2)-1 
 
-          ! interpolated value at zind
-          valzm = surf_pos(xind,zind  ) + &
-               x_alpha * (surf_pos(xind+1,zind)-surf_pos(xind,zind))
-          ! interpolated value at zind+1 
-          valzp = surf_pos(xind,zind+1) + &
-               x_alpha * (surf_pos(xind+1,zind+1)-surf_pos(xind,zind+1)) 
-
           ! 2D interpolation
-          surf_pos_heat_domain(i,k) = valzm + z_alpha*(valzp - valzm)
+          surf_pos_heat_domain(i,k) = surf_pos(xind, zind)! valzm + z_alpha*(valzp - valzm)
           
        end do
     end do
