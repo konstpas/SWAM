@@ -409,10 +409,12 @@ contains
     type(amrex_geometry), intent(in) :: geom
     
     ! Local variables
+    logical :: check_warning
     integer :: i,j
     integer :: it(1:2) 
     real(amrex_real) :: grid_pos(1:2)
     
+    check_warning = .true.
     
     do i = lo(1), hi(1)  ! x-direction
        do j = lo(2), hi(2) 
@@ -430,9 +432,10 @@ contains
             it(2) = j
             grid_pos = geom%get_physical_location(it)
             melt_top(i) = grid_pos(2)
-            if (nint(idom(i,j)).ne.0) write(*,*) &
-             'WARNING: Melt top not at free surface. Results from the shallow water solver should not be trusted.'
-          end if
+            if (nint(idom(i,j)).ne.0 .and. check_warning) then
+               print *, 'WARNING: Melt top not at free surface. Results from the shallow water solver should not be trusted.'
+               check_warning = .false.
+            end if
           
        end do   
     end do

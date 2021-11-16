@@ -10,7 +10,9 @@ module plotfile_module
                               idomain, &
                               t_new, &
                               surf_pos, &
+                              surf_temperature, &
                               melt_pos, &
+                              melt_top, &
                               surf_ind, &
                               surf_dx, &
                               stepno
@@ -94,15 +96,15 @@ contains
     ! Output melt thickness
     name = "melt_thickness_" //trim(current_step)//".dat"
     open(2, file = name, status = 'unknown', action = "write")
-    write(2, *) 'x-coordinate  z-coordinate   Free Surface     Melt Surface'
-    dashfmt = '(3(es13.6, 4x))'
+    write(2, *) 'x-coordinate  z-coordinate   Free Surface     Melt Bottom     Melt top     Free Surface Temperature'
+    dashfmt = '(6(es13.6, 4x))'
     do i=surf_ind(1,1), surf_ind(1,2)
         do k=surf_ind(2,1), surf_ind(2,2)
            ! i starts from 0 so to output the x-coord at the center of the cell add 0.5
            ! the same applies for k and the z-coord
            xpos = (i+0.5)*surf_dx(1)
            zpos = (k+0.5)*surf_dx(2)
-           write(2, dashfmt) xpos, zpos, surf_pos(i,k), melt_pos(i,k)
+           write(2, dashfmt) xpos, zpos, surf_pos(i,k), melt_pos(i,k), melt_top(i,k), surf_temperature(i,k)
         end do
     end do
     close(2)

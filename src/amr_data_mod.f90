@@ -38,6 +38,7 @@ module amr_data_module
   public :: surf_ind
   public :: surf_pos
   public :: surf_xlo
+  public :: surf_temperature
   ! Temperature
   public :: temp
   ! Time
@@ -69,6 +70,7 @@ module amr_data_module
   real(amrex_real), allocatable, save :: t_new(:)
   real(amrex_real), allocatable, save :: t_old(:)
   real(amrex_real), allocatable, save :: surf_pos(:,:)
+  real(amrex_real), allocatable, save :: surf_temperature(:,:)
   real(amrex_real), save :: surf_xlo(2)
   real(amrex_real), save :: surf_dx(2)
   type(amrex_fluxregister), allocatable, save :: flux_reg(:)
@@ -114,6 +116,7 @@ contains
     allocate(phi_new(0:amrex_max_level))
     allocate(phi_old(0:amrex_max_level))
     allocate(surf_pos(lo_x:hi_x,lo_z:hi_z))
+    allocate(surf_temperature(lo_x:hi_x,lo_z:hi_z))
     allocate(temp(0:amrex_max_level))
     allocate(t_new(0:amrex_max_level))
     allocate(t_old(0:amrex_max_level))
@@ -137,7 +140,8 @@ contains
     surf_ind(1,2) = hi_x
     surf_ind(2,1) = lo_z
     surf_ind(2,2) = hi_z 
-    surf_pos = surf_pos_init 
+    surf_pos = surf_pos_init
+    surf_temperature = 0.0_amrex_real
     surf_xlo(1) = amrex_problo(1) 
     surf_xlo(2) = amrex_problo(3)
     t_new = 0.0_amrex_real
@@ -165,6 +169,7 @@ contains
     deallocate(melt_pos)
     deallocate(melt_vel)
     deallocate(surf_pos)
+    deallocate(surf_temperature)
     deallocate(t_new)
     deallocate(t_old)
     deallocate(stepno)

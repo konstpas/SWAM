@@ -10,6 +10,7 @@ module shallow_water_module
                               surf_xlo, &
                               surf_dx, &
                               surf_pos, &
+                              surf_temperature, &
                               melt_pos, &
                               melt_vel
 
@@ -53,6 +54,7 @@ module shallow_water_module
              if(nint(idom(i,j,k)).ne.0 .and. nint(idom(i,j+1,k)).eq.0) then
                 call get_evaporation_flux(temp(i,j,k), xdot_vap)
                 surf_pos(i,k) = surf_pos(i,k) - xdot_vap*dt
+                surf_temperature(i,k) = temp(i,j,k)
              end if
           end do
        end do
