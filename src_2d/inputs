@@ -54,3 +54,16 @@ output.verbose   = 1		             # Verbosity of the code (1 = on, 0 = off)
 numerics.cfl       = 0.95	             # Safety factor used to multiply the minimum time-step which ensures stability of the heat solver
 numerics.do_reflux = 1		             # Activate or deactivate reflux ( 1 = on, 0 = off)
 numerics.dt_change_max = 1.1 	             # Maximum fractional change of the time step between two successive time-steps
+
+# LINEAR SOLVERS
+linear_solvers.composite_solve = 1
+linear_solvers.verbose = 2
+linear_solvers.bottom_verbose_ls = 0
+linear_solvers.max_iter = 100
+linear_solvers.max_fmg_iter = 0
+linear_solvers.bottom_solver = amrex_bottom_default
+linear_solvers.linop_maxorder = 2
+linear_solvers.agglomeration = 1
+linear_solvers.consolidation = 1
+linear_solvers.max_coarsening_level = 30
+linear_solvers.dt = 0.001

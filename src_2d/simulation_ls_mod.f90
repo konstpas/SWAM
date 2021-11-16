@@ -364,10 +364,9 @@ contains
     call amrex_mfiter_destroy(mfi)    
 
     ! Map solution to temperature and temperature to enthalpy (not really efficient, for testing purposes only)
-    do ilev = 0, amrex_max_level 
-    
-       call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)  
-    						 
+    do ilev = 0, amrex_max_level
+       
+       call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)
        do while(mfi%next())
 
           ! Box
@@ -389,7 +388,6 @@ contains
                         pu, lbound(pu), ubound(pu), .false.)
                     
        end do
-
        call amrex_mfiter_destroy(mfi)
        
     end do
