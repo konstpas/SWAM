@@ -48,12 +48,6 @@ module amr_data_module
   public :: stepno
   public :: nsubsteps
 
-  ! Linear solvers
-  public :: ls_solution
-  public :: ls_rhs
-  public :: ls_acoef
-  public :: ls_bcoef
-
   ! ------------------------------------------------------------------
   ! Public subroutines
   ! ------------------------------------------------------------------
@@ -88,8 +82,8 @@ module amr_data_module
   ! Linear solvers
   type(amrex_multifab), allocatable, save :: ls_solution(:)
   type(amrex_multifab), allocatable, save :: ls_rhs(:)
-  type(amrex_multifab), allocatable, save :: ls_acoef(:)
-  type(amrex_multifab), allocatable, save :: ls_bcoef(:,:)
+  type(amrex_multifab), allocatable, save :: ls_alpha(:)
+  type(amrex_multifab), allocatable, save :: ls_beta(:,:)
   
 contains
 
@@ -129,14 +123,7 @@ contains
     allocate(t_old(0:amrex_max_level))
     allocate(stepno(0:amrex_max_level))
     allocate(nsubsteps(0:amrex_max_level))
-
-    ! Linear solvers
-    allocate(ls_solution(0:amrex_max_level))
-    allocate(ls_rhs(0:amrex_max_level))
-    allocate(ls_acoef(0:amrex_max_level))
-    allocate(ls_bcoef(amrex_spacedim,0:amrex_max_level))
-  
-    
+      
     ! Initialize
     dt = 1.0_amrex_real
     ! Homogeneous Neumann boundary condition (foextrap implies that the ghost
@@ -192,13 +179,6 @@ contains
        call amrex_multifab_destroy(phi_new(lev))
        call amrex_multifab_destroy(phi_old(lev))
        call amrex_multifab_destroy(temp(lev))
-       ! Linear solvers    
-       call amrex_multifab_destroy(ls_solution(lev))
-       call amrex_multifab_destroy(ls_rhs(lev))
-       call amrex_multifab_destroy(ls_acoef(lev))
-       do idim = 1, amrex_spacedim
-          call amrex_multifab_destroy(ls_bcoef(idim,lev))
-       end do
     
     end do
     

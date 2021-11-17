@@ -22,7 +22,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine run_simulation_ls()
 
-    use read_input_module, only : max_step, stop_time, plot_int, ls_dt
+    use read_input_module, only : max_step, stop_time, plot_int, in_dt
     use plotfile_module, only: writeplotfile, write1dplotfile
     use energy_module, only: sum_enthalpy
 
@@ -57,19 +57,18 @@ contains
        call sum_enthalpy(total_enthalpy)
  	
        ! Update time
-       cur_time = cur_time + ls_dt
+       cur_time = cur_time + in_dt
 
        ! Print timestep information on screen (end)
        if (amrex_parallel_ioprocessor()) then
           print *, 'Enthalpy is', total_enthalpy 
           print *, '' 
-          print *, "STEP", step+1, "end. TIME =", cur_time, "DT =", ls_dt
+          print *, "STEP", step+1, "end. TIME =", cur_time, "DT =", in_dt
        end if
 
        ! Print output to file
        if (plot_int .gt. 0 .and. mod(step+1,plot_int) .eq. 0) then
           last_plot_file_step = step+1
-          print *, "Output!"
           call writeplotfile
           call write1dplotfile
        end if
@@ -87,7 +86,7 @@ contains
   subroutine advance_one_timestep(time)
 
     !use read_input_module, only : regrid_int
-    use read_input_module, only : ls_dt
+    use read_input_module, only : in_dt
     use amr_data_module, only : phi_old, phi_new, t_old, t_new, stepno
 
     ! Input and output variables
@@ -138,7 +137,7 @@ contains
     ! Advance solution
     do ilev = 0, amrex_max_level
        t_old(ilev) = time
-       t_new(ilev) = time + ls_dt
+       t_new(ilev) = time + in_dt
        stepno(ilev) = stepno(ilev) + 1
        call amrex_multifab_swap(phi_old(ilev), phi_new(ilev))       
     end do
@@ -154,13 +153,13 @@ contains
   ! -----------------------------------------------------------------
   subroutine advance(time)
 
-    use read_input_module, only : solve_sw, ls_dt, ls_agglomeration, &
+    use read_input_module, only : solve_sw, in_dt, ls_agglomeration, &
                                   ls_consolidation, ls_max_coarsening_level, &
                                   ls_linop_maxorder, ls_bottom_solver, &
                                   ls_bottom_verbose, ls_max_fmg_iter, &
                                   ls_max_iter, ls_verbose
 
-    use amr_data_module, only : phi_new, temp, idomain, ls_solution, ls_rhs, ls_acoef, ls_bcoef
+    use amr_data_module, only : phi_new, temp, idomain
     use regrid_module, only : fillpatch
     use heat_transfer_module, only : get_idomain, get_melt_pos, reset_melt_pos, increment_enthalpy
     use material_properties_module, only : get_temp
@@ -171,10 +170,12 @@ contains
     real(amrex_real), intent(in) :: time
 
     ! Local variables
+    logical :: nodal(2)
     integer, parameter :: nghost = 1 ! number of ghost points in each spatial direction 
     integer :: ncomp
     integer :: idim
     integer :: ilev
+    real(amrex_real) :: err ! Error from the solution of the linear system of equations
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pout
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptempin
@@ -189,32 +190,46 @@ contains
     type(amrex_multifab) :: phi_tmp(0:amrex_max_level) ! Enthalpy multifab with ghost points
     type(amrex_multifab) :: temp_tmp(0:amrex_max_level) ! Temperature multifab with ghost points
     type(amrex_multifab) :: idomain_tmp(0:amrex_max_level) ! Idomain multifab to distinguish material and background
+    type(amrex_multifab) :: ls_rhs(0:amrex_max_level) ! multifab for the right hand side of the linear system of equations
+    type(amrex_multifab) :: ls_alpha(0:amrex_max_level) ! multifab for the first term on the left hand side of the linear system of equations
+    type(amrex_multifab) :: ls_beta(amrex_spacedim,0:amrex_max_level) ! multifab for the second term on the left hand side of the linear system of equations
+    type(amrex_multifab) :: nullmf ! Null multifab used to define the boundary condition at the coarse-fine interface
     type(amrex_mfiter) :: mfi ! Multifab iterator
     type(amrex_box) :: bx
-    type(amrex_abeclaplacian) :: abeclap
-    type(amrex_boxarray) :: ba(0:amrex_max_level)
-    type(amrex_distromap):: dm(0:amrex_max_level)
-    type(amrex_multifab) :: nullmf
-    type(amrex_multigrid) :: multigrid
-    real(amrex_real) :: err
+    type(amrex_boxarray) :: ba(0:amrex_max_level) ! Box array
+    type(amrex_distromap):: dm(0:amrex_max_level) ! Distribution mapping
+    type(amrex_abeclaplacian) :: abeclap ! Object for the solution of the linear systems of equations
+    type(amrex_multigrid) :: multigrid ! 
     
-    ! ...
+    ! Build necessary multifabs on all levels
     do ilev = 0, amrex_max_level
 
-       ! Build enthalpy and temperature multifabs with ghost points
+       ! Enthalpy and temperature multifabs with ghost points
        ncomp = phi_new(ilev)%ncomp()
        call amrex_multifab_build(phi_tmp(ilev), phi_new(ilev)%ba, phi_new(ilev)%dm, ncomp, nghost) 
        call amrex_multifab_build(temp_tmp(ilev), phi_new(ilev)%ba, phi_new(ilev)%dm, ncomp, nghost)
+
+       ! Temporary idomain to store the deformation computed via shallow water
        call amrex_multifab_build(idomain_tmp(ilev), phi_new(ilev)%ba, phi_new(ilev)%dm, ncomp, nghost)
+
+       ! Multifabs for the linear solver
+       call amrex_multifab_build(ls_rhs(ilev), phi_new(ilev)%ba, phi_new(ilev)%dm, ncomp, 0)
+       call amrex_multifab_build(ls_alpha(ilev), phi_new(ilev)%ba, phi_new(ilev)%dm, ncomp, 0)
+       do idim = 1, amrex_spacedim
+          nodal = .false.
+          nodal(idim) = .true.
+          call amrex_multifab_build(ls_beta(idim,ilev), phi_new(ilev)%ba, phi_new(ilev)%dm, ncomp, 0, nodal)
+       end do
+ 
+       ! Get boxarray and distribution mapping on level
+       ba(ilev) = phi_new(ilev)%ba
+       dm(ilev) = phi_new(ilev)%dm
        
        ! Fill enthalpy multifab
        call fillpatch(ilev, time, phi_tmp(ilev))
        
        ! Swap idomain solution before computing the surface deformation
        call amrex_multifab_swap(idomain_tmp(ilev), idomain(ilev))
-
-       ba(ilev) = phi_new(ilev)%ba
-       dm(ilev) = phi_new(ilev)%dm
        
     end do
     
@@ -236,7 +251,7 @@ contains
           ! Increment shallow water solution
           call increment_SW(bx%lo, bx%hi, &
                             ptemp, lbound(ptemp), ubound(ptemp), &
-                            pidin, lbound(pidin), ubound(pidin), ls_dt)
+                            pidin, lbound(pidin), ubound(pidin), in_dt)
        
        end do
 
@@ -251,8 +266,7 @@ contains
     ! Melt position is then found after heat has been propagated 
     call reset_melt_pos 
        
-
-    ! Get idomain after the deformation
+    ! Prepare all levels for heat equation solution
     do ilev = 0, amrex_max_level 
     
        call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)  
@@ -268,43 +282,42 @@ contains
           ptempin => temp_tmp(ilev)%dataptr(mfi)
           pidin   => idomain_tmp(ilev)%dataptr(mfi)
           pidout  => idomain(ilev)%dataptr(mfi)
-          pac     => ls_acoef(ilev)%dataptr(mfi)
+          pac     => ls_alpha(ilev)%dataptr(mfi)
           prhs    => ls_rhs(ilev)%dataptr(mfi)
           
           ! Get temperature corresponding to the enthalpy
           call get_temp(lbound(ptempin), ubound(ptempin), &
                         pin, lbound(pin), ubound(pin), &
                         ptempin, lbound(ptempin), ubound(ptempin), .true.)
-       
+
           ! Get configuration of the system after the deformation
           call get_idomain(amrex_geom(ilev)%get_physical_location(bx%lo), amrex_geom(ilev)%dx, &
                            bx%lo, bx%hi, &
                            pidout, lbound(pidout), ubound(pidout), &
                            ptempin, lbound(ptempin), ubound(ptempin))
+
+          ! Update enthalpy according to deformation (still missing)
           
-          ! Get matrix of coefficients (alpha)
+          ! Get alpha matrix for the linear solver (first term on left hand side)
           call get_alpha(bx%lo, bx%hi, &
                          ptempin, lbound(ptempin), ubound(ptempin), &
                          pac, lbound(pac), ubound(pac))
 
-          ! Get matrix of coefficients for the gradient term (beta)
+          ! Get beta matrix for the linear solver (second term on left hand side)
           do idim = 1,amrex_spacedim
-
-             pbc => ls_bcoef(idim,ilev)%dataptr(mfi)
+             pbc => ls_beta(idim,ilev)%dataptr(mfi)
              call get_beta(bx%lo, bx%hi, idim, &
                            pidout, lbound(pidout), ubound(pidout), &
                            ptempin, lbound(ptempin), ubound(ptempin), &
                            pbc, lbound(pbc), ubound(pbc))
-             
           end do
 
-          ! Get right hand side of the equation
-          call get_rhs(bx%lo, bx%hi, time, ls_dt, &
+          ! Get right hand for the linear solver
+          call get_rhs(bx%lo, bx%hi, time, in_dt, &
                        amrex_geom(ilev)%get_physical_location(bx%lo), amrex_geom(ilev)%dx, &
                        pidout, lbound(pidout), ubound(pidout), &
                        ptempin, lbound(ptempin), ubound(ptempin), &
                        prhs, lbound(prhs), ubound(prhs))
-
 
 
        end do
@@ -314,6 +327,7 @@ contains
     end do
 
     ! -----------------------------------------------------------------------------------
+    ! This should go in a dedicated subroutine
     ! ----------------------------------------------------------------------------------- 
     ! Solve linear system of equations
     call amrex_abeclaplacian_build(abeclap, amrex_geom, ba, dm, &
@@ -331,10 +345,10 @@ contains
        call abeclap % set_level_bc(ilev, nullmf)
     end do
 
-    call abeclap%set_scalars(1.0_amrex_real, ls_dt) ! A and B scalars
+    call abeclap%set_scalars(1.0_amrex_real, in_dt) ! A and B scalars
     do ilev = 0, amrex_max_level
-       call abeclap%set_acoeffs(ilev, ls_acoef(ilev))
-       call abeclap%set_bcoeffs(ilev, ls_bcoef(:,ilev))
+       call abeclap%set_acoeffs(ilev, ls_alpha(ilev))
+       call abeclap%set_bcoeffs(ilev, ls_beta(:,ilev))
     end do
 
     call amrex_multigrid_build(multigrid, abeclap)
@@ -344,12 +358,13 @@ contains
     call multigrid%set_max_fmg_iter(ls_max_fmg_iter)
     call multigrid%set_bottom_solver(ls_bottom_solver)
     
-    err = multigrid%solve(ls_solution, ls_rhs, 1.e-10_amrex_real, 0.0_amrex_real)
+    err = multigrid%solve(temp_tmp, ls_rhs, 1.e-10_amrex_real, 0.0_amrex_real)
     
     call amrex_abeclaplacian_destroy(abeclap)
     call amrex_multigrid_destroy(multigrid)
     ! -----------------------------------------------------------------------------------
-    ! -----------------------------------------------------------------------------------    
+    ! -----------------------------------------------------------------------------------
+    
     ! Find melt interface y position
     call amrex_mfiter_build(mfi, idomain(amrex_max_level), tiling=.false.)
     do while(mfi%next())
@@ -370,7 +385,7 @@ contains
     ! Map solution to temperature and temperature to enthalpy (not really efficient, for testing purposes only)
     do ilev = 0, amrex_max_level
        
-       call amrex_mfiter_build(mfi, ls_solution(ilev), tiling=.false.)
+       call amrex_mfiter_build(mfi, temp_tmp(ilev), tiling=.false.)
        do while(mfi%next())
 
           ! Box
@@ -379,12 +394,12 @@ contains
           ! Pointers
           ptemp   => temp(ilev)%dataptr(mfi)
           pu      => phi_new(ilev)%dataptr(mfi)
-          psol    => ls_solution(ilev)%dataptr(mfi)
+          ptempin => temp_tmp(ilev)%dataptr(mfi)
           
           ! Map solution on temperature
           call get_temp_ls(bx%lo, bx%hi, &
                            ptemp, lbound(ptemp), ubound(ptemp), &
-                           psol, lbound(psol), ubound(psol))
+                           ptempin, lbound(ptempin), ubound(ptempin))
 
           ! Map temperature on enthalpy
           call get_temp(bx%lo, bx%hi, &
@@ -402,14 +417,18 @@ contains
        call amrex_multifab_destroy(phi_tmp(ilev))
        call amrex_multifab_destroy(temp_tmp(ilev))
        call amrex_multifab_destroy(idomain_tmp(ilev))
+       call amrex_multifab_destroy(ls_rhs(ilev))
+       call amrex_multifab_destroy(ls_alpha(ilev))
+       do idim = 1, amrex_spacedim
+          call amrex_multifab_destroy(ls_beta(idim,ilev))
+       end do
        call amrex_distromap_destroy(dm)
     end do
     
   end subroutine advance
-
   
   ! -----------------------------------------------------------------
-  ! Subroutine used to ...
+  ! Subroutine used to fill the alpha matrix for the linear solver
   ! -----------------------------------------------------------------  
   subroutine get_alpha(lo, hi, &
                        temp, t_lo, t_hi, &
@@ -429,22 +448,19 @@ contains
     real(amrex_real) :: cp
     real(amrex_real) :: rho
     
-    ! Fill matrix of coefficients
-    !print *, "alpha"
+    ! Fill alpha matrix
     do i = lo(1), hi(1)
        do j = lo(2), hi(2)          
-          
           call get_mass_density(temp(i,j), rho)
           call get_heat_capacity(temp(i,j), cp)
           alpha(i,j) = rho*cp
-          !print *, alpha(i,j)
        end do
     end do
 
   end subroutine get_alpha
 
   ! -----------------------------------------------------------------
-  ! Subroutine used to ...
+  ! Subroutine used to fill the beta matrix for the linear solver
   ! -----------------------------------------------------------------  
   subroutine get_beta(lo, hi, dim, &
                       idom, id_lo, id_hi, &
@@ -468,34 +484,30 @@ contains
     real(amrex_real) :: temp_face
     
     if (dim == 1) then ! x-direction
-       !print *, "beta (x)"
        do i = lo(1), hi(1)+1
           do j = lo(2), hi(2)
              
              if (nint(idom(i-1,j)).eq.0 .or. nint(idom(i,j)).eq.0) then
-                 beta(i,j) = 0_amrex_real
+                 beta(i,j) = 0_amrex_real ! Suppress flux at the free surface
               else
                 temp_face = (temp(i,j) + temp(i-1,j))/2_amrex_real
                 call get_conductivity(temp_face, beta(i,j))
              end if
 
-             !print *, beta(i,j)
           end do
        end do
 
     else if (dim == 2) then ! y-direction
-       !print *, "beta (y)"
        do i = lo(1), hi(1)
           do j = lo(2), hi(2)+1
              
              if (nint(idom(i,j-1)).eq.0 .or. nint(idom(i,j)).eq.0) then
-                 beta(i,j) = 0_amrex_real
+                 beta(i,j) = 0_amrex_real ! Suppress flux at the free surface
              else
                 temp_face = (temp(i,j) + temp(i,j-1))/2_amrex_real
                 call get_conductivity(temp_face, beta(i,j))
              end if
-
-             !print *, beta(i,j)
+             
           end do
        end do
 
@@ -505,7 +517,7 @@ contains
   end subroutine get_beta
 
   ! -----------------------------------------------------------------
-  ! Subroutine used to ...
+  ! Subroutine used to get the right hand side of the linear solver
   ! -----------------------------------------------------------------  
   subroutine get_rhs(lo, hi, time, dt, &
                      lo_phys, dx, &
@@ -541,12 +553,10 @@ contains
                                 temp, t_lo, t_hi, rhs)
     
     ! Fill rhs of linear problem
-    !print *, "rhs"
     do i = lo(1), hi(1)
        do j = lo(2), hi(2)
           call get_mass_density(temp(i,j), rho)
           call get_heat_capacity(temp(i,j), cp)
-          !print *, rhs(i,j), dt, temp(i,j)
           rhs(i,j) = rhs(i,j)*dt + temp(i,j)*rho*cp
        end do
     end do

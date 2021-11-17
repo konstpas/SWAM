@@ -13,11 +13,7 @@ module regrid_module
                               phi_old, &
                               temp, &
                               t_new, &
-                              t_old, &
-                              ls_solution, &
-                              ls_acoef, &
-                              ls_bcoef, &
-                              ls_rhs
+                              t_old
   
   implicit none
 
@@ -92,15 +88,6 @@ contains
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(idomain(lev), ba, dm, ncomp, nghost)
-    ! Linear solvers
-    call amrex_multifab_build(ls_solution(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(ls_rhs(lev), ba, dm, ncomp, 0)
-    call amrex_multifab_build(ls_acoef(lev), ba, dm, ncomp, 0)
-    do idim = 1, amrex_spacedim
-       nodal = .false.
-       nodal(idim) = .true.
-       call amrex_multifab_build(ls_bcoef(idim,lev), ba, dm, ncomp, 0, nodal)
-    end do
        
     ! Build the flux registers
     if (lev > 0 .and. do_reflux) then
@@ -213,15 +200,6 @@ contains
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(idomain(lev), ba, dm, ncomp, nghost)
-    ! Linear solvers
-    call amrex_multifab_build(ls_solution(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(ls_rhs(lev), ba, dm, ncomp, 0)
-    call amrex_multifab_build(ls_acoef(lev), ba, dm, ncomp, 0)
-    do idim = 1, amrex_spacedim
-       nodal = .false.
-       nodal(idim) = .true.
-       call amrex_multifab_build(ls_bcoef(idim,lev), ba, dm, ncomp, 0, nodal)
-    end do
     
     ! Build the flux registers
     if (lev > 0 .and. do_reflux) then
@@ -381,15 +359,6 @@ contains
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(idomain(lev), ba, dm, ncomp, nghost)
-    ! Linear solvers
-    call amrex_multifab_build(ls_solution(lev), ba, dm, ncomp, nghost)
-    call amrex_multifab_build(ls_rhs(lev), ba, dm, ncomp, 0)
-    call amrex_multifab_build(ls_acoef(lev), ba, dm, ncomp, 0)
-    do idim = 1, amrex_spacedim
-       nodal = .false.
-       nodal(idim) = .true.
-       call amrex_multifab_build(ls_bcoef(idim,lev), ba, dm, ncomp, 0, nodal)
-    end do
     
     ! Build the flux registers
     if (lev > 0 .and. do_reflux) then
@@ -477,12 +446,6 @@ contains
     call amrex_multifab_destroy(phi_old(lev))
     call amrex_multifab_destroy(temp(lev))
     call amrex_multifab_destroy(idomain(lev))
-    call amrex_multifab_destroy(ls_solution(lev))
-    call amrex_multifab_destroy(ls_rhs(lev))
-    call amrex_multifab_destroy(ls_acoef(lev))
-    do idim = 1, amrex_spacedim
-       call amrex_multifab_destroy(ls_bcoef(idim,lev))
-    end do
     call amrex_fluxregister_destroy(flux_reg(lev))
     
   end subroutine my_clear_level
