@@ -69,6 +69,7 @@ contains
        ! Print output to file
        if (plot_int .gt. 0 .and. mod(step+1,plot_int) .eq. 0) then
           last_plot_file_step = step+1
+          print *, "Output!"
           call writeplotfile
           call write1dplotfile
        end if
@@ -86,7 +87,8 @@ contains
   subroutine advance_one_timestep(time)
 
     !use read_input_module, only : regrid_int
-    use amr_data_module, only : phi_old, phi_new
+    use read_input_module, only : ls_dt
+    use amr_data_module, only : phi_old, phi_new, t_old, t_new, stepno
 
     ! Input and output variables
     real(amrex_real), intent(in) :: time
@@ -135,6 +137,9 @@ contains
     
     ! Advance solution
     do ilev = 0, amrex_max_level
+       t_old(ilev) = time
+       t_new(ilev) = time + ls_dt
+       stepno(ilev) = stepno(ilev) + 1
        call amrex_multifab_swap(phi_old(ilev), phi_new(ilev))       
     end do
 
@@ -344,8 +349,7 @@ contains
     call amrex_abeclaplacian_destroy(abeclap)
     call amrex_multigrid_destroy(multigrid)
     ! -----------------------------------------------------------------------------------
-    ! -----------------------------------------------------------------------------------
-
+    ! -----------------------------------------------------------------------------------    
     ! Find melt interface y position
     call amrex_mfiter_build(mfi, idomain(amrex_max_level), tiling=.false.)
     do while(mfi%next())
@@ -366,7 +370,7 @@ contains
     ! Map solution to temperature and temperature to enthalpy (not really efficient, for testing purposes only)
     do ilev = 0, amrex_max_level
        
-       call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)
+       call amrex_mfiter_build(mfi, ls_solution(ilev), tiling=.false.)
        do while(mfi%next())
 
           ! Box
@@ -426,13 +430,14 @@ contains
     real(amrex_real) :: rho
     
     ! Fill matrix of coefficients
+    !print *, "alpha"
     do i = lo(1), hi(1)
        do j = lo(2), hi(2)          
           
           call get_mass_density(temp(i,j), rho)
           call get_heat_capacity(temp(i,j), cp)
           alpha(i,j) = rho*cp
-          
+          !print *, alpha(i,j)
        end do
     end do
 
@@ -463,32 +468,34 @@ contains
     real(amrex_real) :: temp_face
     
     if (dim == 1) then ! x-direction
-       
+       !print *, "beta (x)"
        do i = lo(1), hi(1)+1
           do j = lo(2), hi(2)
              
              if (nint(idom(i-1,j)).eq.0 .or. nint(idom(i,j)).eq.0) then
-                beta(i,j) = 0_amrex_real
-             else
+                 beta(i,j) = 0_amrex_real
+              else
                 temp_face = (temp(i,j) + temp(i-1,j))/2_amrex_real
                 call get_conductivity(temp_face, beta(i,j))
              end if
-             
+
+             !print *, beta(i,j)
           end do
        end do
 
     else if (dim == 2) then ! y-direction
-
+       !print *, "beta (y)"
        do i = lo(1), hi(1)
           do j = lo(2), hi(2)+1
              
              if (nint(idom(i,j-1)).eq.0 .or. nint(idom(i,j)).eq.0) then
-                beta(i,j) = 0_amrex_real
+                 beta(i,j) = 0_amrex_real
              else
                 temp_face = (temp(i,j) + temp(i,j-1))/2_amrex_real
                 call get_conductivity(temp_face, beta(i,j))
              end if
-             
+
+             !print *, beta(i,j)
           end do
        end do
 
@@ -524,6 +531,8 @@ contains
     
     ! Local variables
     integer :: i,j
+    real(amrex_real) :: rho
+    real(amrex_real) :: cp
     
     ! Get the boundary heat flux
     call get_boundary_heat_flux(time, lo_phys, &
@@ -532,9 +541,13 @@ contains
                                 temp, t_lo, t_hi, rhs)
     
     ! Fill rhs of linear problem
+    !print *, "rhs"
     do i = lo(1), hi(1)
-       do j = lo(2), hi(2)          
-          rhs(i,j) = rhs(i,j)*dt + temp(i,j)          
+       do j = lo(2), hi(2)
+          call get_mass_density(temp(i,j), rho)
+          call get_heat_capacity(temp(i,j), cp)
+          !print *, rhs(i,j), dt, temp(i,j)
+          rhs(i,j) = rhs(i,j)*dt + temp(i,j)*rho*cp
        end do
     end do
 
@@ -548,8 +561,6 @@ contains
                          temp, t_lo, t_hi, &
                          sol, s_lo, s_hi)
   				
-    use material_properties_module, only: get_mass_density, get_heat_capacity
-    use heat_flux_module, only: get_boundary_heat_flux
     
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)  
@@ -564,7 +575,7 @@ contains
     ! Map solution to temperature
     do i = lo(1), hi(1)
        do j = lo(2), hi(2)          
-          temp(i,j) = sol(i,j)          
+          temp(i,j) = sol(i,j)
        end do
     end do
     
