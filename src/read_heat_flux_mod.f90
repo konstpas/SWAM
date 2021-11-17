@@ -11,11 +11,39 @@ module read_heat_flux_module
 
     private
 
-    public :: get_mesh_dimensions
-    public :: read_heatflux_file
+    public :: construct_heat_flux_table
 
-    contains
+  contains
 
+    ! -----------------------------------------------------------------
+    ! Subroutine used to construct the table containing the heat flux
+    ! read from file
+    ! -----------------------------------------------------------------
+    subroutine construct_heat_flux_table
+      
+      use heat_flux_module, only: plasma_flux_time_mesh, &
+                                  plasma_flux_surf_x_mesh, &
+                                  plasma_flux_surf_z_mesh, &
+                                  heat_flux_table
+      use read_input_module, only: plasma_flux_input_file
+      
+      implicit none
+      
+      integer :: dims(1:3)
+      
+      call get_mesh_dimensions (plasma_flux_input_file, dims)
+      
+      allocate (plasma_flux_time_mesh(1:dims(1)))
+      allocate (plasma_flux_surf_x_mesh(1:dims(2)))
+      allocate (plasma_flux_surf_z_mesh(1:dims(3)))
+      allocate (heat_flux_table(1:dims(1),1:dims(2),1:dims(3)) )
+      
+      call read_heatflux_file(plasma_flux_input_file, plasma_flux_time_mesh, &
+                              plasma_flux_surf_x_mesh, plasma_flux_surf_z_mesh, heat_flux_table)
+      
+      
+    end subroutine construct_heat_flux_table
+    
     ! -----------------------------------------------------------------
     ! Subroutine used to get the dimensions of the cartesian mesh 
     ! described in the heat flux input file.

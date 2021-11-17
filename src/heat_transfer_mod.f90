@@ -207,7 +207,9 @@ contains
                 
                 if (find_liquid) then
                    if (temp(i,j,k).gt.temp_melt) then
-                      idom(i,j,k) = 2 ! Liquid
+                      idom(i,j,k) = 3 ! Liquid
+                   else if (temp(i,j,k).eq.temp_melt) then
+                      idom(i,j,k) = 2 ! Phase change
                    else
                       idom(i,j,k) = 1 ! Solid
                    end if
