@@ -66,8 +66,6 @@ contains
     type(amrex_mfiter) :: mfi
     type(amrex_box) :: bx
     type(amrex_geometry) :: geom
-    logical :: nodal(2)
-    integer :: idim
     
     ! Pointers for box array and distribution mapping
     ba = pba
@@ -178,8 +176,6 @@ contains
     type(amrex_mfiter) :: mfi
     type(amrex_box) :: bx
     type(amrex_geometry) :: geom
-    logical :: nodal(2)
-    integer :: idim
     
     ! Pointers for box array and distribution mapping
     ba = pba
@@ -333,8 +329,6 @@ contains
     type(amrex_multifab) :: new_phi_new
     type(amrex_box) :: bx
     type(amrex_geometry) :: geom
-    logical :: nodal(2)
-    integer :: idim
     
     ! Pointers for box array and distribution mapping
     ba = pba
@@ -440,7 +434,6 @@ contains
   subroutine my_clear_level(lev) bind(c)
     
     integer, intent(in), value :: lev
-    integer :: idim
     
     call amrex_multifab_destroy(phi_new(lev))
     call amrex_multifab_destroy(phi_old(lev))

@@ -4,7 +4,6 @@ program SWAM
   use amrex_amr_module 
   use init_module, only : run_init, run_finalize
   use simulation_module, only : run_simulation
-  use simulation_ls_module, only : run_simulation_ls
   
   implicit none
 
@@ -18,8 +17,7 @@ program SWAM
   call run_init
 
   ! Run simulation
-  !call run_simulation
-  call run_simulation_ls
+  call run_simulation
   
   ! Finalize data
   call run_finalize

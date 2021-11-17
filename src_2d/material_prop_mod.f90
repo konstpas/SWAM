@@ -706,10 +706,6 @@ module material_properties_module
     integer :: idx 
     integer :: i,j
     real(amrex_real) :: int_coeff
-    ! real(amrex_real) :: Cp
-    ! real(amrex_real) :: diffus 
-    ! real(amrex_real) :: ktherm
-    ! real(amrex_real) :: rho
      
     ! Obtain the temperature from linear interpolation of the enthalpy-temperature tables
     if (direct) then
