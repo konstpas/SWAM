@@ -179,6 +179,10 @@ module read_heat_flux_module
     ! -----------------------------------------------------------------
     ! Subroutine used to find an available i/o unit. Taken from 
     ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
+<<<<<<< HEAD
+=======
+    ! -----------------------------------------------------------------
+>>>>>>> non_uniform_erosion
     subroutine get_unit ( iunit )
 
     !*****************************************************************************80
@@ -358,8 +362,13 @@ module read_heat_flux_module
             length = 0
         end if
 
+<<<<<<< HEAD
     end subroutine s_to_i4
     
+=======
+    end
+
+>>>>>>> non_uniform_erosion
     ! -----------------------------------------------------------------
     ! Goes through a string "s" and returns "n" an integers(kind=4).
     ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
@@ -425,13 +434,22 @@ module read_heat_flux_module
 
         end do
 
+<<<<<<< HEAD
     end subroutine s_to_i4vec
     
+=======
+    end
+
+>>>>>>> non_uniform_erosion
     ! -----------------------------------------------------------------
     ! Subroutine that takes an open file and reads "n" real numbers 
     ! from in. Taken from 
     ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
+<<<<<<< HEAD
     ! -----------------------------------------------------------------             
+=======
+    ! -----------------------------------------------------------------         
+>>>>>>> non_uniform_erosion
     subroutine r8vec_data_read (input_unit, input_status, n, table )
 
     !*****************************************************************************80
@@ -800,10 +818,17 @@ module read_heat_flux_module
         dval = real ( isgn, kind = amrex_real) * rexp * rtop / rbot
 
         return
+<<<<<<< HEAD
     end subroutine s_to_r8
 
     ! -----------------------------------------------------------------
     ! A functions that takes two characters and check if they are 
+=======
+    end
+
+    ! -----------------------------------------------------------------
+    ! A subroutine that takes two characters and check if they are 
+>>>>>>> non_uniform_erosion
     ! equal (case insensitive). Taken from
     ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
     ! -----------------------------------------------------------------
@@ -918,12 +943,21 @@ module read_heat_flux_module
 
         end if
 
+<<<<<<< HEAD
     end subroutine ch_to_digit
         
+=======
+    end
+
+>>>>>>> non_uniform_erosion
     ! -----------------------------------------------------------------
     ! A subroutine that takes a character and capcapitalizes it. 
     ! Taken from
     ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
+<<<<<<< HEAD
+=======
+    ! -----------------------------------------------------------------
+>>>>>>> non_uniform_erosion
     subroutine ch_cap ( c )
 
     !*****************************************************************************80

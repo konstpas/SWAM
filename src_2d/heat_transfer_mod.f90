@@ -62,7 +62,7 @@ contains
     real(amrex_real), intent(in) :: idom_new(idn_lo(1):idn_hi(1),idn_lo(2):idn_hi(2))
     type(amrex_geometry), intent(in) :: geom ! geometry
     
-    !Local variables
+    ! Local variables
     integer :: i,j
     real(amrex_real) :: dx(2) ! Grid size
     real(amrex_real) :: lo_phys(2) ! Physical location of the lowest corner of the tile box
@@ -88,7 +88,8 @@ contains
 
     ! Get physical location of the lowest corner of the tile box
     lo_phys = geom%get_physical_location(lo)
-    
+
+                  
     ! Get enthalpy flux 
     call create_face_flux(dx, lo, hi, &
                           u_old, uo_lo, uo_hi, &
@@ -130,7 +131,7 @@ contains
     ! Get temperature corresponding to the output enthalpy
     call get_temp(lo, hi, &
                   u_new, un_lo, un_hi, &
-                  temp_new, tn_lo , tn_hi) 
+                  temp_new, tn_lo , tn_hi)
     
   end subroutine increment_enthalpy
 
@@ -143,7 +144,7 @@ contains
                          idom, id_lo, id_hi, &
                          temp, t_lo, t_hi)
 
-    use material_properties_module, only : temp_melt    
+    use material_properties_module, only : temp_melt   
     
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)
@@ -187,8 +188,10 @@ contains
                    idom(i,j) = 3 ! Liquid
                 else if (temp(i,j).eq.temp_melt) then
                    idom(i,j) = 2 ! Phase change
-                else
+                else if (temp(i,j).gt.0) then
                    idom(i,j) = 1 ! Solid
+                else
+                   STOP 'Temperature is 0 below surf_ind_heat_domain'
                 end if
              else
                 idom(i,j) = 1 ! Liquid or solid (no distinction is made)
@@ -350,26 +353,27 @@ contains
     integer :: i
     integer :: xind
     real(amrex_real) :: xpos
-    real(amrex_real) :: x_alpha
     
     do  i = lo(1),hi(1)
    
-       xpos = xlo(1) + (0.5 + i-lo(1))*dx(1) 
-       
-       ! In what follows -surf_dx(1)/2  and ceiling are used since
-       ! the surface is staggered 'backwards' on the faces with
-       ! respect to the xlo and xpos values which are defined on the
-       ! centers. 
-       xind = ceiling((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
-       x_alpha = mod(xpos - surf_dx(1)/2 - surf_xlo(1), surf_dx(1))
-       
+      
+      ! In what follows -surf_dx(1)/2 is used since
+      ! the surface is staggered 'backwards' on the faces with
+      ! respect to the xlo and xpos values which are defined on the
+      ! centers. 
+
+       xpos = xlo(1) + (0.5+i-lo(1))*dx(1) 
+
+       ! The nearest integer is taken to round of numerical
+       ! errors since we know that dx(1) is n*surf_dx(1) where
+       ! n is an integer which depends on the current level and
+       ! the refinment ratio between levels.
+       xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1))
+
        if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
        if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
        
-       ! Interpolation
-       surf_pos_heat_domain(i) = surf_pos(xind) + &
-            x_alpha * (surf_pos(xind+1)-surf_pos(xind))
-       
+       surf_pos_heat_domain(i) = surf_pos(xind)
     end do
     
   end subroutine get_surf_pos

@@ -709,13 +709,28 @@ module material_properties_module
     ! real(amrex_real) :: ktherm
     ! real(amrex_real) :: rho
      
+
     ! Obtain the temperature from linear interpolation of the enthalpy-temperature tables
     do i = lo(1),hi(1)
        do j = lo(2),hi(2)
-          
-          do idx = 0,phiT_table_n_points 
-             if (ui(i,j) .le. enth_table(idx) ) exit 
-          end do
+
+          if(ui(i,j).ne.ui(i,j)) then
+             STOP 'Enthalpy query in temperature table is nan.'
+          end if
+
+          if(ui(i,j).eq.ui(i,j)-1) then
+             STOP 'Enthalpy query for temperature table is infinity.'
+          end if
+
+          if(ui(i,j).lt.0) then
+            write(*,*) ui(i,j)
+            STOP 'Enthalpy query for temperature table is negative.'
+          end if
+
+          ! Routine bisection assumes that first argument is an array 
+          ! with its index starting from one. Since enth_table
+          ! starts from 0 a +1 is added in the second argument.
+          call bisection(enth_table, phiT_table_n_points+1, ui(i,j), idx)
           
           if (idx.ge.phiT_table_n_points) then
              STOP 'Temperature table exceeded' 
@@ -760,13 +775,23 @@ module material_properties_module
 
     ! Local variables
     integer :: idx
-    real(amrex_real) :: int_coeff 
+    real(amrex_real) :: int_coeff
+
+    if(temp.ne.temp) then
+      STOP 'Temperature query for enthalpy table is nan.'
+    end if
+
+    if(temp.eq.temp-1) then
+      STOP 'Temperature query for enthalpy table is infinity.'
+    end if
 
     do idx = 0,phiT_table_n_points 
        if (temp .le. temp_table(idx)) exit 
     end do
     
-    if (idx.eq.phiT_table_n_points) STOP 'Temperature table exceeded'
+    if (idx.eq.phiT_table_n_points) then 
+      STOP 'Temperature table exceeded'
+    end if
     
     ! If the input temperature is the melting temperature the enthalpy is ambiguous and
     ! it should be specified if the system is to be considered solid or liquid
@@ -788,6 +813,42 @@ module material_properties_module
     end if
     
   end subroutine get_enthalpy
+  
+   ! -----------------------------------------------------------------
+   ! Given an array xx(1:n), and given a value x, returns a value j such that x is between
+   ! xx(j) and xx(j+1). xx(1:n) must be monotonic, either increasing or decreasing. j=0
+   ! or j=n is returned to indicate that x is out of range.
+   ! Taken from Numerical recipes in Fortran 77.
+   ! -----------------------------------------------------------------
+  subroutine bisection(xx,n,x,j)
 
+   ! Input and output variables
+   integer, intent(in) :: n
+   real(amrex_real), intent(in) :: xx(n)
+   real(amrex_real), intent(in) :: x
+   integer, intent(out) :: j
+
+   ! Local variables
+
+   integer jl,jm,ju
+
+   jl=0 ! Initialize lower
+   ju=n+1 ! upper limits.
+   do while(ju-jl.gt.1)
+      jm=(ju+jl)/2
+      if((xx(n).ge.xx(1)).eqv.(x.ge.xx(jm)))then
+         jl=jm
+      else
+         ju=jm
+      endif
+   end do
+   if(x.eq.xx(1)) then
+      j=1
+   else if(x.eq.xx(n)) then
+      j=n-1
+   else
+      j=jl
+   endif
+end subroutine bisection
 
 end module material_properties_module 
