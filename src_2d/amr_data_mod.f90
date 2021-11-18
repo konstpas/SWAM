@@ -158,7 +158,6 @@ contains
     use read_input_module, only : deallocate_input
     
     integer :: lev
-    integer :: idim
     
     deallocate(dt)
     deallocate(lo_bc)

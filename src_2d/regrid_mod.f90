@@ -50,7 +50,7 @@ contains
 
     use read_input_module, only : do_reflux
     use material_properties_module, only : get_temp
-    use heat_transfer_module, only : get_idomain
+    use domain_module, only : get_idomain
 
     ! Input and output variables
     integer, intent(in), value :: lev
@@ -160,7 +160,7 @@ contains
 
     use read_input_module, only : do_reflux
     use material_properties_module, only : get_temp
-    use heat_transfer_module, only : get_idomain
+    use domain_module, only : get_idomain
 
     ! Input and output variables    
     integer, intent(in), value :: lev
@@ -312,7 +312,7 @@ contains
 
     use read_input_module, only : do_reflux
     use material_properties_module, only : get_temp
-    use heat_transfer_module, only : get_idomain
+    use domain_module, only : get_idomain
 
     ! Input and output variables    
     integer, intent(in), value :: lev
@@ -432,6 +432,8 @@ contains
   ! multifabs defined on that level
   ! -----------------------------------------------------------------
   subroutine my_clear_level(lev) bind(c)
+
+    use read_input_module, only : do_reflux
     
     integer, intent(in), value :: lev
     
@@ -439,7 +441,9 @@ contains
     call amrex_multifab_destroy(phi_old(lev))
     call amrex_multifab_destroy(temp(lev))
     call amrex_multifab_destroy(idomain(lev))
-    call amrex_fluxregister_destroy(flux_reg(lev))
+    if (do_reflux) then
+       call amrex_fluxregister_destroy(flux_reg(lev))
+    end if
     
   end subroutine my_clear_level
 
@@ -501,7 +505,7 @@ contains
                            tag, taglo, taghi, &
                            settag)
     
-    use heat_transfer_module, only : get_surf_pos   
+    use domain_module, only : get_surf_pos   
     use material_properties_module, only : enth_at_melt
 
     ! Input and output variables
