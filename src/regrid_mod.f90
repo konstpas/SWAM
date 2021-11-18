@@ -108,7 +108,7 @@ contains
        ! Temperature
        call get_temp(bx%lo, bx%hi, &
                      phi, lbound(phi), ubound(phi), &
-                     ptemp, lbound(ptemp), ubound(ptemp))
+                     ptemp, lbound(ptemp), ubound(ptemp), .true.)
 
        ! Integer domain to distinguish material and background
        call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
@@ -220,7 +220,7 @@ contains
        ! Temperature
        call get_temp(bx%lo, bx%hi, & 
                      phi, lbound(phi), ubound(phi), &
-                     ptemp, lbound(ptemp), ubound(ptemp))
+                     ptemp, lbound(ptemp), ubound(ptemp), .true.)
        
        ! Integer domain to distinguish material and background
        call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
@@ -378,7 +378,7 @@ contains
        ! Temperature
        call get_temp(bx%lo, bx%hi, & 
                      phi, lbound(phi), ubound(phi), &
-                     ptemp, lbound(ptemp), ubound(ptemp))
+                     ptemp, lbound(ptemp), ubound(ptemp), .true.)
 
        ! Integer domain to distinguish material and background
        call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &

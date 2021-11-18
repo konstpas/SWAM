@@ -199,7 +199,7 @@ contains
   ! -----------------------------------------------------------------
   recursive subroutine advance_one_timestep_explicit(lev, time, substep)
 
-    use read_input_module, only : regrid_int, do_reflux
+    use read_input_module, only : do_reflux
     use amr_data_module, only : t_old, t_new, phi_old, phi_new, flux_reg, stepno, nsubsteps, dt  
     use regrid_module, only : averagedownto
 
@@ -209,45 +209,10 @@ contains
     real(amrex_real), intent(in) :: time
 
     ! Local variables
-    integer, allocatable, save :: last_regrid_step(:)
-    integer :: finest_level
     integer :: fine_substep    
-    integer :: k
-    integer :: old_finest_level
     
-    ! Regridding 
-    if (regrid_int .gt. 0) then
-       
-       if (.not.allocated(last_regrid_step)) then
-
-          allocate(last_regrid_step(0:amrex_max_level))
-          last_regrid_step = 0
-          
-       end if
-
-      
-       if (lev .lt. amrex_max_level .and. stepno(lev) .gt. last_regrid_step(lev)) then
-
-          if (mod(stepno(lev), regrid_int) .eq. 0) then
-
-             old_finest_level = amrex_get_finest_level()
-             call amrex_regrid(lev, time)
-             finest_level = amrex_get_finest_level()
-
-             do k = lev, finest_level
-                last_regrid_step(k) = stepno(k)
-             end do
-
-             do k = old_finest_level+1, finest_level
-                dt(k) = dt(k-1) / amrex_ref_ratio(k-1)
-             end do
-             
-          end if
-          
-       end if
-       
-    end if
-    
+    ! Regridding
+    call check_regridding(lev, time)    
     
     ! Advance solution
     stepno(lev) = stepno(lev)+1
@@ -275,7 +240,50 @@ contains
   
   end subroutine advance_one_timestep_explicit
 
+  ! -----------------------------------------------------------------
+  ! Subroutine used to check if it is time to regrid
+  ! -----------------------------------------------------------------
+  subroutine check_regridding(lev, time)
 
+    use read_input_module, only : regrid_int
+    use amr_data_module, only : last_regrid_step, stepno, dt
+
+    ! Input and output variables
+    integer, intent(in) :: lev
+    real(amrex_real), intent(in) :: time
+    
+    ! Local variables
+    integer :: ilev
+    integer :: finest_level
+    integer :: old_finest_level
+    
+    if (regrid_int .gt. 0) then
+       
+       if (lev .lt. amrex_max_level .and. stepno(lev) .gt. last_regrid_step(lev)) then
+
+          if (mod(stepno(lev), regrid_int) .eq. 0) then
+
+             old_finest_level = amrex_get_finest_level()
+             call amrex_regrid(lev, time)
+             finest_level = amrex_get_finest_level()
+
+             do ilev = lev, finest_level
+                last_regrid_step(ilev) = stepno(ilev)
+             end do
+
+             do ilev = old_finest_level+1, finest_level
+                dt(ilev) = dt(ilev-1) / amrex_ref_ratio(ilev-1)
+             end do
+             
+          end if
+          
+       end if
+       
+    end if
+    
+  end subroutine check_regridding
+
+  
   ! -----------------------------------------------------------------
   ! Subroutine used to advance the shallow water solver and the
   ! heat equation solver of one time step at a given level. Only
@@ -514,46 +522,11 @@ contains
     
     ! Local variables
     integer :: ilev
-    integer :: jlev
-    integer, allocatable, save :: last_regrid_step(:)
-    integer :: finest_level
-    integer :: fine_substep    
-    integer :: old_finest_level
-    
-    ! Regridding 
-    if (regrid_int .gt. 0) then
-       
-       if (.not.allocated(last_regrid_step)) then
-
-          allocate(last_regrid_step(0:amrex_max_level))
-          last_regrid_step = 0
-          
-       end if
-
-       do ilev = 0,amrex_max_level
-          
-          if (ilev .lt. amrex_max_level .and. stepno(ilev) .gt. last_regrid_step(ilev)) then
-
-             if (mod(stepno(ilev), regrid_int) .eq. 0) then
-
-                old_finest_level = amrex_get_finest_level()
-                call amrex_regrid(ilev, time)
-                finest_level = amrex_get_finest_level()
-                
-                do jlev = ilev, finest_level
-                   last_regrid_step(jlev) = stepno(jlev)
-                end do
-                
-                do jlev = old_finest_level+1, finest_level
-                   dt(jlev) = dt(jlev-1)
-                end do
-                
-             end if
-             
-          end if
-       
-       end do
-    end if
+     
+    ! Regridding
+    do ilev = 0,amrex_max_level
+       call check_regridding(ilev,time)
+    end do
     
     ! Advance solution
     do ilev = 0, amrex_max_level
