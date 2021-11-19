@@ -117,7 +117,7 @@ contains
        pfy => flux(2)%dataptr()
 
        
-       ! Get temperature corresponding to the enthalpy
+       ! Get temperature corresponding to the enthalpy (with ghost points)
        call get_temp(lbound(ptempin), ubound(ptempin), &
                      pin, lbound(pin), ubound(pin), &
                      ptempin, lbound(ptempin), ubound(ptempin),.true.)
@@ -137,26 +137,29 @@ contains
        
        ! Increment enthalpy at given box depending on the condition of the free surface
        if (temp_fs.gt.0) then
-          call advance_heat_solver_explicit_box_fixT(bx%lo, bx%hi, &
-                                                     pin, lbound(pin),     ubound(pin),     &
-                                                     pout,    lbound(pout),    ubound(pout),    &
-                                                     ptempin, lbound(ptempin), ubound(ptempin), &
-                                                     ptemp,   lbound(ptemp),   ubound(ptemp),   &
-                                                     pfx, lbound(pfx), ubound(pfx), &
-                                                     pfy, lbound(pfy), ubound(pfy), &
-                                                     pidout, lbound(pidout), ubound(pidout), &
-                                                     geom, dt)
+          call get_enthalpy_explicit_fixT(bx%lo, bx%hi, &
+                                          pin, lbound(pin),     ubound(pin),     &
+                                          pout,    lbound(pout),    ubound(pout),    &
+                                          ptempin, lbound(ptempin), ubound(ptempin), &
+                                          pfx, lbound(pfx), ubound(pfx), &
+                                          pfy, lbound(pfy), ubound(pfy), &
+                                          pidout, lbound(pidout), ubound(pidout), &
+                                          geom, dt)
        else
-          call advance_heat_solver_explicit_box(time, bx%lo, bx%hi, &
-                                                pin, lbound(pin),     ubound(pin),     &
-                                                pout,    lbound(pout),    ubound(pout),    &
-                                                ptempin, lbound(ptempin), ubound(ptempin), &
-                                                ptemp,   lbound(ptemp),   ubound(ptemp),   &
-                                                pfx, lbound(pfx), ubound(pfx), &
-                                                pfy, lbound(pfy), ubound(pfy), &
-                                                pidout, lbound(pidout), ubound(pidout), &
-                                                geom, dt)
+          call get_enthalpy_explicit(time, bx%lo, bx%hi, &
+                                     pin, lbound(pin),     ubound(pin),     &
+                                     pout,    lbound(pout),    ubound(pout),    &
+                                     ptempin, lbound(ptempin), ubound(ptempin), &
+                                     pfx, lbound(pfx), ubound(pfx), &
+                                     pfy, lbound(pfy), ubound(pfy), &
+                                     pidout, lbound(pidout), ubound(pidout), &
+                                     geom, dt)
        end if
+
+       ! Get temperature corresponding to the new enthalpy
+       call get_temp(bx%lo, bx%hi, &
+                     pout, lbound(pout), ubound(pout), &
+                     ptemp, lbound(ptemp), ubound(ptemp), .true.) 
        
        ! Update pointers for flux registers
        if (do_reflux) then
@@ -215,15 +218,14 @@ contains
   ! Subroutine used to compute the enthalpy at a new time step for
   ! a given box of a certain level via an explicit update
   ! -----------------------------------------------------------------
-  subroutine advance_heat_solver_explicit_box(time, lo, hi, &
-                                              u_old,  uo_lo, uo_hi, &
-                                              u_new, un_lo, un_hi, &
-                                              temp_old, to_lo, to_hi, &
-                                              temp_new, tn_lo, tn_hi , &
-                                              flxx, fx_lo, fx_hi, &
-                                              flxy, fy_lo, fy_hi, &
-                                              idom_new, idn_lo, idn_hi, &
-                                              geom, dt)
+  subroutine get_enthalpy_explicit(time, lo, hi, &
+                                   u_old,  uo_lo, uo_hi, &
+                                   u_new, un_lo, un_hi, &
+                                   temp, t_lo, t_hi, &
+                                   flxx, fx_lo, fx_hi, &
+                                   flxy, fy_lo, fy_hi, &
+                                   idom, id_lo, id_hi, &
+                                   geom, dt)
 
     use heat_flux_module, only: get_boundary_heat_flux
     use material_properties_module, only : get_temp
@@ -232,20 +234,18 @@ contains
     integer, intent(in) :: lo(2), hi(2) ! bounds of current tile box
     integer, intent(in) :: uo_lo(2), uo_hi(2) ! bounds of input enthalpy box 
     integer, intent(in) :: un_lo(2), un_hi(2) ! bounds of output enthalpy box  
-    integer, intent(in) :: to_lo(2), to_hi(2) ! bounds of input temperature box  
-    integer, intent(in) :: tn_lo (2), tn_hi (2) ! bounds of output temperature box
+    integer, intent(in) :: t_lo(2), t_hi(2) ! bounds of the temperature box  
     integer, intent(in) :: fx_lo(2), fx_hi(2) ! bounds of the enthalpy flux along x
     integer, intent(in) :: fy_lo(2), fy_hi(2) ! bounds of the enthalpy flux along y
-    integer, intent(in) :: idn_lo(2), idn_hi(2) ! bounds of the output idomain box
+    integer, intent(in) :: id_lo(2), id_hi(2) ! bounds of the idomain box
     real(amrex_real), intent(in) :: dt ! time step
     real(amrex_real), intent(in) :: time ! time
-    real(amrex_real), intent(inout) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2)) ! Input enthalpy 
+    real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2)) ! Input enthalpy 
     real(amrex_real), intent(inout) :: u_new(un_lo(1):un_hi(1),un_lo(2):un_hi(2)) ! Output enthalpy
-    real(amrex_real), intent(inout) :: temp_old(to_lo(1):to_hi(1),to_lo(2):to_hi(2)) ! Input temperature
-    real(amrex_real), intent(inout) :: temp_new(tn_lo(1):tn_hi(1),tn_lo(2):tn_hi(2)) ! Output temperature
+    real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2)) ! Temperature
     real(amrex_real), intent(out) :: flxx(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2)) ! flux along the x direction  			
     real(amrex_real), intent(out) :: flxy(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2)) ! flux along the y direction
-    real(amrex_real), intent(in) :: idom_new(idn_lo(1):idn_hi(1),idn_lo(2):idn_hi(2))
+    real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2)) ! idomain
     type(amrex_geometry), intent(in) :: geom ! geometry
     
     !Local variables
@@ -265,14 +265,14 @@ contains
                           u_old, uo_lo, uo_hi, &
                           flxx, fx_lo, fx_hi, &
                           flxy, fy_lo, fy_hi, &
-                          temp_old, to_lo, to_hi, &
-                          idom_new, idn_lo, idn_hi)
+                          temp, t_lo, t_hi, &
+                          idom, id_lo, id_hi)
   				  	
     ! Prescribe external heat flux on the free surface
     call get_boundary_heat_flux(time, lo_phys, &
                                 dx, lo, hi, &
-                                idom_new, idn_lo, idn_hi, &
-                                temp_old, to_lo, to_hi, qbound)
+                                idom, id_lo, id_hi, &
+                                temp, t_lo, t_hi, qbound)
 
     ! Compute enthalpy at the new timestep
     do i = lo(1),hi(1)
@@ -298,12 +298,7 @@ contains
        end do
     end do
     
-    ! Get temperature corresponding to the output enthalpy
-    call get_temp(lo, hi, &
-                  u_new, un_lo, un_hi, &
-                  temp_new, tn_lo , tn_hi, .true.) 
-    
-  end subroutine advance_heat_solver_explicit_box
+  end subroutine get_enthalpy_explicit
 
 
   ! -----------------------------------------------------------------
@@ -311,15 +306,14 @@ contains
   ! a given box on a certain level via an explicit update.
   ! Case with fixed temperature at the free surface
   ! -----------------------------------------------------------------
-  subroutine advance_heat_solver_explicit_box_fixT(lo, hi, &
-                                                   u_old,  uo_lo, uo_hi, &
-                                                   u_new, un_lo, un_hi, &
-                                                   temp_old, to_lo, to_hi, &
-                                                   temp_new, tn_lo, tn_hi , &
-                                                   flxx, fx_lo, fx_hi, &
-                                                   flxy, fy_lo, fy_hi, &
-                                                   idom_new, idn_lo, idn_hi, &
-                                                   geom, dt)
+  subroutine get_enthalpy_explicit_fixT(lo, hi, &
+                                        u_old,  uo_lo, uo_hi, &
+                                        u_new, un_lo, un_hi, &
+                                        temp, t_lo, t_hi, &
+                                        flxx, fx_lo, fx_hi, &
+                                        flxy, fy_lo, fy_hi, &
+                                        idom, id_lo, id_hi, &
+                                        geom, dt)
     
     use material_properties_module, only : get_temp, get_enthalpy
     use read_input_module, only : temp_fs
@@ -328,19 +322,17 @@ contains
     integer, intent(in) :: lo(2), hi(2) ! bounds of current tile box
     integer, intent(in) :: uo_lo(2), uo_hi(2) ! bounds of input enthalpy box 
     integer, intent(in) :: un_lo(2), un_hi(2) ! bounds of output enthalpy box  
-    integer, intent(in) :: to_lo(2), to_hi(2) ! bounds of input temperature box  
-    integer, intent(in) :: tn_lo (2), tn_hi (2) ! bounds of output temperature box
+    integer, intent(in) :: t_lo(2), t_hi(2) ! bounds of the temperature box  
     integer, intent(in) :: fx_lo(2), fx_hi(2) ! bounds of the enthalpy flux along x
     integer, intent(in) :: fy_lo(2), fy_hi(2) ! bounds of the enthalpy flux along y
-    integer, intent(in) :: idn_lo(2), idn_hi(2) ! bounds of the output idomain box
+    integer, intent(in) :: id_lo(2), id_hi(2) ! bounds of the idomain box
     real(amrex_real), intent(in) :: dt ! time step
-    real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2)) ! Input enthalpy 
+    real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2)) ! Input enthalpy
     real(amrex_real), intent(inout) :: u_new(un_lo(1):un_hi(1),un_lo(2):un_hi(2)) ! Output enthalpy
-    real(amrex_real), intent(inout) :: temp_old(to_lo(1):to_hi(1),to_lo(2):to_hi(2)) ! Input temperature
-    real(amrex_real), intent(inout) :: temp_new(tn_lo(1):tn_hi(1),tn_lo(2):tn_hi(2)) ! Output temperature
+    real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2)) ! Temperature
     real(amrex_real), intent(out) :: flxx(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2)) ! flux along the x direction  			
     real(amrex_real), intent(out) :: flxy(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2)) ! flux along the y direction
-    real(amrex_real), intent(in) :: idom_new(idn_lo(1):idn_hi(1),idn_lo(2):idn_hi(2))
+    real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2)) ! idomain
     type(amrex_geometry), intent(in) :: geom ! geometry
     
     !Local variables
@@ -362,15 +354,15 @@ contains
     call create_face_flux_fixT(dx, lo, hi, &
                                flxx, fx_lo, fx_hi, &
                                flxy, fy_lo, fy_hi, &
-                               temp_old, to_lo, to_hi)
+                               temp, t_lo, t_hi)
 
     ! Compute enthalpy at the new timestep
     do i = lo(1),hi(1)
        do  j = lo(2),hi(2)
           
-          if (nint(idom_new(i,j)).ne.0 .and. nint(idom_new(i,j+1)).eq.0) then
+          if (nint(idom(i,j)).ne.0 .and. nint(idom(i,j+1)).eq.0) then
              u_new(i,j) = u_fs ! Impose temperature on the free surface
-          else if(nint(idom_new(i,j)).eq.0) then
+          else if(nint(idom(i,j)).eq.0) then
              u_new(i,j) = u_fs ! Set background temperature equal to the free surface temperature
           else
              ! Update enthalpy according to heat equation
@@ -396,12 +388,7 @@ contains
        end do
     end do
     
-    ! Get temperature corresponding to the output enthalpy
-    call get_temp(lo, hi, &
-                  u_new, un_lo, un_hi, &
-                  temp_new, tn_lo , tn_hi, .true.) 
-    
-  end subroutine advance_heat_solver_explicit_box_fixT
+  end subroutine get_enthalpy_explicit_fixT
 
 
   ! -----------------------------------------------------------------
@@ -631,7 +618,7 @@ contains
     use regrid_module, only : fillpatch
     use domain_module, only : get_idomain, get_melt_pos, reset_melt_pos
     use material_properties_module, only : get_temp
-    
+
     ! Input and output variables
     real(amrex_real), intent(in) :: dt
     real(amrex_real), intent(in) :: time
@@ -646,54 +633,71 @@ contains
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pout
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptempin
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pfx
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pfy
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidin
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidout
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pac
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pbc
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: prhs
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pu
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ppstar
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptempstar
     type(amrex_multifab) :: phi_tmp(0:amrex_max_level) ! Enthalpy multifab with ghost points
     type(amrex_multifab) :: temp_tmp(0:amrex_max_level) ! Temperature multifab with ghost points
     type(amrex_multifab) :: idomain_tmp(0:amrex_max_level) ! Idomain multifab to distinguish material and background
     type(amrex_multifab) :: rhs(0:amrex_max_level) ! multifab for the right hand side of the linear system of equations
     type(amrex_multifab) :: alpha(0:amrex_max_level) ! multifab for the first term on the left hand side of the linear system of equations
     type(amrex_multifab) :: beta(amrex_spacedim,0:amrex_max_level) ! multifab for the second term on the left hand side of the linear system of equations
+    type(amrex_multifab) :: phi_star(0:amrex_max_level) ! Enthalpy multifab for predictor-corrector procedure
+    type(amrex_multifab) :: temp_star(0:amrex_max_level) ! Temperature multifab for predictor-corrector procedure
     type(amrex_mfiter) :: mfi ! Multifab iterator
     type(amrex_box) :: bx
+    type(amrex_box) :: tbx
     type(amrex_boxarray) :: ba(0:amrex_max_level) ! Box array
     type(amrex_distromap):: dm(0:amrex_max_level) ! Distribution mapping
+    type(amrex_fab) :: flux(amrex_spacedim)
 
-    
-    
+        
     ! Loop through all the levels
     do ilev = 0, amrex_max_level
 
        ! Swap old and new enthalpies before updating solution
        call amrex_multifab_swap(phi_old(ilev), phi_new(ilev))
        
-       ! Enthalpy and temperature multifabs with ghost points
-       ncomp = phi_new(ilev)%ncomp()
-       call amrex_multifab_build(phi_tmp(ilev), phi_new(ilev)%ba, phi_new(ilev)%dm, ncomp, nghost) 
-       call amrex_multifab_build(temp_tmp(ilev), phi_new(ilev)%ba, phi_new(ilev)%dm, ncomp, nghost)
-       call fillpatch(ilev, time, phi_tmp(ilev))
-       
-       ! Build temporary idomain multifab to store the domain configuration before SW deformation
-       call amrex_multifab_build(idomain_tmp(ilev), phi_new(ilev)%ba, phi_new(ilev)%dm, ncomp, nghost)
-       call amrex_multifab_swap(idomain_tmp(ilev), idomain(ilev))
-       
-       ! Multifabs for the linear solver
-       call amrex_multifab_build(rhs(ilev), phi_new(ilev)%ba, phi_new(ilev)%dm, ncomp, 0)
-       call amrex_multifab_build(alpha(ilev), phi_new(ilev)%ba, phi_new(ilev)%dm, ncomp, 0)
-       do idim = 1, amrex_spacedim
-          nodal = .false.
-          nodal(idim) = .true.
-          call amrex_multifab_build(beta(idim,ilev), phi_new(ilev)%ba, phi_new(ilev)%dm, ncomp, 0, nodal)
-       end do
- 
        ! Get boxarray and distribution mapping on level
        ba(ilev) = phi_new(ilev)%ba
        dm(ilev) = phi_new(ilev)%dm
 
+       ! Number of components
+       ncomp = phi_new(ilev)%ncomp()
+       
+       ! Enthalpy and temperature multifabs with ghost points
+       call amrex_multifab_build(phi_tmp(ilev), ba(ilev), dm(ilev), ncomp, nghost) 
+       call amrex_multifab_build(temp_tmp(ilev), ba(ilev), dm(ilev), ncomp, nghost)
+       call fillpatch(ilev, time, phi_tmp(ilev))
+
+       ! Enthalpy and temperature multifabs for predictor-corrector procedure
+       call amrex_multifab_build(phi_star(ilev), ba(ilev), dm(ilev), ncomp, 0)
+       call amrex_multifab_build(temp_star(ilev), ba(ilev), dm(ilev), ncomp, 0)
+       
+       ! Build temporary idomain multifab to store the domain configuration before SW deformation
+       call amrex_multifab_build(idomain_tmp(ilev), ba(ilev), dm(ilev), ncomp, nghost)
+       call amrex_multifab_swap(idomain_tmp(ilev), idomain(ilev))
+
+       ! Initialize fluxes (used in the predictor step)
+       do idim = 1, amrex_spacedim
+          call flux(idim)%reset_omp_private()
+       end do
+    
+       ! Multifabs for the linear solver
+       call amrex_multifab_build(rhs(ilev), ba(ilev), dm(ilev), ncomp, 0)
+       call amrex_multifab_build(alpha(ilev), ba(ilev), dm(ilev), ncomp, 0)
+       do idim = 1, amrex_spacedim
+          nodal = .false.
+          nodal(idim) = .true.
+          call amrex_multifab_build(beta(idim,ilev), ba(ilev), dm(ilev), ncomp, 0, nodal)
+       end do
+ 
        ! Loop through all the boxes in the level
        call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)  
     						 
@@ -710,6 +714,16 @@ contains
           pidout  => idomain(ilev)%dataptr(mfi)
           pac     => alpha(ilev)%dataptr(mfi)
           prhs    => rhs(ilev)%dataptr(mfi)
+          do idim = 1, amrex_spacedim
+             tbx = bx
+             call tbx%nodalize(idim)
+             call flux(idim)%resize(tbx,ncomp)
+             call tbx%grow(1)
+          end do
+          pfx => flux(1)%dataptr()
+          pfy => flux(2)%dataptr()
+          ppstar => phi_star(ilev)%dataptr(mfi)
+          ptempstar => temp_star(ilev)%dataptr(mfi)
           
           ! Get temperature corresponding to the enthalpy (with ghost points)
           call get_temp(lbound(ptempin), ubound(ptempin), &
@@ -728,14 +742,32 @@ contains
                                      pidout, lbound(pidout), ubound(pidout), &
                                      pin, lbound(pin), ubound(pin))
 
-          ! Get temperature corresponding to the enthalpy after the deformation
+          ! Get temperature corresponding to the enthalpy (prediction step)
           call get_temp(lbound(ptempin), ubound(ptempin), &
                         pin, lbound(pin), ubound(pin), &
                         ptempin, lbound(ptempin), ubound(ptempin), .true.)
-
+          
+          ! Explicit update of the enthalpy (prediction step)
+          call get_enthalpy_explicit(time, bx%lo, bx%hi, &
+                                     pin, lbound(pin),     ubound(pin),     &
+                                     ppstar, lbound(ppstar), ubound(ppstar), &
+                                     ptempin, lbound(ptempin), ubound(ptempin), &
+                                     pfx, lbound(pfx), ubound(pfx), &
+                                     pfy, lbound(pfy), ubound(pfy), &
+                                     pidout, lbound(pidout), ubound(pidout), &
+                                     amrex_geom(ilev), dt)
+          
+          ! Get temperature corresponding to the enthalpy (prediction step)
+          call get_temp(lbound(ptempstar), ubound(ptempstar), &
+                        ppstar, lbound(ppstar), ubound(ppstar), &
+                        ptempstar, lbound(ptempstar), ubound(ptempstar), .true.)
+          
           ! Get alpha matrix for the linear solver (first term on left hand side)
           call get_alpha(bx%lo, bx%hi, &
+                         pin, lbound(pin), ubound(pin), &
+                         ppstar, lbound(ppstar), ubound(ppstar), &
                          ptempin, lbound(ptempin), ubound(ptempin), &
+                         ptempstar, lbound(ptempstar), ubound(ptempstar), &                         
                          pac, lbound(pac), ubound(pac))
 
           ! Get beta matrix for the linear solver (second term on left hand side)
@@ -751,9 +783,11 @@ contains
           call get_rhs(bx%lo, bx%hi, time, dt, &
                        amrex_geom(ilev)%get_physical_location(bx%lo), amrex_geom(ilev)%dx, &
                        pidout, lbound(pidout), ubound(pidout), &
+                       pin, lbound(pin), ubound(pin), &
+                       ppstar, lbound(ppstar), ubound(ppstar), &
                        ptempin, lbound(ptempin), ubound(ptempin), &
+                       ptempstar, lbound(ptempstar), ubound(ptempstar), &                      
                        prhs, lbound(prhs), ubound(prhs))
-
 
        end do
 
@@ -764,7 +798,81 @@ contains
     
 
     ! Compute new temperature via implicit update
-    call advance_temperature_implicit(ba, dm, dt, alpha, beta, rhs, temp_tmp)
+    call get_temperature_implicit(ba, dm, dt, alpha, beta, rhs, temp_tmp)
+
+    
+    ! ! Re-compute enthalpy and temperature on all levels (correction step)
+    ! do ilev = 0, amrex_max_level
+ 
+    !    ! Loop through all the boxes in the level
+    !    call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)  
+    						 
+    !    do while(mfi%next())
+
+    !       ! Box
+    !       bx = mfi%validbox()   
+          
+    !       ! Pointers
+    !       pin     => phi_tmp(ilev)%dataptr(mfi)
+    !       pout    => phi_new(ilev)%dataptr(mfi)
+    !       ptempin => temp_tmp(ilev)%dataptr(mfi)
+    !       ptemp   => temp(ilev)%dataptr(mfi)
+    !       ppstar => phi_star(ilev)%dataptr(mfi)
+    !       ptempstar => temp_star(ilev)%dataptr(mfi)
+
+    !       ! Get corrected enthalpy
+    !       call get_enthalpy_implicit(bx%lo, bx%hi, &
+    !                                  pin, lbound(pin), ubound(pin), &
+    !                                  ppstar, lbound(ppstar), ubound(ppstar), &
+    !                                  pout, lbound(pout), ubound(pout), &
+    !                                  ptempin, lbound(ptempin), ubound(ptempin), &
+    !                                  ptempstar, lbound(ptempstar), ubound(ptempstar), &
+    !                                  ptempin, lbound(ptempin), ubound(ptempin))
+          
+    !       ! Get corrected temperature 
+    !       call get_temp(lbound(ptemp), ubound(ptemp), &
+    !                     pout, lbound(pout), ubound(pout), &
+    !                     ptemp, lbound(ptemp), ubound(ptemp), .true.)
+
+
+    !    end do
+
+    !    call amrex_mfiter_destroy(mfi)
+
+    ! end do
+    
+    ! ! Find melt interface y position
+    ! call amrex_mfiter_build(mfi, idomain(amrex_max_level), tiling=.false.)
+    ! do while(mfi%next())
+
+    !    ! Box
+    !    bx = mfi%validbox()   
+       
+    !    ! Pointers
+    !    pidin => idomain(amrex_max_level)%dataptr(mfi)
+       
+    !    call get_melt_pos(bx%lo, bx%hi, &
+    !                      pidin, lbound(pidin), ubound(pidin), &
+    !                      amrex_geom(amrex_max_level))
+       
+    ! end do
+    ! call amrex_mfiter_destroy(mfi)    
+        
+    ! ! Clean memory
+    ! do ilev = 0, amrex_max_level
+    !    call amrex_multifab_destroy(phi_tmp(ilev))
+    !    call amrex_multifab_destroy(temp_tmp(ilev))
+    !    call amrex_multifab_destroy(idomain_tmp(ilev))
+    !    call amrex_multifab_destroy(rhs(ilev))
+    !    call amrex_multifab_destroy(alpha(ilev))
+    !    do idim = 1, amrex_spacedim
+    !       call amrex_multifab_destroy(beta(idim,ilev))
+    !    end do
+    !    call amrex_multifab_destroy(phi_star)
+    !    call amrex_multifab_destroy(temp_star)
+    !    call amrex_distromap_destroy(dm)
+    ! end do
+
     
     ! Find melt interface y position
     call amrex_mfiter_build(mfi, idomain(amrex_max_level), tiling=.false.)
@@ -794,7 +902,7 @@ contains
           
           ! Pointers
           ptemp   => temp(ilev)%dataptr(mfi)
-          pu      => phi_new(ilev)%dataptr(mfi)
+          pout      => phi_new(ilev)%dataptr(mfi)
           ptempin => temp_tmp(ilev)%dataptr(mfi)
           
           ! Map solution on temperature
@@ -805,34 +913,20 @@ contains
           ! Map temperature on enthalpy
           call get_temp(bx%lo, bx%hi, &
                         ptemp, lbound(ptemp), ubound(ptemp), &
-                        pu, lbound(pu), ubound(pu), .false.)
+                        pout, lbound(pout), ubound(pout), .false.)
                     
        end do
        call amrex_mfiter_destroy(mfi)
        
     end do
 
-        
-    ! Clean memory
-    do ilev = 0, amrex_max_level
-       call amrex_multifab_destroy(phi_tmp(ilev))
-       call amrex_multifab_destroy(temp_tmp(ilev))
-       call amrex_multifab_destroy(idomain_tmp(ilev))
-       call amrex_multifab_destroy(rhs(ilev))
-       call amrex_multifab_destroy(alpha(ilev))
-       do idim = 1, amrex_spacedim
-          call amrex_multifab_destroy(beta(idim,ilev))
-       end do
-       call amrex_distromap_destroy(dm)
-    end do
-
   end subroutine advance_heat_solver_implicit
 
-
+  
   ! -----------------------------------------------------------------------------------
   ! ....
   ! ----------------------------------------------------------------------------------- 
-  subroutine advance_temperature_implicit(ba, dm, dt, alpha, beta, rhs, sol)
+  subroutine get_temperature_implicit(ba, dm, dt, alpha, beta, rhs, sol)
 
     use read_input_module, only : ls_agglomeration, &
                                   ls_consolidation, ls_max_coarsening_level, &
@@ -899,33 +993,43 @@ contains
     call amrex_abeclaplacian_destroy(abeclap)
     call amrex_multigrid_destroy(multigrid)
     
-  end subroutine advance_temperature_implicit
+  end subroutine get_temperature_implicit
 
     
   ! -----------------------------------------------------------------
   ! Subroutine used to fill the alpha matrix for the linear solver
   ! -----------------------------------------------------------------  
   subroutine get_alpha(lo, hi, &
+                       u_old, uo_lo, uo_hi, &
+                       u_star, us_lo, us_hi, &
                        temp, t_lo, t_hi, &
+                       temp_star, ts_lo, ts_hi, &
                        alpha, a_lo, a_hi)
-  				
-    use material_properties_module, only: get_mass_density, get_heat_capacity
 
+    use material_properties_module, only: get_mass_density, get_heat_capacity
+    
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)  
+    integer, intent(in) :: uo_lo(2), uo_hi(2)
+    integer, intent(in) :: us_lo(2), us_hi(2)
     integer, intent(in) :: t_lo(2), t_hi(2)
-    integer, intent(in) :: a_lo(2), a_hi(2)    
+    integer, intent(in) :: ts_lo(2), ts_hi(2)
+    integer, intent(in) :: a_lo(2), a_hi(2)
+    real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))
+    real(amrex_real), intent(in) :: u_star(us_lo(1):us_hi(1),us_lo(2):us_hi(2))    
     real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2))
+    real(amrex_real), intent(in) :: temp_star(ts_lo(1):ts_hi(1),ts_lo(2):ts_hi(2))
     real(amrex_real), intent(out) :: alpha(a_lo(1):a_hi(1),a_lo(2):a_hi(2))
 
     ! Local variables
     integer :: i,j
     real(amrex_real) :: cp
     real(amrex_real) :: rho
-    
+       
     ! Fill alpha matrix
     do i = lo(1), hi(1)
        do j = lo(2), hi(2)          
+          !alpha(i,j) = (u_star(i,j) - u_old(i,j))/(temp_star(i,j) - temp(i,j))
           call get_mass_density(temp(i,j), rho)
           call get_heat_capacity(temp(i,j), cp)
           alpha(i,j) = rho*cp
@@ -933,7 +1037,7 @@ contains
     end do
 
   end subroutine get_alpha
-
+    
   ! -----------------------------------------------------------------
   ! Subroutine used to fill the beta matrix for the linear solver
   ! -----------------------------------------------------------------  
@@ -997,19 +1101,28 @@ contains
   subroutine get_rhs(lo, hi, time, dt, &
                      lo_phys, dx, &
                      idom, id_lo, id_hi, &
+                     u_old, uo_lo, uo_hi, &
+                     u_star, us_lo, us_hi, &
                      temp, t_lo, t_hi, &
+                     temp_star, ts_lo, ts_hi, &
                      rhs, r_lo, r_hi)
-  				
+
     use material_properties_module, only: get_mass_density, get_heat_capacity
     use heat_flux_module, only: get_boundary_heat_flux
     
     ! Input and output variables
-    integer, intent(in) :: lo(2), hi(2)  
-    integer, intent(in) :: t_lo(2), t_hi(2)
+    integer, intent(in) :: lo(2), hi(2)
     integer, intent(in) :: id_lo(2), id_hi(2)
+    integer, intent(in) :: uo_lo(2), uo_hi(2)
+    integer, intent(in) :: us_lo(2), us_hi(2)
+    integer, intent(in) :: t_lo(2), t_hi(2)
+    integer, intent(in) :: ts_lo(2), ts_hi(2)
     integer, intent(in) :: r_lo(2), r_hi(2)    
     real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2))
+    real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))
+    real(amrex_real), intent(in) :: u_star(us_lo(1):us_hi(1),us_lo(2):us_hi(2))    
     real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2))
+    real(amrex_real), intent(in) :: temp_star(ts_lo(1):ts_hi(1),ts_lo(2):ts_hi(2))
     real(amrex_real), intent(out) :: rhs(r_lo(1):r_hi(1),r_lo(2):r_hi(2))
     real(amrex_real), intent(in) :: lo_phys(2)
     real(amrex_real), intent(in) :: dx(2)
@@ -1020,7 +1133,7 @@ contains
     integer :: i,j
     real(amrex_real) :: rho
     real(amrex_real) :: cp
-    
+
     ! Get the boundary heat flux
     call get_boundary_heat_flux(time, lo_phys, &
                                 dx, lo, hi, &
@@ -1029,7 +1142,9 @@ contains
     
     ! Fill rhs of linear problem
     do i = lo(1), hi(1)
-       do j = lo(2), hi(2)
+       do j = lo(2), hi(2)          
+          ! rhs(i,j) = rhs(i,j)*dt + &
+          !       temp(i,j)*(u_star(i,j) - u_old(i,j))/(temp_star(i,j) - temp(i,j))
           call get_mass_density(temp(i,j), rho)
           call get_heat_capacity(temp(i,j), cp)
           rhs(i,j) = rhs(i,j)*dt + temp(i,j)*rho*cp
@@ -1037,6 +1152,46 @@ contains
     end do
 
   end subroutine get_rhs
+ 
+
+  ! ! -----------------------------------------------------------------
+  ! ! Subroutine used to get the corrected enthalpy
+  ! ! -----------------------------------------------------------------  
+  ! subroutine get_enthalpy_implicit(lo, hi, &
+  !                                  u_old, uo_lo, uo_hi, &
+  !                                  u_star, us_lo, us_hi, &
+  !                                  u_new, un_lo, un_hi, &
+  !                                  temp_old, to_lo, to_hi, &
+  !                                  temp_star, ts_lo, ts_hi, &
+  !                                  temp_new, tn_lo, tn_hi)
+  				
+  !   ! Input and output variables
+  !   integer, intent(in) :: lo(2), hi(2)  
+  !   integer, intent(in) :: uo_lo(2), uo_hi(2)
+  !   integer, intent(in) :: us_lo(2), us_hi(2)
+  !   integer, intent(in) :: un_lo(2), un_hi(2)
+  !   integer, intent(in) :: to_lo(2), to_hi(2)
+  !   integer, intent(in) :: ts_lo(2), ts_hi(2)
+  !   integer, intent(in) :: tn_lo(2), tn_hi(2)
+  !   real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))
+  !   real(amrex_real), intent(in) :: u_star(us_lo(1):us_hi(1),us_lo(2):us_hi(2))
+  !   real(amrex_real), intent(out) :: u_new(un_lo(1):un_hi(1),un_lo(2):un_hi(2))
+  !   real(amrex_real), intent(in) :: temp_old(to_lo(1):to_hi(1),to_lo(2):to_hi(2))
+  !   real(amrex_real), intent(in) :: temp_star(ts_lo(1):ts_hi(1),ts_lo(2):ts_hi(2))
+  !   real(amrex_real), intent(in) :: temp_new(tn_lo(1):tn_hi(1),tn_lo(2):tn_hi(2))
+
+  !   ! Local variables
+  !   integer :: i,j
+    
+  !   ! Fill alpha matrix
+  !   do i = lo(1), hi(1)
+  !      do j = lo(2), hi(2)          
+  !         u_new(i,j) = u_old(i,j) + (temp_new(i,j) - temp_old(i,j)) * &
+  !                      (u_star(i,j) - u_old(i,j))/(temp_star(i,j) - temp_old(i,j))
+  !      end do
+  !   end do
+
+  ! end subroutine get_enthalpy_implicit
 
 
   ! -----------------------------------------------------------------

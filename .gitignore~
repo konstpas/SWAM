@@ -1,8 +1,0 @@
-src/Makefile
-src/swam
-src/*.o
-src/*.mod
-src_2d/Makefile
-src_2d/swam
-src_2d/*.o
-src_2d/*.mod

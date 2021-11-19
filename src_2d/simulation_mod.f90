@@ -245,39 +245,6 @@ contains
   end subroutine advance_one_timestep_subcycling
 
   ! -----------------------------------------------------------------
-  ! Subroutine used to advance the simulation of one timestep with
-  ! the implicit method for the heat equation.
-  ! -----------------------------------------------------------------
-  subroutine advance_one_timestep(time)
-
-    use amr_data_module, only : t_old, t_new, stepno, dt
-    use regrid_module, only : averagedown
-
-    ! Input and output variables
-    real(amrex_real), intent(in) :: time
-    
-    ! Local variables
-    integer :: ilev
-     
-    ! Regridding
-    do ilev = 0,amrex_max_level
-       call check_regridding(ilev,time)
-    end do
-    
-    ! Advance solution
-    do ilev = 0, amrex_max_level
-       t_old(ilev) = time
-       t_new(ilev) = time + dt(0)
-       stepno(ilev) = stepno(ilev) + 1
-    end do
-
-    call advance_all_levels(time,dt(0)) 
-
-    call averagedown
-    
-  end subroutine advance_one_timestep
-
-  ! -----------------------------------------------------------------
   ! Subroutine used to check if it is time to regrid
   ! -----------------------------------------------------------------
   subroutine check_regridding(lev, time)
@@ -355,6 +322,38 @@ contains
 
   end subroutine advance_one_level_subcycling
 
+  ! -----------------------------------------------------------------
+  ! Subroutine used to advance the simulation of one timestep with
+  ! the implicit method for the heat equation.
+  ! -----------------------------------------------------------------
+  subroutine advance_one_timestep(time)
+
+    use amr_data_module, only : t_old, t_new, stepno, dt
+    use regrid_module, only : averagedown
+
+    ! Input and output variables
+    real(amrex_real), intent(in) :: time
+    
+    ! Local variables
+    integer :: ilev
+     
+    ! Regridding
+    do ilev = 0,amrex_max_level
+       call check_regridding(ilev,time)
+    end do
+    
+    ! Advance solution
+    do ilev = 0, amrex_max_level
+       t_old(ilev) = time
+       t_new(ilev) = time + dt(0)
+       stepno(ilev) = stepno(ilev) + 1
+    end do
+
+    call advance_all_levels(time,dt(0)) 
+
+    call averagedown
+    
+  end subroutine advance_one_timestep
   
   ! -----------------------------------------------------------------
   ! Subroutine used to advance the shallow water solver and the
