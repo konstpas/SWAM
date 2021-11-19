@@ -53,6 +53,7 @@ module read_input_module
   public :: dt_change_max
   public :: heat_solver
   public :: in_dt
+  public :: ls_composite_solve
   public :: ls_verbose
   public :: ls_bottom_verbose
   public :: ls_max_iter
@@ -264,6 +265,7 @@ contains
     dt_change_max = 1.1
     in_dt = 0.0001
     heat_solver = "explicit"
+    ls_composite_solve = .true.
     ls_verbose = 1
     ls_bottom_verbose = 0
     ls_max_iter = 100
