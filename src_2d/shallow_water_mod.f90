@@ -15,7 +15,7 @@ module shallow_water_module
   ! Public subroutines
   ! -----------------------------------------------------------------
   public :: advance_SW
-  public :: advance_SW_box
+  !public :: advance_SW_box
   
 contains 
 

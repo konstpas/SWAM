@@ -780,6 +780,7 @@ contains
                                               idomain_tmp, flux, alpha, beta, &
                                               rhs, phi_star, temp_star)
 
+    use read_input_module, only : temp_fs
     use amr_data_module, only : phi_new, temp, idomain
     use domain_module, only : get_idomain
     use material_properties_module, only : get_temp
@@ -868,14 +869,26 @@ contains
                   ptempin, lbound(ptempin), ubound(ptempin), .true.)
     
     ! Explicit update of the enthalpy (prediction step)
-    call get_enthalpy_explicit(time, bx%lo, bx%hi, &
-                               pin, lbound(pin),     ubound(pin),     &
-                               ppstar, lbound(ppstar), ubound(ppstar), &
-                               ptempin, lbound(ptempin), ubound(ptempin), &
-                               pfx, lbound(pfx), ubound(pfx), &
-                               pfy, lbound(pfy), ubound(pfy), &
-                               pidout, lbound(pidout), ubound(pidout), &
-                               geom, dt)
+    if (temp_fs.gt.0) then
+       call get_enthalpy_explicit_fixT(bx%lo, bx%hi, &
+                                       pin, lbound(pin),     ubound(pin),     &
+                                       ppstar,    lbound(ppstar),    ubound(ppstar),    &
+                                       ptempin, lbound(ptempin), ubound(ptempin), &
+                                       pfx, lbound(pfx), ubound(pfx), &
+                                       pfy, lbound(pfy), ubound(pfy), &
+                                       pidout, lbound(pidout), ubound(pidout), &
+                                       geom, dt)
+    else
+       call get_enthalpy_explicit(time, bx%lo, bx%hi, &
+                                  pin, lbound(pin),     ubound(pin),     &
+                                  ppstar, lbound(ppstar), ubound(ppstar), &
+                                  ptempin, lbound(ptempin), ubound(ptempin), &
+                                  pfx, lbound(pfx), ubound(pfx), &
+                                  pfy, lbound(pfy), ubound(pfy), &
+                                  pidout, lbound(pidout), ubound(pidout), &
+                                  geom, dt)
+    end if    
+
     
     ! Get temperature corresponding to the enthalpy (prediction step)
     call get_temp(lbound(ptempstar), ubound(ptempstar), &
@@ -901,13 +914,19 @@ contains
     end do
     
     ! Get right hand for the linear solver
-    call get_rhs(bx%lo, bx%hi, time, dt, &
-                 geom%get_physical_location(bx%lo), geom%dx, &
-                 pidout, lbound(pidout), ubound(pidout), &
-                 ptempin, lbound(ptempin), ubound(ptempin), &
-                 pac, lbound(pac), ubound(pac), &                      
-                 prhs, lbound(prhs), ubound(prhs))
-    
+    if (temp_fs.gt.0) then
+       call get_rhs_fixT(bx%lo, bx%hi, &
+                         ptempin, lbound(ptempin), ubound(ptempin), &
+                         pac, lbound(pac), ubound(pac), &                      
+                         prhs, lbound(prhs), ubound(prhs))
+    else
+       call get_rhs(bx%lo, bx%hi, time, dt, &
+                    geom%get_physical_location(bx%lo), geom%dx, &
+                    pidout, lbound(pidout), ubound(pidout), &
+                    ptempin, lbound(ptempin), ubound(ptempin), &
+                    pac, lbound(pac), ubound(pac), &                      
+                    prhs, lbound(prhs), ubound(prhs))
+    end if
     
   end subroutine predict_heat_solver_implicit_box
 
@@ -923,6 +942,7 @@ contains
     use amr_data_module, only : phi_new, temp, idomain
     use domain_module, only : get_melt_pos
     use material_properties_module, only : get_temp
+    use read_input_module, only : temp_fs
     
     ! Input and output variables
     integer, intent(in) :: lev
@@ -959,13 +979,23 @@ contains
     pac => alpha%dataptr(mfi)
     
     ! Get corrected enthalpy
-    call get_enthalpy_implicit(bx%lo, bx%hi, &
-                               pin, lbound(pin), ubound(pin), &
-                               pout, lbound(pout), ubound(pout), &
-                               ptemp, lbound(ptemp), ubound(ptemp), &
-                               ptempin, lbound(ptempin), ubound(ptempin), &
-                               pac, lbound(pac), ubound(pac))
-          
+    if (temp_fs.gt.0) then
+       call get_enthalpy_implicit_fixT(bx%lo, bx%hi, &
+                                       pin, lbound(pin), ubound(pin), &
+                                       pout, lbound(pout), ubound(pout), &
+                                       ptemp, lbound(ptemp), ubound(ptemp), &
+                                       ptempin, lbound(ptempin), ubound(ptempin), &
+                                       pid, lbound(pid), ubound(pid), &
+                                       pac, lbound(pac), ubound(pac))
+    else
+       call get_enthalpy_implicit(bx%lo, bx%hi, &
+                                  pin, lbound(pin), ubound(pin), &
+                                  pout, lbound(pout), ubound(pout), &
+                                  ptemp, lbound(ptemp), ubound(ptemp), &
+                                  ptempin, lbound(ptempin), ubound(ptempin), &
+                                  pac, lbound(pac), ubound(pac))
+    end if
+    
     ! Get corrected temperature 
     call get_temp(lbound(ptemp), ubound(ptemp), &
                   pout, lbound(pout), ubound(pout), &
@@ -1251,8 +1281,39 @@ contains
     end do
 
   end subroutine get_rhs
- 
 
+  
+  ! -----------------------------------------------------------------
+  ! Subroutine used to get the right hand side of the linear solver.
+  ! Case with fixed temperature at the free surface
+  ! -----------------------------------------------------------------  
+  subroutine get_rhs_fixT(lo, hi, &
+                          temp, t_lo, t_hi, &
+                          alpha, a_lo, a_hi, &
+                          rhs, r_lo, r_hi)
+    
+    ! Input and output variables
+    integer, intent(in) :: lo(2), hi(2)
+    integer, intent(in) :: t_lo(2), t_hi(2)
+    integer, intent(in) :: r_lo(2), r_hi(2)
+    integer, intent(in) :: a_lo(2), a_hi(2)
+    real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2))
+    real(amrex_real), intent(in) :: alpha(a_lo(1):a_hi(1),a_lo(2):a_hi(2))   
+    real(amrex_real), intent(out) :: rhs(r_lo(1):r_hi(1),r_lo(2):r_hi(2))
+    
+    ! Local variables
+    integer :: i,j
+
+    ! Fill rhs of linear problem
+    do i = lo(1), hi(1)
+       do j = lo(2), hi(2)          
+          rhs(i,j) = temp(i,j)*alpha(i,j)
+       end do
+    end do
+
+  end subroutine get_rhs_fixT
+
+  
   ! -----------------------------------------------------------------
   ! Subroutine used to get the corrected enthalpy
   ! -----------------------------------------------------------------  
@@ -1287,6 +1348,59 @@ contains
     end do
 
   end subroutine get_enthalpy_implicit
+
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to get the corrected enthalpy. Case with fixed
+  ! temperature at the free surface
+  ! -----------------------------------------------------------------  
+  subroutine get_enthalpy_implicit_fixT(lo, hi, &
+                                        u_old, uo_lo, uo_hi, &
+                                        u_new, un_lo, un_hi, &
+                                        temp_old, to_lo, to_hi, &
+                                        temp_new, tn_lo, tn_hi, &
+                                        idom, id_lo, id_hi, &
+                                        alpha, a_lo, a_hi)
+
+    use material_properties_module, only : get_enthalpy
+    use read_input_module, only : temp_fs
+    
+    ! Input and output variables
+    integer, intent(in) :: lo(2), hi(2)  
+    integer, intent(in) :: uo_lo(2), uo_hi(2)
+    integer, intent(in) :: un_lo(2), un_hi(2)
+    integer, intent(in) :: to_lo(2), to_hi(2)
+    integer, intent(in) :: tn_lo(2), tn_hi(2)
+    integer, intent(in) :: id_lo(2), id_hi(2)
+    integer, intent(in) :: a_lo(2), a_hi(2)
+    real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))
+    real(amrex_real), intent(out) :: u_new(un_lo(1):un_hi(1),un_lo(2):un_hi(2))
+    real(amrex_real), intent(in) :: temp_old(to_lo(1):to_hi(1),to_lo(2):to_hi(2))
+    real(amrex_real), intent(in) :: temp_new(tn_lo(1):tn_hi(1),tn_lo(2):tn_hi(2))
+    real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2))
+    real(amrex_real), intent(in) :: alpha(a_lo(1):a_hi(1),a_lo(2):a_hi(2))
+    
+    ! Local variables
+    integer :: i,j
+    real(amrex_real) :: u_fs
+
+    ! Enthalpy at the free surface
+    call get_enthalpy(temp_fs, u_fs)
+    
+    ! Get new enthalpy
+    do i = lo(1), hi(1)
+       do j = lo(2), hi(2)
+          if (nint(idom(i,j)).ne.0 .and. nint(idom(i,j+1)).eq.0) then
+             u_new(i,j) = u_fs ! Impose temperature on the free surface
+          else if(nint(idom(i,j)).eq.0) then
+             u_new(i,j) = u_fs ! Set background temperature equal to the free surface temperature
+          else
+             u_new(i,j) = u_old(i,j) + alpha(i,j)*(temp_new(i,j) - temp_old(i,j))
+          end if
+       end do
+    end do
+
+  end subroutine get_enthalpy_implicit_fixT
 
 
   ! ! -----------------------------------------------------------------
