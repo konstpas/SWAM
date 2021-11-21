@@ -50,7 +50,7 @@ contains
 
     use read_input_module, only : do_reflux
     use material_properties_module, only : get_temp
-    use heat_transfer_module, only : get_idomain
+    use domain_module, only : get_idomain
 
     ! Input and output variables
     integer, intent(in), value :: lev
@@ -66,7 +66,7 @@ contains
     type(amrex_mfiter) :: mfi
     type(amrex_box) :: bx
     type(amrex_geometry) :: geom
-
+    
     ! Pointers for box array and distribution mapping
     ba = pba
     dm = pdm
@@ -86,7 +86,7 @@ contains
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(idomain(lev), ba, dm, ncomp, nghost)
-    
+       
     ! Build the flux registers
     if (lev > 0 .and. do_reflux) then
        call amrex_fluxregister_build(flux_reg(lev), ba, dm, &
@@ -108,7 +108,7 @@ contains
        ! Temperature
        call get_temp(bx%lo, bx%hi, &
                      phi, lbound(phi), ubound(phi), &
-                     ptemp, lbound(ptemp), ubound(ptemp))
+                     ptemp, lbound(ptemp), ubound(ptemp), .true.)
        
        ! Integer domain to distinguish material and background
        call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
@@ -160,7 +160,7 @@ contains
 
     use read_input_module, only : do_reflux
     use material_properties_module, only : get_temp
-    use heat_transfer_module, only : get_idomain
+    use domain_module, only : get_idomain
 
     ! Input and output variables    
     integer, intent(in), value :: lev
@@ -176,7 +176,7 @@ contains
     type(amrex_mfiter) :: mfi
     type(amrex_box) :: bx
     type(amrex_geometry) :: geom
-
+    
     ! Pointers for box array and distribution mapping
     ba = pba
     dm = pdm
@@ -218,7 +218,7 @@ contains
        ! Temperature
        call get_temp(bx%lo, bx%hi, & 
                      phi, lbound(phi), ubound(phi), &
-                     ptemp, lbound(ptemp), ubound(ptemp))
+                     ptemp, lbound(ptemp), ubound(ptemp), .true.)
        
        ! Integer domain to distinguish material and background
        call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
@@ -312,7 +312,7 @@ contains
 
     use read_input_module, only : do_reflux
     use material_properties_module, only : get_temp
-    use heat_transfer_module, only : get_idomain
+    use domain_module, only : get_idomain
 
     ! Input and output variables    
     integer, intent(in), value :: lev
@@ -353,7 +353,7 @@ contains
     call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(temp(lev), ba, dm, ncomp, 0)
     call amrex_multifab_build(idomain(lev), ba, dm, ncomp, nghost)
-
+    
     ! Build the flux registers
     if (lev > 0 .and. do_reflux) then
        call amrex_fluxregister_build(flux_reg(lev), ba, dm, &
@@ -376,7 +376,7 @@ contains
        ! Temperature
        call get_temp(bx%lo, bx%hi, & 
                      phi, lbound(phi), ubound(phi), &
-                     ptemp, lbound(ptemp), ubound(ptemp))
+                     ptemp, lbound(ptemp), ubound(ptemp), .true.)
 
        ! Integer domain to distinguish material and background
        call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
@@ -432,6 +432,8 @@ contains
   ! multifabs defined on that level
   ! -----------------------------------------------------------------
   subroutine my_clear_level(lev) bind(c)
+
+    use read_input_module, only : do_reflux
     
     integer, intent(in), value :: lev
     
@@ -439,7 +441,9 @@ contains
     call amrex_multifab_destroy(phi_old(lev))
     call amrex_multifab_destroy(temp(lev))
     call amrex_multifab_destroy(idomain(lev))
-    call amrex_fluxregister_destroy(flux_reg(lev))
+    if (do_reflux) then
+       call amrex_fluxregister_destroy(flux_reg(lev))
+    end if
     
   end subroutine my_clear_level
 
@@ -501,7 +505,7 @@ contains
                            tag, taglo, taghi, &
                            settag)
     
-    use heat_transfer_module, only : get_surf_pos   
+    use domain_module, only : get_surf_pos   
     use material_properties_module, only : enth_at_melt
 
     ! Input and output variables

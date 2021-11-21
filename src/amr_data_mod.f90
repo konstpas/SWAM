@@ -44,7 +44,7 @@ module amr_data_module
   ! Time
   public :: t_new
   public :: t_old
-  ! Parameters used by AMReX during subcycling
+  ! Parameters used by amrex during subcycling
   public :: stepno
   public :: nsubsteps
 

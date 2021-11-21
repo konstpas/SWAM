@@ -44,10 +44,12 @@ module amr_data_module
   ! Time
   public :: t_new
   public :: t_old
-  ! Parameters used by AMReX during subcycling
+  ! Parameters used by amrex during subcycling
   public :: stepno
   public :: nsubsteps
-
+  ! Variable used to check when to regrid
+  public :: last_regrid_step
+  
   ! ------------------------------------------------------------------
   ! Public subroutines
   ! ------------------------------------------------------------------
@@ -62,6 +64,7 @@ module amr_data_module
   integer, allocatable, save :: hi_bc(:,:)
   integer, save  :: surf_ind(1,2)
   integer, allocatable, save :: stepno(:)
+  integer, allocatable, save :: last_regrid_step(:)
   integer, allocatable, save :: nsubsteps(:)
   real(amrex_real), allocatable, save :: dt(:)
   real(amrex_real), allocatable, save :: melt_pos(:)
@@ -79,7 +82,6 @@ module amr_data_module
   type(amrex_multifab), allocatable, save :: phi_old(:)
   type(amrex_multifab), allocatable, save :: temp(:)
 
-  
 contains
 
   ! ------------------------------------------------------------------
@@ -106,6 +108,7 @@ contains
     allocate(idomain(0:amrex_max_level))
     allocate(lo_bc(amrex_spacedim,1)) ! The second argument is the number of components
     allocate(hi_bc(amrex_spacedim,1))
+    allocate(last_regrid_step(0:amrex_max_level))
     allocate(melt_pos(lo_x:hi_x))
     allocate(melt_top(lo_x:hi_x))
     allocate(melt_vel(lo_x:hi_x+1, 1:amrex_spacedim-1))
@@ -118,13 +121,14 @@ contains
     allocate(t_old(0:amrex_max_level))
     allocate(stepno(0:amrex_max_level))
     allocate(nsubsteps(0:amrex_max_level))
-
+      
     ! Initialize
     dt = 1.0_amrex_real
     ! Homogeneous Neumann boundary condition (foextrap implies that the ghost
     ! cells are filled with a copy of the closest point inside the domain)
     lo_bc = amrex_bc_foextrap
     hi_bc = amrex_bc_foextrap
+    last_regrid_step = 0
     ! It is assumed that there is no melting pool at the beginning of the
     ! simulation (melt_pos = surf_pos)
     melt_pos = surf_pos_init
@@ -158,6 +162,7 @@ contains
     deallocate(dt)
     deallocate(lo_bc)
     deallocate(hi_bc)
+    deallocate(last_regrid_step)
     deallocate(melt_pos)
     deallocate(melt_vel)
     deallocate(surf_pos)
@@ -170,10 +175,10 @@ contains
     do lev = 0, amrex_max_level
 
        call amrex_multifab_destroy(idomain(lev))
-      call amrex_multifab_destroy(phi_new(lev))
+       call amrex_multifab_destroy(phi_new(lev))
        call amrex_multifab_destroy(phi_old(lev))
        call amrex_multifab_destroy(temp(lev))
-      
+    
     end do
     
     do lev = 1, amrex_max_level
@@ -181,6 +186,7 @@ contains
     end do
 
     call deallocate_input
+
     
   end subroutine amr_data_finalize
   

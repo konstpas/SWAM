@@ -33,7 +33,8 @@ module read_input_module
   ! -----------------------------------------------------------------
   
   use amrex_amr_module
-
+  use amrex_linear_solver_module
+  
   implicit none 
 
   private
@@ -50,9 +51,18 @@ module read_input_module
   public :: cooling_radiation
   public :: do_reflux
   public :: dt_change_max
-  public :: plasma_flux_type
-  public :: plasma_flux_params
-  public :: plasma_flux_input_file
+  public :: heat_solver
+  public :: in_dt
+  public :: ls_composite_solve
+  public :: ls_verbose
+  public :: ls_bottom_verbose
+  public :: ls_max_iter
+  public :: ls_max_fmg_iter
+  public :: ls_bottom_solver
+  public :: ls_linop_maxorder
+  public :: ls_agglomeration
+  public :: ls_consolidation
+  public :: ls_max_coarsening_level
   public :: material
   public :: max_grid_size_1d
   public :: max_step
@@ -60,6 +70,9 @@ module read_input_module
   public :: phase_init
   public :: phiT_table_max_T
   public :: phiT_table_n_points
+  public :: plasma_flux_type
+  public :: plasma_flux_params
+  public :: plasma_flux_input_file
   public :: plot_file
   public :: plot_int
   public :: regrid_int
@@ -72,7 +85,7 @@ module read_input_module
   public :: temp_init
   public :: thermionic_alpha
   public :: verbose
-
+  
   ! -----------------------------------------------------------------
   ! Public subroutines
   ! -----------------------------------------------------------------
@@ -83,12 +96,20 @@ module read_input_module
   ! -----------------------------------------------------------------
   character(len=:), allocatable, save :: check_file
   character(len=:), allocatable, save :: material
+  character(len=:), allocatable, save :: heat_solver
   character(len=:), allocatable, save :: plasma_flux_type
   character(len=:), allocatable, save :: plasma_flux_input_file
   character(len=:), allocatable, save :: phase_init
   character(len=:), allocatable, save :: plot_file
   character(len=:), allocatable, save :: restart   
   integer, save :: check_int
+  integer, save :: ls_verbose
+  integer, save :: ls_bottom_verbose
+  integer, save :: ls_max_iter
+  integer, save :: ls_max_fmg_iter
+  integer, save :: ls_bottom_solver
+  integer, save :: ls_linop_maxorder
+  integer, save :: ls_max_coarsening_level
   integer, save :: max_grid_size_1d
   integer, save :: max_step
   integer, save :: phiT_table_n_points
@@ -99,9 +120,13 @@ module read_input_module
   logical, save :: cooling_vaporization
   logical, save :: cooling_radiation
   logical, save :: do_reflux
+  logical, save :: ls_composite_solve  
+  logical, save :: ls_agglomeration
+  logical, save :: ls_consolidation
   logical, save :: solve_sw
   real(amrex_real), save :: cfl
-  real(amrex_real), save :: dt_change_max  
+  real(amrex_real), save :: dt_change_max
+  real(amrex_real), save :: in_dt  
   real(amrex_real), save :: meltvel
   real(amrex_real), save :: phiT_table_max_T
   real(amrex_real), save :: stop_time
@@ -127,10 +152,11 @@ contains
     ! Default parameters
     call set_default_values
 
-    ! Parameters for the simulation length
+    ! Parameters for the simulation length and timestep
     call amrex_parmparse_build(pp, "length")
     call pp%query("max_step", max_step)
     call pp%query("stop_time", stop_time)
+    call pp%query("dt", in_dt)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the grid control
@@ -169,8 +195,9 @@ contains
     call pp%query("cooling_radiation",cooling_radiation)
     call pp%getarr("cooling_debug",cooling_debug)
     call pp%query("thermionic_alpha",thermionic_alpha)
+    call pp%query("heat_solver",heat_solver)
     call amrex_parmparse_destroy(pp)
-
+    
     ! Parameters for the shallow waters solver
     call amrex_parmparse_build(pp, "sw")
     call pp%query("solve", solve_sw)
@@ -189,7 +216,20 @@ contains
     call pp%query("do_reflux", do_reflux)
     call pp%query("dt_change_max", dt_change_max)
     call amrex_parmparse_destroy(pp)
-	    
+
+    ! Parameters for the linear solver used for the implicit solution of the heat equation
+    call amrex_parmparse_build(pp, "linear_solver")
+    call pp%query("composite_solve", ls_composite_solve)
+    call pp%query("verbose", ls_verbose)
+    call pp%query("bottom_verbose_ls", ls_bottom_verbose)
+    call pp%query("max_iter", ls_max_iter)
+    call pp%query("max_fmg_iter", ls_max_fmg_iter)
+    call pp%query("bottom_solver", ls_bottom_solver)
+    call pp%query("linop_maxorder", ls_linop_maxorder)
+    call pp%query("agglomeration", ls_agglomeration)
+    call pp%query("consolidation", ls_consolidation)
+    call pp%query("max_coarsening_level", ls_max_coarsening_level)
+    
   end subroutine read_input_file
 
 
@@ -199,6 +239,7 @@ contains
     integer :: i
         
     allocate(character(len=3)::check_file)
+    allocate(character(len=8)::heat_solver)
     allocate(character(len=8)::plasma_flux_type)
     allocate(character(len=25)::plasma_flux_input_file)
     allocate(character(len=8)::material)
@@ -222,6 +263,24 @@ contains
     cooling_radiation = .true.
     do_reflux = .true.
     dt_change_max = 1.1
+    in_dt = 0.0001
+    heat_solver = "explicit"
+    ls_composite_solve = .true.
+    ls_verbose = 1
+    ls_bottom_verbose = 0
+    ls_max_iter = 100
+    ls_max_fmg_iter = 0
+    ls_bottom_solver = amrex_bottom_default
+    ls_linop_maxorder = 2
+    ls_agglomeration = .true.
+    ls_consolidation = .true.
+    ls_max_coarsening_level = 30
+    material = "Tungsten"
+    max_grid_size_1d = 16
+    max_step = 10000
+    phase_init = "undefined"
+    phiT_table_max_T = 10000.0
+    phiT_table_n_points = 10000
     plasma_flux_params(1) = 0.0
     plasma_flux_params(2) = 1.0
     plasma_flux_params(3) = 300e6
@@ -229,12 +288,6 @@ contains
     plasma_flux_params(5) = 0.01
     plasma_flux_type = "Gaussian"
     plasma_flux_input_file = "plasma_flux.dat"
-    material = "Tungsten"
-    max_grid_size_1d = 16
-    max_step = 10000
-    phase_init = "undefined"
-    phiT_table_max_T = 10000.0
-    phiT_table_n_points = 10000
     plot_file = "plt"
     plot_int = -1
     regrid_int = 2
@@ -256,6 +309,7 @@ contains
   subroutine deallocate_input()
     
     deallocate(check_file)
+    deallocate(heat_solver)
     deallocate(material)
     deallocate(phase_init)
     deallocate(plasma_flux_params)

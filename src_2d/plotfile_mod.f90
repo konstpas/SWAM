@@ -112,7 +112,7 @@ contains
   ! -----------------------------------------------------------------  
   subroutine write1dplotfile()
     
-    use heat_transfer_module, only : integrate_surf
+    use domain_module, only : integrate_surf
     
     real(amrex_real) :: melt_vol 
 

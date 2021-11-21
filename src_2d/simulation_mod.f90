@@ -25,7 +25,7 @@ contains
   subroutine run_simulation()
 
     use amr_data_module, only : t_new, stepno, dt
-    use read_input_module, only : max_step, stop_time, plot_int
+    use read_input_module, only : max_step, stop_time, plot_int, heat_solver, do_reflux
     use plotfile_module, only: writeplotfile, write1dplotfile
     use energy_module, only: sum_enthalpy
 
@@ -43,6 +43,11 @@ contains
     ! Initialize counter for output
     last_plot_file_step = 0;
 
+    ! Automatically disable reflux if the heat equation is not solved explicitly
+    if (heat_solver.ne."explicit") then
+       do_reflux = .false.
+    end if
+    
     ! Output initial configuration
     if (plot_int .gt. 0) call writeplotfile
 
@@ -58,17 +63,21 @@ contains
        ! Compute time step size
        call compute_dt
 		 
-       ! Advance all levels of one time step  
-       lev = 0
-       substep = 1
-       call advance_one_timestep(lev, cur_time, substep)
-
+       ! Advance all levels of one time step
+       if (heat_solver.eq."explicit") then
+          lev = 0
+          substep = 1
+          call advance_one_timestep_subcycling(lev, cur_time, substep)
+       else
+          call advance_one_timestep(cur_time)
+       end if
+          
        ! Get total enthalpy in the domain
        call sum_enthalpy(total_enthalpy)
  	
        ! Update time on all levels
        cur_time = cur_time + dt(0)
-       do lev = 0, amrex_get_finest_level()
+       do lev = 0, amrex_max_level
           t_new(lev) = cur_time
        end do
 
@@ -99,8 +108,7 @@ contains
   subroutine compute_dt()
     
     use amr_data_module, only : dt, nsubsteps
-    !use material_properties_module, only : max_diffus 
-    use read_input_module, only : dt_change_max
+    use read_input_module, only : dt_change_max, in_dt, heat_solver
 
     ! Local variables
     integer :: lev
@@ -124,30 +132,34 @@ contains
     dt_0 = dt_tmp(0)
     n_factor = 1
     do lev = 0, nlevs-1
+       ! Limit the change of the timestep between two successive timesteps
        dt_tmp(lev) = min(dt_tmp(lev), dt_change_max*dt(lev))
        n_factor = n_factor * nsubsteps(lev)
        dt_0 = min(dt_0, n_factor*dt_tmp(lev))
+       ! Cap the timestep to the value prescribed in input
+       dt_0 = min(dt_0, in_dt)
     end do
 
     ! Compute timestep for all levels
     dt(0) = dt_0
     do lev = 1, nlevs-1
-       dt(lev) = dt(lev-1) / nsubsteps(lev)
+       if (heat_solver.eq."explicit") then
+          dt(lev) = dt(lev-1) / nsubsteps(lev)
+       else
+          dt(lev) = dt(lev-1)
+       end if
     end do
-
-    ! Now that the timestep is defined, reset the maximum diffusivity
-    !max_diffus = 0_amrex_real
     
   end subroutine compute_dt
 
 
   ! -----------------------------------------------------------------
   ! Subroutine used to estimate the timestep based on the stability
-  ! criteria for the solver of the energy equation
+  ! criteria for the solver of the heat equation
   ! -----------------------------------------------------------------
   subroutine est_timestep(lev, dt)
 
-    use read_input_module, only : cfl
+    use read_input_module, only : cfl, heat_solver
     use material_properties_module, only : max_diffus 
 
     ! Input and output variables 
@@ -157,27 +169,43 @@ contains
     ! Local variables 
     real(amrex_real) :: dxsqr
 
-    ! NOTE: There are two stability criteria to take into
-    ! account, the von Neumann stability and the CFL
-    ! condition. The CFL is not yet implemented
-    
-    ! Von Neumann stability criterion 
-    dxsqr= (1/amrex_geom(lev)%dx(1)**2 + &
-            1/amrex_geom(lev)%dx(2)**2) 
-    dt = 0.5/(dxsqr*max_diffus)
-    dt = dt * cfl
+    if (heat_solver.eq."explicit") then
 
+       ! Fully explicit solver
+       
+       ! NOTE: There are two stability criteria to take into
+       ! account, the von Neumann stability and the CFL
+       ! condition. Here we only consider the von Neumann
+       ! stability condition which is usually more
+       ! stringent
+       
+       ! Von Neumann stability criterion 
+       dxsqr= (1/amrex_geom(lev)%dx(1)**2 + &
+            1/amrex_geom(lev)%dx(2)**2) 
+       dt = 0.5/(dxsqr*max_diffus)
+       dt = dt * cfl
+
+    else
+
+       ! Implicit diffusion, explicit advection
+
+       ! NOTE: The CFL condition is not yet implemented
+       dt = 1.0e100_amrex_real
+       
+    end if
+       
   end subroutine est_timestep
 
   
   ! -----------------------------------------------------------------
-  ! Subroutine used to advance the simulation of one timestep. Note
-  ! that the subroutine is recursive, i.e. it calls itself
+  ! Subroutine used to advance the simulation of one timestep on
+  ! one level with the fully explicit method with subcycling.
+  ! Note that the subroutine is recursive, i.e. it calls itself.
   ! -----------------------------------------------------------------
-  recursive subroutine advance_one_timestep(lev, time, substep)
+  recursive subroutine advance_one_timestep_subcycling(lev, time, substep)
 
-    use read_input_module, only : regrid_int, do_reflux
-    use amr_data_module, only : t_old, t_new, phi_old, phi_new, flux_reg, stepno, nsubsteps, dt  
+    use read_input_module, only : do_reflux
+    use amr_data_module, only : t_old, t_new, phi_new, flux_reg, stepno, nsubsteps, dt  
     use regrid_module, only : averagedownto
 
     ! Input and output variables
@@ -186,58 +214,22 @@ contains
     real(amrex_real), intent(in) :: time
 
     ! Local variables
-    integer, allocatable, save :: last_regrid_step(:)
-    integer :: finest_level
     integer :: fine_substep    
-    integer :: k
-    integer :: old_finest_level
     
-    ! Regridding 
-    if (regrid_int .gt. 0) then
-       
-       if (.not.allocated(last_regrid_step)) then
-
-          allocate(last_regrid_step(0:amrex_max_level))
-          last_regrid_step = 0
-          
-       end if
-
-      
-       if (lev .lt. amrex_max_level .and. stepno(lev) .gt. last_regrid_step(lev)) then
-
-          if (mod(stepno(lev), regrid_int) .eq. 0) then
-
-             old_finest_level = amrex_get_finest_level()
-             call amrex_regrid(lev, time)
-             finest_level = amrex_get_finest_level()
-
-             do k = lev, finest_level
-                last_regrid_step(k) = stepno(k)
-             end do
-
-             do k = old_finest_level+1, finest_level
-                dt(k) = dt(k-1) / amrex_ref_ratio(k-1)
-             end do
-             
-          end if
-          
-       end if
-       
-    end if
-    
+    ! Regridding
+    call check_regridding(lev, time)    
     
     ! Advance solution
     stepno(lev) = stepno(lev)+1
     t_old(lev) = time
     t_new(lev) = time + dt(lev)
-    call amrex_multifab_swap(phi_old(lev), phi_new(lev))
-    call advance_one_level(lev, time, dt(lev), substep)
+    call advance_one_level_subcycling(lev, time, dt(lev), substep)
 
     ! Propagate solution and synchronize levels
     if (lev .lt. amrex_get_finest_level()) then
        
        do fine_substep = 1, nsubsteps(lev+1)
-          call advance_one_timestep(lev+1, time+(fine_substep-1)*dt(lev+1), fine_substep) 
+          call advance_one_timestep_subcycling(lev+1, time+(fine_substep-1)*dt(lev+1), fine_substep) 
        end do
 
        ! Update coarse solution at coarse-fine interface via dPhidt = -div(+F) where F is stored flux (flux_reg)
@@ -250,22 +242,63 @@ contains
         
     end if
   
-  end subroutine advance_one_timestep
+  end subroutine advance_one_timestep_subcycling
 
+  ! -----------------------------------------------------------------
+  ! Subroutine used to check if it is time to regrid
+  ! -----------------------------------------------------------------
+  subroutine check_regridding(lev, time)
 
+    use read_input_module, only : regrid_int
+    use amr_data_module, only : last_regrid_step, stepno, dt
+
+    ! Input and output variables
+    integer, intent(in) :: lev
+    real(amrex_real), intent(in) :: time
+    
+    ! Local variables
+    integer :: ilev
+    integer :: finest_level
+    integer :: old_finest_level
+    
+    if (regrid_int .gt. 0) then
+       
+       if (lev .lt. amrex_max_level .and. stepno(lev) .gt. last_regrid_step(lev)) then
+
+          if (mod(stepno(lev), regrid_int) .eq. 0) then
+
+             old_finest_level = amrex_get_finest_level()
+             call amrex_regrid(lev, time)
+             finest_level = amrex_get_finest_level()
+
+             do ilev = lev, finest_level
+                last_regrid_step(ilev) = stepno(ilev)
+             end do
+
+             do ilev = old_finest_level+1, finest_level
+                dt(ilev) = dt(ilev-1) / amrex_ref_ratio(ilev-1)
+             end do
+             
+          end if
+          
+       end if
+       
+    end if
+    
+  end subroutine check_regridding
+
+  
   ! -----------------------------------------------------------------
   ! Subroutine used to advance the shallow water solver and the
-  ! heat equation solver of one time step at a given level
+  ! heat equation solver of one time step at a given level. Only
+  ! used if the fully explicit solver with subcycling is used.
   ! -----------------------------------------------------------------
-  subroutine advance_one_level(lev, time, dt, substep)
+  subroutine advance_one_level_subcycling(lev, time, dt, substep)
 
-    use read_input_module, only : do_reflux, solve_sw, temp_fs
-    use amr_data_module, only : phi_new, temp, idomain, flux_reg  
-    use regrid_module, only : fillpatch
-    use heat_transfer_module, only : get_idomain, get_melt_pos, reset_melt_pos, increment_enthalpy
-    use heat_transfer_fixT_module, only : increment_enthalpy_fixT
-    use material_properties_module, only : get_temp
-    use shallow_water_module, only : increment_SW
+    use read_input_module, only : solve_sw
+    use heat_transfer_module, only : advance_heat_solver_explicit_level
+    use domain_module, only : reset_melt_pos
+    use shallow_water_module, only : advance_SW
 
     ! Input and output variables 
     integer, intent(in) :: lev
@@ -273,81 +306,9 @@ contains
     real(amrex_real), intent(in) :: time
     real(amrex_real), intent(in) :: dt
 
-    ! Local variables
-    integer, parameter :: nghost = 1 ! number of ghost points in each spatial direction 
-    integer :: ncomp
-    integer :: idim
-    logical :: nodal(2) ! logical for flux multifabs 
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pout
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptempin
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pfx
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pfy
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pf
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pfab
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidin
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidout
-    type(amrex_multifab) :: phi_tmp ! Enthalpy multifab with ghost points
-    type(amrex_multifab) :: temp_tmp ! Temperature multifab with ghost points
-    type(amrex_multifab) :: idomain_tmp ! Idomain multifab to distinguish material and background
-    type(amrex_mfiter) :: mfi ! Multifab iterator
-    type(amrex_box) :: bx
-    type(amrex_box) :: tbx
-    type(amrex_fab) :: flux(amrex_spacedim)
-    type(amrex_multifab) :: fluxes(amrex_spacedim)
-    type(amrex_geometry) :: geom
-
-    ! Get geometry
-    geom = amrex_geom(lev)
-    
-    ! Get number of components
-    ncomp = phi_new(lev)%ncomp()
-
-    ! Initialize fluxes 
-    if (do_reflux) then
-       do idim = 1, amrex_spacedim
-          nodal = .false.
-          nodal(idim) = .true.
-          call amrex_multifab_build(fluxes(idim), phi_new(lev)%ba, phi_new(lev)%dm, ncomp, 0, nodal)
-       end do
-    end if
-
-    ! Build enthalpy and temperature multifabs with ghost points
-    call amrex_multifab_build(phi_tmp, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost) 
-    call amrex_multifab_build(temp_tmp, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost)
-    call amrex_multifab_build(idomain_tmp, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost)
-    
-    ! Fill enthalpy multifab
-    call fillpatch(lev, time, phi_tmp)
-
-    ! Swap idomain solution before computing the surface deformation
-    call amrex_multifab_swap(idomain_tmp, idomain(lev))
-    
-    ! Propagate SW equations (only at max level)
+    ! Advance shallow-water equations (only at max level)
     if (solve_sw .and. lev.eq.amrex_max_level) then
-       
-       call amrex_mfiter_build(mfi, idomain_tmp, tiling=.false.)  
-    						 
-       do while(mfi%next())
-
-          ! Box
-          bx = mfi%validbox()   
-          
-          ! Pointers
-          ptemp   => temp(lev)%dataptr(mfi)
-          pidin => idomain_tmp%dataptr(mfi)
-          
-          ! Increment shallow water solution
-          call increment_SW(bx%lo, bx%hi, &
-                            ptemp, lbound(ptemp), ubound(ptemp), &
-                            pidin, lbound(pidin), ubound(pidin), dt)
-       
-       end do
-
-       ! Clean memory
-       call amrex_mfiter_destroy(mfi)    
-    
+       call advance_SW    
     end if 
     
     ! Set melt interface position array equal to free interface position array 
@@ -355,124 +316,77 @@ contains
     ! Therefore we reset melt position after solving SW, and before propagating temperature 
     ! Melt position is then found after heat has been propagated 
     call reset_melt_pos 
-       
-    ! Increment heat solver on all levels
-    do idim = 1, amrex_spacedim
-       call flux(idim)%reset_omp_private()
+
+    ! Advance heat equation
+    call advance_heat_solver_explicit_level(lev, time, dt, substep)
+
+  end subroutine advance_one_level_subcycling
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to advance the simulation of one timestep with
+  ! the implicit method for the heat equation.
+  ! -----------------------------------------------------------------
+  subroutine advance_one_timestep(time)
+
+    use amr_data_module, only : t_old, t_new, stepno, dt
+    use regrid_module, only : averagedown
+
+    ! Input and output variables
+    real(amrex_real), intent(in) :: time
+    
+    ! Local variables
+    integer :: ilev
+     
+    ! Regridding
+    do ilev = 0,amrex_max_level
+       call check_regridding(ilev,time)
     end do
     
-    call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)  
-    						 
-    do while(mfi%next())
-
-       ! Box
-       bx = mfi%validbox()   
-
-       ! Pointers
-       pin     => phi_tmp%dataptr(mfi)
-       pout    => phi_new(lev)%dataptr(mfi)
-       ptempin => temp_tmp%dataptr(mfi)
-       ptemp   => temp(lev)%dataptr(mfi)
-       do idim = 1, amrex_spacedim
-          tbx = bx
-          call tbx%nodalize(idim)
-          call flux(idim)%resize(tbx,ncomp)
-          call tbx%grow(substep)
-       end do
-       pfx => flux(1)%dataptr()
-       pfy => flux(2)%dataptr()
-       pidin => idomain_tmp%dataptr(mfi)
-       pidout => idomain(lev)%dataptr(mfi)
-
-       ! Get temperature corresponding to the enthalpy
-       call get_temp(lbound(ptempin), ubound(ptempin), &
-                     pin, lbound(pin), ubound(pin), &
-                     ptempin, lbound(ptempin), ubound(ptempin))
-       
-       ! Get configuration of the system after the deformation
-       call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
-                        bx%lo, bx%hi, &
-                        pidout, lbound(pidout), ubound(pidout), &
-                        ptempin, lbound(ptempin), ubound(ptempin))
-          
-       ! Increment enthalpy at given box depending on the condition of the free surface
-       if (temp_fs.gt.0) then
-          call increment_enthalpy_fixT(bx%lo, bx%hi, &
-                                       pin, lbound(pin),     ubound(pin),     &
-                                       pout,    lbound(pout),    ubound(pout),    &
-                                       ptempin, lbound(ptempin), ubound(ptempin), &
-                                       ptemp,   lbound(ptemp),   ubound(ptemp),   &
-                                       pfx, lbound(pfx), ubound(pfx), &
-                                       pfy, lbound(pfy), ubound(pfy), &
-                                       pidin, lbound(pidin), ubound(pidin), &
-                                       pidout, lbound(pidout), ubound(pidout), &
-                                       geom, dt)
-       else
-          call increment_enthalpy(time, bx%lo, bx%hi, &
-                                  pin, lbound(pin),     ubound(pin),     &
-                                  pout,    lbound(pout),    ubound(pout),    &
-                                  ptempin, lbound(ptempin), ubound(ptempin), &
-                                  ptemp,   lbound(ptemp),   ubound(ptemp),   &
-                                  pfx, lbound(pfx), ubound(pfx), &
-                                  pfy, lbound(pfy), ubound(pfy), &
-                                  pidin, lbound(pidin), ubound(pidin), &
-                                  pidout, lbound(pidout), ubound(pidout), &
-                                  geom, dt)
-       end if
-       
-       ! Update pointers for flux registers
-       if (do_reflux) then
-
-          do idim = 1, amrex_spacedim
-
-             pf => fluxes(idim)%dataptr(mfi)
-             pfab => flux(idim)%dataptr()
-             tbx = mfi%nodaltilebox(idim)
-             pf(tbx%lo(1):tbx%hi(1), tbx%lo(2):tbx%hi(2), tbx%lo(3):tbx%hi(3), :)  = & 
-                  pfab(tbx%lo(1):tbx%hi(1), tbx%lo(2):tbx%hi(2), tbx%lo(3):tbx%hi(3), :) 
-              
-          end do
-          
-       end if
-       
-       ! Find melt interface y position 
-       if (lev.eq.amrex_max_level) then
-          call get_melt_pos(bx%lo, bx%hi, &
-                            pidout, lbound(pidout), ubound(pidout), &
-                            geom)
-       end if
-
+    ! Advance solution
+    do ilev = 0, amrex_max_level
+       t_old(ilev) = time
+       t_new(ilev) = time + dt(0)
+       stepno(ilev) = stepno(ilev) + 1
     end do
 
-    ! Clean memory
-    call amrex_mfiter_destroy(mfi)
-    do idim = 1, amrex_spacedim
-       call amrex_fab_destroy(flux(idim))
-    end do
+    call advance_all_levels(time,dt(0)) 
+
+    call averagedown
     
-    ! Update flux registers (fluxes have already been scaled by dt and area in the increment_enthalpy subroutine)
-    if (do_reflux) then
+  end subroutine advance_one_timestep
+  
+  ! -----------------------------------------------------------------
+  ! Subroutine used to advance the shallow water solver and the
+  ! heat equation solver of one time step for all levels. Only
+  ! used if the implicit solver for the heat equation is employed.
+  ! -----------------------------------------------------------------
+  subroutine advance_all_levels(time, dt)
 
-       if (lev > 0) then
-          call flux_reg(lev)%fineadd(fluxes, 1.0_amrex_real)
-       end if
+    use read_input_module, only : solve_sw
+    use domain_module, only : reset_melt_pos
+    use material_properties_module, only : get_temp
+    use shallow_water_module, only : advance_SW
+    use heat_transfer_module, only : advance_heat_solver_implicit
+    
+    ! Input and output variables
+    real(amrex_real), intent(in) :: dt
+    real(amrex_real), intent(in) :: time
 
-       if (lev < amrex_get_finest_level()) then
-          call flux_reg(lev+1)%crseinit(fluxes, -1.0_amrex_real)
-       end if
-
-       do idim = 1, amrex_spacedim
-          call amrex_multifab_destroy(fluxes(idim))
-       end do
-       
+    ! Propagate SW equations (only at max level)
+    if (solve_sw) then
+       call advance_SW    
     end if
 
-    ! Clean memory
-    call amrex_multifab_destroy(phi_tmp)
-    call amrex_multifab_destroy(temp_tmp)
-    call amrex_multifab_destroy(idomain_tmp)
+    ! Set melt interface position array equal to free interface position array 
+    ! Since melt layer may span several tile boxes in y-direction (in mfiterator below), we cannot reset within each loop 
+    ! Therefore we reset melt position after solving SW, and before propagating temperature 
+    ! Melt position is then found after heat has been propagated 
+    call reset_melt_pos 
+    
+    ! Advance heat equation
+    call advance_heat_solver_implicit(time, dt)
 
-  end subroutine advance_one_level
+  end subroutine advance_all_levels
 
-
+  
 end module simulation_module

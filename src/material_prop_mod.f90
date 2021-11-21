@@ -121,6 +121,7 @@ module material_properties_module
    public :: get_temp
    public :: get_enthalpy
    public :: get_emissivity
+   public :: get_heat_capacity
    public :: get_work_function
    public :: get_Richardson
    public :: get_vapor_pressure
@@ -691,7 +692,7 @@ module material_properties_module
   ! ------------------------------------------------------------------ 
   subroutine get_temp(lo, hi, &
                       ui, uo_lo, uo_hi, & 
-                      temp, t_lo , t_hi) 
+                      temp, t_lo , t_hi, direct) 
 
     ! Input and output variables
     integer, intent(in) :: lo(3), hi(3)
@@ -699,48 +700,61 @@ module material_properties_module
     integer, intent(in) :: t_lo(3), t_hi(3)
     real(amrex_real), intent(in) :: ui (uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3))
     real(amrex_real), intent(out) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))
-
+    logical, intent(in) :: direct
+    
     ! Local variables
     integer :: idx 
     integer :: i,j,k
     real(amrex_real) :: int_coeff 
-    ! real(amrex_real) :: Cp
-    ! real(amrex_real) :: diffus
-    ! real(amrex_real) :: ktherm
-    ! real(amrex_real) :: rho
     
     ! Obtain the temperature from linear interpolation of the enthalpy-temperature tables
-    do i = lo(1),hi(1)
-       do j = lo(2),hi(2)
-          do k = lo(3),hi(3)
+    if (direct) then
+       
+       do i = lo(1),hi(1)
+          do j = lo(2),hi(2)
+             do k = lo(3),hi(3)
+                
+                ! do idx = 0,phiT_table_n_points 
+                !    if (ui(i,j,k) .le. enth_table(idx) ) exit 
+                ! end do
+                call bisection(enth_table, phiT_table_n_points+1, ui(i,j,k), idx)
+                
+                if (idx.eq.phiT_table_n_points) STOP 'Temperature table exceeded' 
+                
+                int_coeff = (ui(i,j,k)-enth_table(idx-1))/ &
+                            (enth_table(idx)-enth_table(idx-1))
+                temp(i,j,k) = temp_table(idx-1) + &
+                              int_coeff*(temp_table(idx)-temp_table(idx-1))
              
-             ! Routine bisection assumes that first argument is an array 
-             ! with its index starting from one. Since enth_table
-             ! starts from 0 a +1 is added in the second argument.
-             call bisection(enth_table, phiT_table_n_points+1, ui(i,j,k), idx)
-
-             if (idx.eq.phiT_table_n_points) STOP 'Temperature table exceeded' 
-
-             int_coeff = (ui(i,j,k)-enth_table(idx-1))/ &
-                    (enth_table(idx)-enth_table(idx-1))
-             temp(i,j,k) = temp_table(idx-1) + &
-                           int_coeff*(temp_table(idx)-temp_table(idx-1))
-
-             ! ! Update maximum diffusivity (consider only material grid points and not the background)
-             ! if (temp(i,j,k).gt.0) then
-             !    call get_ktherm(temp(i,j,k),ktherm)
-             !    call get_rho(temp(i,j,k),rho) 
-             !    call get_Cp(temp(i,j,k),Cp)
-             !    diffus = ktherm/(rho*Cp)
-             !    if (diffus.gt.max_diffus) then
-             !       max_diffus = diffus
-             !    end if
-             ! end if
-           
+             end do
           end do
        end do
-    end do
-    
+
+    else ! Obtain enthalpy
+
+       do i = lo(1),hi(1)
+          do j = lo(2),hi(2)
+             do k = lo(3),hi(3)
+                
+                do idx = 0,phiT_table_n_points 
+                   if (ui(i,j,k) .le. temp_table(idx) ) exit 
+                end do
+                
+                if (idx.ge.phiT_table_n_points) then
+                   STOP 'Temperature table exceeded' 
+                end if
+                
+                int_coeff = (ui(i,j,k)-temp_table(idx-1))/ &
+                            (temp_table(idx)-temp_table(idx-1))
+                temp(i,j,k) = enth_table(idx-1) + &
+                            int_coeff*(enth_table(idx)-enth_table(idx-1))
+               
+             end do
+          end do
+       end do
+       
+    end if
+       
   end subroutine get_temp
 
 
@@ -791,41 +805,43 @@ module material_properties_module
   end subroutine get_enthalpy
 
 
-   ! -----------------------------------------------------------------
-   ! Given an array xx(1:n), and given a value x, returns a value j such that x is between
-   ! xx(j) and xx(j+1). xx(1:n) must be monotonic, either increasing or decreasing. j=0
-   ! or j=n is returned to indicate that x is out of range.
-   ! Taken from Numerical recipes in Fortran 77.
-   ! -----------------------------------------------------------------
+  ! -----------------------------------------------------------------
+  ! Given an array xx(1:n), and given a value x, returns a value j such that x is between
+  ! xx(j) and xx(j+1). xx(1:n) must be monotonic, either increasing or decreasing. j=0
+  ! or j=n is returned to indicate that x is out of range.
+  ! Taken from Numerical recipes in Fortran 77.
+  ! -----------------------------------------------------------------
   subroutine bisection(xx,n,x,j)
+    
+    ! Input and output variables
+    integer, intent(in) :: n
+    real(amrex_real), intent(in) :: xx(n)
+    real(amrex_real), intent(in) :: x
+    integer, intent(out) :: j
+    
+    ! Local variables
+    integer jl,jm,ju
+    
+    jl=0 ! Initialize lower
+    ju=n+1 ! upper limits.
+    
+    do while(ju-jl.gt.1)
+       jm=(ju+jl)/2
+       if((xx(n).ge.xx(1)).eqv.(x.ge.xx(jm)))then
+          jl=jm
+       else
+          ju=jm
+       endif
+    end do
+    
+    if(x.eq.xx(1)) then
+       j=1
+    else if(x.eq.xx(n)) then
+       j=n-1
+    else
+       j=jl
+    endif
+  end subroutine bisection
+  
+end module material_properties_module
 
-   ! Input and output variables
-   integer, intent(in) :: n
-   real(amrex_real), intent(in) :: xx(n)
-   real(amrex_real), intent(in) :: x
-   integer, intent(out) :: j
-
-   ! Local variables
-
-   integer jl,jm,ju
-
-   jl=0 ! Initialize lower
-   ju=n+1 ! upper limits.
-   do while(ju-jl.gt.1)
-      jm=(ju+jl)/2
-      if((xx(n).ge.xx(1)).eqv.(x.ge.xx(jm)))then
-         jl=jm
-      else
-         ju=jm
-      endif
-   end do
-   if(x.eq.xx(1)) then
-      j=1
-   else if(x.eq.xx(n)) then
-      j=n-1
-   else
-      j=jl
-   endif
-end subroutine bisection
-
-end module material_properties_module 

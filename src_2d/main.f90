@@ -18,7 +18,7 @@ program SWAM
 
   ! Run simulation
   call run_simulation
-
+  
   ! Finalize data
   call run_finalize
 

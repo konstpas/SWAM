@@ -1,6 +1,7 @@
 # SIMULATION LENGTH
 length.max_step  = 1000                    # Maximum number of time-steps
 length.stop_time = 0.5                     # Maximum simulated time [s]
+length.dt = 0.001  			     # Timestep (changed automatically by the code if it does not satisfy the stability criteria)
 
 # MESH GENERATION (SOME PARAMETERS ARE NOT USED BUT NECESSARY FOR AMREX)
 geometry.is_periodic = 0 0 0	           # Set to 0 because the system is not periodic (x,y)
@@ -35,6 +36,7 @@ heat.cooling_debug = 1 2000 4000 2000 1e9	 		# Plot cooling fluxes as a function
 						 		#						     number of points between min_T and max_T
 						 		#						     plasma flux for the thermionic cooling)
 heat.thermionic_alpha = 90        	 	 		# Magnetic inclination [deg]
+heat.heat_solver = explicit
 
 # SHALLOW WATER SOLVER
 sw.solve = 1                               # Flag to control if the melt motion is on (1 = on, 0 = off)
@@ -55,3 +57,16 @@ output.verbose   = 1		           # Verbosity of the code (1 = on, 0 = off)
 numerics.cfl       = 0.95	           # Safety factor used to multiply the minimum time-step which ensures stability of the heat solver
 numerics.do_reflux = 1		           # Activate or deactivate reflux ( 1 = on, 0 = off)
 numerics.dt_change_max = 1.1 	           # Maximum fractional change of the time step between two successive time-steps
+
+# LINEAR SOLVERS
+linear_solver.composite_solve = 1
+linear_solver.verbose = 2
+linear_solver.bottom_verbose_ls = 0
+linear_solver.max_iter = 100
+linear_solver.max_fmg_iter = 0
+linear_solver.bottom_solver = amrex_bottom_default
+linear_solver.linop_maxorder = 2
+linear_solver.agglomeration = 1
+linear_solver.consolidation = 1
+linear_solver.max_coarsening_level = 30
+linear_solver.dt = 0.001
