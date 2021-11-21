@@ -260,7 +260,6 @@ contains
                                    geom, dt)
 
     use heat_flux_module, only: get_boundary_heat_flux
-    use material_properties_module, only : get_temp
  
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) ! bounds of current tile box
@@ -347,7 +346,7 @@ contains
                                         idom, id_lo, id_hi, &
                                         geom, dt)
     
-    use material_properties_module, only : get_temp, get_enthalpy
+    use material_properties_module, only : get_enthalpy
     use read_input_module, only : temp_fs
     
     ! Input and output variables
@@ -745,7 +744,7 @@ contains
        do while(mfi%next())
           call correct_heat_solver_implicit_box(ilev, mfi, geom, &
                                                 phi_tmp(ilev), temp_tmp(ilev), &
-                                                alpha(ilev), phi_star(ilev), temp_star(ilev))
+                                                alpha(ilev))
           
        end do
        call amrex_mfiter_destroy(mfi)
@@ -868,32 +867,32 @@ contains
                   pin, lbound(pin), ubound(pin), &
                   ptempin, lbound(ptempin), ubound(ptempin), .true.)
     
-    ! Explicit update of the enthalpy (prediction step)
-    if (temp_fs.gt.0) then
-       call get_enthalpy_explicit_fixT(bx%lo, bx%hi, &
-                                       pin, lbound(pin),     ubound(pin),     &
-                                       ppstar,    lbound(ppstar),    ubound(ppstar),    &
-                                       ptempin, lbound(ptempin), ubound(ptempin), &
-                                       pfx, lbound(pfx), ubound(pfx), &
-                                       pfy, lbound(pfy), ubound(pfy), &
-                                       pidout, lbound(pidout), ubound(pidout), &
-                                       geom, dt)
-    else
-       call get_enthalpy_explicit(time, bx%lo, bx%hi, &
-                                  pin, lbound(pin),     ubound(pin),     &
-                                  ppstar, lbound(ppstar), ubound(ppstar), &
-                                  ptempin, lbound(ptempin), ubound(ptempin), &
-                                  pfx, lbound(pfx), ubound(pfx), &
-                                  pfy, lbound(pfy), ubound(pfy), &
-                                  pidout, lbound(pidout), ubound(pidout), &
-                                  geom, dt)
-    end if    
+    ! ! Explicit update of the enthalpy (prediction step)
+    ! if (temp_fs.gt.0) then
+    !    call get_enthalpy_explicit_fixT(bx%lo, bx%hi, &
+    !                                    pin, lbound(pin),     ubound(pin),     &
+    !                                    ppstar,    lbound(ppstar),    ubound(ppstar),    &
+    !                                    ptempin, lbound(ptempin), ubound(ptempin), &
+    !                                    pfx, lbound(pfx), ubound(pfx), &
+    !                                    pfy, lbound(pfy), ubound(pfy), &
+    !                                    pidout, lbound(pidout), ubound(pidout), &
+    !                                    geom, dt)
+    ! else
+    !    call get_enthalpy_explicit(time, bx%lo, bx%hi, &
+    !                               pin, lbound(pin),     ubound(pin),     &
+    !                               ppstar, lbound(ppstar), ubound(ppstar), &
+    !                               ptempin, lbound(ptempin), ubound(ptempin), &
+    !                               pfx, lbound(pfx), ubound(pfx), &
+    !                               pfy, lbound(pfy), ubound(pfy), &
+    !                               pidout, lbound(pidout), ubound(pidout), &
+    !                               geom, dt)
+    ! end if    
 
     
-    ! Get temperature corresponding to the enthalpy (prediction step)
-    call get_temp(lbound(ptempstar), ubound(ptempstar), &
-                  ppstar, lbound(ppstar), ubound(ppstar), &
-                  ptempstar, lbound(ptempstar), ubound(ptempstar), .true.)
+    ! ! Get temperature corresponding to the enthalpy (prediction step)
+    ! call get_temp(lbound(ptempstar), ubound(ptempstar), &
+    !               ppstar, lbound(ppstar), ubound(ppstar), &
+    !               ptempstar, lbound(ptempstar), ubound(ptempstar), .true.)
     
     ! Get alpha matrix for the linear solver (first term on left hand side)
     call get_alpha(bx%lo, bx%hi, &
@@ -936,8 +935,7 @@ contains
   ! enthalpy update at a given box on a given level 
   ! -----------------------------------------------------------------
   subroutine correct_heat_solver_implicit_box(lev, mfi, geom, phi_tmp, &
-                                              temp_tmp, alpha, phi_star, &
-                                              temp_star)
+                                              temp_tmp, alpha)
 
     use amr_data_module, only : phi_new, temp, idomain
     use domain_module, only : get_melt_pos
@@ -951,8 +949,6 @@ contains
     type(amrex_multifab), intent(inout) :: phi_tmp
     type(amrex_multifab), intent(inout) :: temp_tmp
     type(amrex_multifab), intent(inout) :: alpha
-    type(amrex_multifab), intent(inout) :: phi_star
-    type(amrex_multifab), intent(inout) :: temp_star
 
     ! Local variables
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin
@@ -961,8 +957,6 @@ contains
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pid
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pac
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ppstar
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptempstar
     type(amrex_box) :: bx
     
     ! Box
@@ -974,8 +968,6 @@ contains
     ptempin => temp_tmp%dataptr(mfi)
     ptemp   => temp(lev)%dataptr(mfi)
     pid     => idomain(lev)%dataptr(mfi)
-    ppstar => phi_star%dataptr(mfi)
-    ptempstar => temp_star%dataptr(mfi)
     pac => alpha%dataptr(mfi)
     
     ! Get corrected enthalpy
@@ -1167,14 +1159,14 @@ contains
     ! Fill alpha matrix
     do i = lo(1), hi(1)
        do j = lo(2), hi(2)
-          if (temp_star(i,j).ne.temp(i,j)) then
-             alpha(i,j) = (u_star(i,j) - u_old(i,j))/(temp_star(i,j) - temp(i,j))
-          else
+          ! if (temp_star(i,j).ne.temp(i,j)) then
+          !    alpha(i,j) = (u_star(i,j) - u_old(i,j))/(temp_star(i,j) - temp(i,j))
+          ! else
              ! The following choice is arbitrary, we have to test if it works ...
              call get_mass_density(temp(i,j), rho)
              call get_heat_capacity(temp(i,j), cp)
              alpha(i,j) = rho*cp
-          end if
+          !end if
        end do
     end do
 
