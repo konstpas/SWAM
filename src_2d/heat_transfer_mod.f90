@@ -1137,7 +1137,8 @@ contains
                        temp_star, ts_lo, ts_hi, &
                        alpha, a_lo, a_hi)
 
-    use material_properties_module, only: get_mass_density, get_heat_capacity
+    use material_properties_module, only: get_mass_density, get_heat_capacity, &
+                                          enth_at_melt, temp_melt, latent_heat
     
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)
@@ -1155,18 +1156,42 @@ contains
     ! Local variables
     integer :: i,j
     real(amrex_real) :: cp
+    real(amrex_real) :: cps
+    real(amrex_real) :: cpl
     real(amrex_real) :: rho
-       
+    real(amrex_real) :: rhos
+    real(amrex_real) :: rhol
+    real(amrex_real) :: lf
+
     ! Fill alpha matrix
     do i = lo(1), hi(1)
        do j = lo(2), hi(2)
-          ! if (temp_star(i,j).ne.temp(i,j)) then
-          !    alpha(i,j) = (u_star(i,j) - u_old(i,j))/(temp_star(i,j) - temp(i,j))
-          ! else
-             ! The following choice is arbitrary, we have to test if it works ...
+          if (temp(i,j).ne.temp_melt) then
              call get_mass_density(temp(i,j), rho)
              call get_heat_capacity(temp(i,j), cp)
              alpha(i,j) = rho*cp
+          else
+             ! Compute liquid fraction
+             lf = (u_old(i,j) - enth_at_melt)/latent_heat
+             if (lf .gt. 1.0) lf = 1.0
+             if (lf .lt. 0.0) lf = 0.0
+             ! Get solid and liquid properties close to the melt transition
+             call get_mass_density(temp_melt - 1e-10_amrex_real, rhos)
+             call get_mass_density(temp_melt, rhol)
+             call get_heat_capacity(temp_melt - 1e-10_amrex_real, cps)
+             call get_heat_capacity(temp_melt, cpl)
+             ! Properties of the liquid at the melting point
+             cp = (1-lf)*cps + lf*cpl
+             rho = (1-lf)*rhos + lf*rhol
+             alpha(i,j) = rho*cp
+          end if
+          ! ! if (temp_star(i,j).ne.temp(i,j)) then
+          ! !    alpha(i,j) = (u_star(i,j) - u_old(i,j))/(temp_star(i,j) - temp(i,j))
+          ! ! else
+             ! ! The following choice is arbitrary, we have to test if it works ...
+             ! call get_mass_density(temp(i,j), rho)
+             ! call get_heat_capacity(temp(i,j), cp)
+             ! alpha(i,j) = rho*cp
           !end if
        end do
     end do

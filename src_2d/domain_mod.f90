@@ -180,14 +180,14 @@ contains
     do i = lo(1), hi(1)  ! x-direction
        do j = lo(2), hi(2) 
              
-          if (nint(idom(i,j)).eq.3 .and. nint(idom(i,j-1)).ne.3) then
+          if (nint(idom(i,j)).gt.1 .and. nint(idom(i,j-1)).le.1) then
              
              it(1) = i
              it(2) = j
              grid_pos = geom%get_physical_location(it)
              melt_pos(i) = grid_pos(2) 
              
-          elseif(nint(idom(i,j)).ne.3 .and. nint(idom(i,j-1)).eq.3) then
+          elseif(nint(idom(i,j)).le.1 .and. nint(idom(i,j-1)).gt.1) then
 
             it(1) = i
             it(2) = j

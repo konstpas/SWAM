@@ -112,6 +112,8 @@ module material_properties_module
    public :: temp_melt
    ! Maximum diffusivity
    public :: max_diffus  
+   ! Latent heat
+   public :: latent_heat
    
    ! -----------------------------------------------------------------
    ! Public subroutines
@@ -135,6 +137,7 @@ module material_properties_module
    ! Declare public variables
    ! -----------------------------------------------------------------
    real(amrex_real), save :: enth_at_melt
+   real(amrex_real), save :: latent_heat
    real(amrex_real), save :: temp_melt
    real(amrex_real), save :: max_diffus
    
@@ -608,7 +611,7 @@ module material_properties_module
              call get_heat_capacity(temp_table(i),Cp)  
              rhocp_i = rho*Cp  
              enth_table(i) = enth_table(i-1) + (rhocp_i+rhocp_im1)*phiT_table_dT/2_amrex_real   ! Enthalpy at melt onset 
-             enth_at_melt = enth_table(i) 
+             enth_at_melt = enth_table(i)
              phiT_table_dT = (phiT_table_max_T - temp_melt)/(phiT_table_n_points-1-i)  ! New phiT_table_dT to match phiT_table_max_T !
              
           end if
@@ -617,7 +620,8 @@ module material_properties_module
           if(imelt.eq.i-1) then
 
              temp_table(i) = temp_melt
-             enth_table(i) = enth_table(i-1) + 1E6*enth_fus*rho_melt/m_A ! [J/m3] = 1E6*[kJ/mol]*[kg/m3]/[g/mol]
+             latent_heat = 1E6*enth_fus*rho_melt/m_A  ! [J/m3] = 1E6*[kJ/mol]*[kg/m3]/[g/mol]
+             enth_table(i) = enth_table(i-1) + latent_heat
 
           ! Compute enthalpy for all the state points above the melting point
           elseif(imelt.ne.i) then
