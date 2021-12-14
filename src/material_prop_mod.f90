@@ -722,9 +722,7 @@ module material_properties_module
                if(ui(i,j,k).ne.ui(i,j,k)) then
                   write(*,*) 'Nan enthalpy'
                end if
-               ! do idx = 0,phiT_table_n_points 
-               !    if (ui(i,j,k) .le. enth_table(idx) ) exit 
-               ! end do
+               
                call bisection(enth_table, phiT_table_n_points+1, ui(i,j,k), idx)
                
                if (idx.ge.phiT_table_n_points) then

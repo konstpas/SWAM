@@ -752,16 +752,6 @@ module material_properties_module
              ui(i,j) = enth_table(idx-1) + &
                   int_coeff*(enth_table(idx)-enth_table(idx-1))
 
-            !  dbgr1 = (temp(i,j)-temp_table(dbg-1))/ &
-            !     (temp_table(dbg)-temp_table(dbg-1))
-            !  dbgr2 = enth_table(dbg-1) + &
-            !     dbgr1*(enth_table(dbg)-enth_table(dbg-1))
-               
-            !  if (abs(ui(i,j)-dbgr2).gt.1E-15) then
-            !    write(*,*) 'idx = ', idx
-            !    write(*,*) 'dbg = ', dbg
-            !    stop 'idx dbg'
-            !  end if
              
           end do
        end do
