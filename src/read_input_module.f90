@@ -51,6 +51,7 @@ module read_input_module
   public :: cooling_radiation
   public :: do_reflux
   public :: dt_change_max
+  public :: heat_solver
   public :: in_dt
   public :: ls_verbose
   public :: ls_bottom_verbose
@@ -58,6 +59,7 @@ module read_input_module
   public :: ls_max_fmg_iter
   public :: ls_bottom_solver
   public :: ls_linop_maxorder
+  public :: ls_composite_solve  
   public :: ls_agglomeration
   public :: ls_consolidation
   public :: ls_max_coarsening_level
@@ -193,6 +195,7 @@ contains
     call pp%query("cooling_radiation",cooling_radiation)
     call pp%getarr("cooling_debug",cooling_debug)
     call pp%query("thermionic_alpha",thermionic_alpha)
+    call pp%query("heat_solver",heat_solver)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the heat solver

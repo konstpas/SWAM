@@ -702,8 +702,8 @@ module material_properties_module
     integer, intent(in) :: lo(2), hi(2)
     integer, intent(in) :: uo_lo(2), uo_hi(2)
     integer, intent(in) :: t_lo(2), t_hi(2)
-    real(amrex_real), intent(in) :: ui (uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))
-    real(amrex_real), intent(out) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2))
+    real(amrex_real), intent(inout) :: ui (uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))
+    real(amrex_real), intent(inout) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2))
     logical, intent(in) :: direct
     
     ! Local variables
@@ -740,19 +740,28 @@ module material_properties_module
        do i = lo(1),hi(1)
           do j = lo(2),hi(2)             
              
-             do idx = 0,phiT_table_n_points 
-                if (ui(i,j) .le. temp_table(idx) ) exit 
-             end do
+             call bisection(temp_table, phiT_table_n_points+1, temp(i,j), idx)
+             if (temp_table(idx).eq.temp_table(idx-1)) idx = idx-1
              
              if (idx.ge.phiT_table_n_points) then
                 STOP 'Temperature table exceeded' 
              end if
              
-             int_coeff = (ui(i,j)-temp_table(idx-1))/ &
+             int_coeff = (temp(i,j)-temp_table(idx-1))/ &
                   (temp_table(idx)-temp_table(idx-1))
-             temp(i,j) = enth_table(idx-1) + &
+             ui(i,j) = enth_table(idx-1) + &
                   int_coeff*(enth_table(idx)-enth_table(idx-1))
+
+            !  dbgr1 = (temp(i,j)-temp_table(dbg-1))/ &
+            !     (temp_table(dbg)-temp_table(dbg-1))
+            !  dbgr2 = enth_table(dbg-1) + &
+            !     dbgr1*(enth_table(dbg)-enth_table(dbg-1))
                
+            !  if (abs(ui(i,j)-dbgr2).gt.1E-15) then
+            !    write(*,*) 'idx = ', idx
+            !    write(*,*) 'dbg = ', dbg
+            !    stop 'idx dbg'
+            !  end if
              
           end do
        end do

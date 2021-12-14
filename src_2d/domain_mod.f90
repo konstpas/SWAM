@@ -113,25 +113,26 @@ contains
     integer :: i
     integer :: xind
     real(amrex_real) :: xpos
-    real(amrex_real) :: x_alpha
     
     do  i = lo(1),hi(1)
    
-       xpos = xlo(1) + (0.5 + i-lo(1))*dx(1) 
-       
-       ! In what follows -surf_dx(1)/2  and ceiling are used since
+       ! In what follows -surf_dx(1)/2 is used since
        ! the surface is staggered 'backwards' on the faces with
        ! respect to the xlo and xpos values which are defined on the
        ! centers. 
-       xind = ceiling((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
-       x_alpha = mod(xpos - surf_dx(1)/2 - surf_xlo(1), surf_dx(1))
-       
+
+       xpos = xlo(1) + (0.5+i-lo(1))*dx(1)  
+
+       ! The nearest integer is taken to round of numerical
+       ! errors since we know that dx(1) is n*surf_dx(1) where
+       ! n is an integer which depends on the current level and
+       ! the refinment ratio between levels.
+       xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1))
+
        if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
        if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
-       
-       ! Interpolation
-       surf_pos_heat_domain(i) = surf_pos(xind) + &
-            x_alpha * (surf_pos(xind+1)-surf_pos(xind))
+      
+       surf_pos_heat_domain(i) = surf_pos(xind)
        
     end do
     

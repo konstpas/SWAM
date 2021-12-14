@@ -47,6 +47,8 @@ module amr_data_module
   ! Parameters used by amrex during subcycling
   public :: stepno
   public :: nsubsteps
+  ! Variable used to check when to regrid
+  public :: last_regrid_step
 
   ! ------------------------------------------------------------------
   ! Public subroutines
@@ -62,6 +64,7 @@ module amr_data_module
   integer, allocatable, save :: hi_bc(:,:)
   integer, save  :: surf_ind(2,2)
   integer, allocatable, save :: stepno(:)
+  integer, allocatable, save :: last_regrid_step(:)
   integer, allocatable, save :: nsubsteps(:)
   real(amrex_real), allocatable, save :: dt(:)
   real(amrex_real), allocatable, save :: melt_pos(:,:)
@@ -110,6 +113,7 @@ contains
     allocate(idomain(0:amrex_max_level))
     allocate(lo_bc(amrex_spacedim,1)) ! The second argument is the number of components
     allocate(hi_bc(amrex_spacedim,1))
+    allocate(last_regrid_step(0:amrex_max_level))
     allocate(melt_pos(lo_x:hi_x, lo_z:hi_z))
     allocate(melt_top(lo_x:hi_x, lo_z:hi_z))
     allocate(melt_vel(lo_x:hi_x+1,lo_z:hi_z+1, 1:amrex_spacedim-1))
@@ -129,6 +133,7 @@ contains
     ! cells are filled with a copy of the closest point inside the domain)
     lo_bc = amrex_bc_foextrap
     hi_bc = amrex_bc_foextrap
+    last_regrid_step = 0
     ! It is assumed that there is no melting pool at the beginning of the
     ! simulation (melt_pos = surf_pos)
     melt_pos = surf_pos_init
@@ -166,6 +171,7 @@ contains
     deallocate(dt)
     deallocate(lo_bc)
     deallocate(hi_bc)
+    deallocate(last_regrid_step)
     deallocate(melt_pos)
     deallocate(melt_vel)
     deallocate(surf_pos)

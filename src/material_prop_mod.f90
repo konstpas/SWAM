@@ -112,6 +112,8 @@ module material_properties_module
    public :: temp_melt
    ! Maximum diffusivity
    public :: max_diffus  
+   ! Latent heat
+   public :: latent_heat
    
    ! -----------------------------------------------------------------
    ! Public subroutines
@@ -121,13 +123,13 @@ module material_properties_module
    public :: get_temp
    public :: get_enthalpy
    public :: get_emissivity
-   public :: get_heat_capacity
    public :: get_work_function
    public :: get_Richardson
    public :: get_vapor_pressure
    public :: get_atomic_mass
    public :: get_enthalpy_of_vaporization
    public :: get_mass_density
+   public :: get_heat_capacity
    public :: finalize_mat_prop
    
  
@@ -135,6 +137,7 @@ module material_properties_module
    ! Declare public variables
    ! -----------------------------------------------------------------
    real(amrex_real), save :: enth_at_melt
+   real(amrex_real), save :: latent_heat
    real(amrex_real), save :: temp_melt
    real(amrex_real), save :: max_diffus
    
@@ -608,7 +611,7 @@ module material_properties_module
              call get_heat_capacity(temp_table(i),Cp)  
              rhocp_i = rho*Cp  
              enth_table(i) = enth_table(i-1) + (rhocp_i+rhocp_im1)*phiT_table_dT/2_amrex_real   ! Enthalpy at melt onset 
-             enth_at_melt = enth_table(i) 
+             enth_at_melt = enth_table(i)
              phiT_table_dT = (phiT_table_max_T - temp_melt)/(phiT_table_n_points-1-i)  ! New phiT_table_dT to match phiT_table_max_T !
              
           end if
@@ -617,7 +620,8 @@ module material_properties_module
           if(imelt.eq.i-1) then
 
              temp_table(i) = temp_melt
-             enth_table(i) = enth_table(i-1) + 1E6*enth_fus*rho_melt/m_A ! [J/m3] = 1E6*[kJ/mol]*[kg/m3]/[g/mol]
+             latent_heat = 1E6*enth_fus*rho_melt/m_A  ! [J/m3] = 1E6*[kJ/mol]*[kg/m3]/[g/mol]
+             enth_table(i) = enth_table(i-1) + latent_heat
 
           ! Compute enthalpy for all the state points above the melting point
           elseif(imelt.ne.i) then
@@ -686,7 +690,7 @@ module material_properties_module
     
   end subroutine finalize_mat_prop
   
-
+ 
   ! ------------------------------------------------------------------
   ! Subroutine used to obtain the temperature given the enthalpy
   ! ------------------------------------------------------------------ 
@@ -698,63 +702,71 @@ module material_properties_module
     integer, intent(in) :: lo(3), hi(3)
     integer, intent(in) :: uo_lo(3), uo_hi(3)
     integer, intent(in) :: t_lo(3), t_hi(3)
-    real(amrex_real), intent(in) :: ui (uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3))
-    real(amrex_real), intent(out) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))
+    real(amrex_real), intent(inout) :: ui (uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3))
+    real(amrex_real), intent(inout) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))
     logical, intent(in) :: direct
     
     ! Local variables
     integer :: idx 
     integer :: i,j,k
-    real(amrex_real) :: int_coeff 
-    
+    real(amrex_real) :: int_coeff
+     
+
     ! Obtain the temperature from linear interpolation of the enthalpy-temperature tables
     if (direct) then
        
-       do i = lo(1),hi(1)
-          do j = lo(2),hi(2)
-             do k = lo(3),hi(3)
-                
-                ! do idx = 0,phiT_table_n_points 
-                !    if (ui(i,j,k) .le. enth_table(idx) ) exit 
-                ! end do
-                call bisection(enth_table, phiT_table_n_points+1, ui(i,j,k), idx)
-                
-                if (idx.eq.phiT_table_n_points) STOP 'Temperature table exceeded' 
-                
-                int_coeff = (ui(i,j,k)-enth_table(idx-1))/ &
-                            (enth_table(idx)-enth_table(idx-1))
-                temp(i,j,k) = temp_table(idx-1) + &
-                              int_coeff*(temp_table(idx)-temp_table(idx-1))
-             
-             end do
-          end do
-       end do
+      do i = lo(1),hi(1)
+         do j = lo(2),hi(2)
+            do k = lo(3),hi(3)
+               
+               if(ui(i,j,k).ne.ui(i,j,k)) then
+                  write(*,*) 'Nan enthalpy'
+               end if
+               ! do idx = 0,phiT_table_n_points 
+               !    if (ui(i,j,k) .le. enth_table(idx) ) exit 
+               ! end do
+               call bisection(enth_table, phiT_table_n_points+1, ui(i,j,k), idx)
+               
+               if (idx.ge.phiT_table_n_points) then
+                   STOP 'Temperature table exceeded' 
+               end if
+               
+               int_coeff = (ui(i,j,k)-enth_table(idx-1))/ &
+                           (enth_table(idx)-enth_table(idx-1))
+               temp(i,j,k) = temp_table(idx-1) + &
+                             int_coeff*(temp_table(idx)-temp_table(idx-1))
+            
 
+            end do
+         end do
+      end do
+       
     else ! Obtain enthalpy
 
-       do i = lo(1),hi(1)
-          do j = lo(2),hi(2)
-             do k = lo(3),hi(3)
-                
-                do idx = 0,phiT_table_n_points 
-                   if (ui(i,j,k) .le. temp_table(idx) ) exit 
-                end do
-                
-                if (idx.ge.phiT_table_n_points) then
-                   STOP 'Temperature table exceeded' 
-                end if
-                
-                int_coeff = (ui(i,j,k)-temp_table(idx-1))/ &
-                            (temp_table(idx)-temp_table(idx-1))
-                temp(i,j,k) = enth_table(idx-1) + &
-                            int_coeff*(enth_table(idx)-enth_table(idx-1))
+
+      do i = lo(1),hi(1)
+         do j = lo(2),hi(2)
+            do k = lo(3),hi(3)
                
-             end do
-          end do
-       end do
+               call bisection(temp_table, phiT_table_n_points+1, temp(i,j,k), idx)
+               if (temp_table(idx).eq.temp_table(idx-1)) idx = idx-1
+  
+               
+               if (idx.ge.phiT_table_n_points) then
+                  STOP 'Temperature table exceeded' 
+               end if
+               
+               int_coeff = (temp(i,j,k)-temp_table(idx-1))/ &
+                           (temp_table(idx)-temp_table(idx-1))
+               ui(i,j,k) = enth_table(idx-1) + &
+                           int_coeff*(enth_table(idx)-enth_table(idx-1))
+              
+            end do
+         end do
+      end do
        
     end if
-       
+      
   end subroutine get_temp
 
 
@@ -775,13 +787,23 @@ module material_properties_module
 
     ! Local variables
     integer :: idx
-    real(amrex_real) :: int_coeff 
+    real(amrex_real) :: int_coeff
+
+    if(temp.ne.temp) then
+      STOP 'Temperature query for enthalpy table is nan.'
+    end if
+
+    if(temp.eq.temp-1) then
+      STOP 'Temperature query for enthalpy table is infinity.'
+    end if
 
     do idx = 0,phiT_table_n_points 
        if (temp .le. temp_table(idx)) exit 
     end do
     
-    if (idx.eq.phiT_table_n_points) STOP 'Temperature table exceeded'
+    if (idx.eq.phiT_table_n_points) then 
+      STOP 'Temperature table exceeded'
+    end if
     
     ! If the input temperature is the melting temperature the enthalpy is ambiguous and
     ! it should be specified if the system is to be considered solid or liquid
@@ -803,8 +825,7 @@ module material_properties_module
     end if
     
   end subroutine get_enthalpy
-
-
+  
   ! -----------------------------------------------------------------
   ! Given an array xx(1:n), and given a value x, returns a value j such that x is between
   ! xx(j) and xx(j+1). xx(1:n) must be monotonic, either increasing or decreasing. j=0
@@ -819,29 +840,27 @@ module material_properties_module
     real(amrex_real), intent(in) :: x
     integer, intent(out) :: j
     
-    ! Local variables
+    ! Local variables    
     integer jl,jm,ju
-    
+
     jl=0 ! Initialize lower
     ju=n+1 ! upper limits.
-    
     do while(ju-jl.gt.1)
        jm=(ju+jl)/2
        if((xx(n).ge.xx(1)).eqv.(x.ge.xx(jm)))then
           jl=jm
        else
           ju=jm
-       endif
+       end if
     end do
-    
     if(x.eq.xx(1)) then
        j=1
     else if(x.eq.xx(n)) then
        j=n-1
     else
        j=jl
-    endif
+    end if
+    
   end subroutine bisection
-  
-end module material_properties_module
 
+end module material_properties_module 

@@ -666,8 +666,6 @@ contains
     type(amrex_multifab) :: rhs(0:amrex_max_level) ! multifab for the right hand side of the linear system of equations
     type(amrex_multifab) :: alpha(0:amrex_max_level) ! multifab for the first term on the left hand side of the linear system of equations
     type(amrex_multifab) :: beta(amrex_spacedim,0:amrex_max_level) ! multifab for the second term on the left hand side of the linear system of equations
-    type(amrex_multifab) :: phi_star(0:amrex_max_level) ! Enthalpy multifab for predictor-corrector procedure
-    type(amrex_multifab) :: temp_star(0:amrex_max_level) ! Temperature multifab for predictor-corrector procedure
     type(amrex_boxarray) :: ba(0:amrex_max_level) ! Box array
     type(amrex_distromap):: dm(0:amrex_max_level) ! Distribution mapping
     type(amrex_fab) :: flux(amrex_spacedim)
@@ -694,10 +692,6 @@ contains
        call amrex_multifab_build(phi_tmp(ilev), ba(ilev), dm(ilev), ncomp, nghost) 
        call amrex_multifab_build(temp_tmp(ilev), ba(ilev), dm(ilev), ncomp, nghost)
        call fillpatch(ilev, time, phi_tmp(ilev))
-
-       ! Enthalpy and temperature multifabs for predictor-corrector procedure
-       call amrex_multifab_build(phi_star(ilev), ba(ilev), dm(ilev), ncomp, 0)
-       call amrex_multifab_build(temp_star(ilev), ba(ilev), dm(ilev), ncomp, 0)
        
        ! Build temporary idomain multifab to store the domain configuration before SW deformation
        call amrex_multifab_build(idomain_tmp(ilev), ba(ilev), dm(ilev), ncomp, nghost)
@@ -723,7 +717,7 @@ contains
           call predict_heat_solver_implicit_box(ilev, time, dt, mfi, &
                                                 geom, ncomp, phi_tmp(ilev), temp_tmp(ilev), &
                                                 idomain_tmp(ilev), flux, alpha(ilev), beta(:,ilev), &
-                                                rhs(ilev), phi_star(ilev), temp_star(ilev))
+                                                rhs(ilev))
 
        end do
        call amrex_mfiter_destroy(mfi)
@@ -762,8 +756,7 @@ contains
        do idim = 1, amrex_spacedim
           call amrex_multifab_destroy(beta(idim,ilev))
        end do
-       call amrex_multifab_destroy(phi_star)
-       call amrex_multifab_destroy(temp_star)
+       
        call amrex_distromap_destroy(dm)
     end do
 
@@ -778,7 +771,7 @@ contains
   subroutine predict_heat_solver_implicit_box(lev, time, dt, mfi, &
                                               geom, ncomp, phi_tmp, temp_tmp, &
                                               idomain_tmp, flux, alpha, beta, &
-                                              rhs, phi_star, temp_star)
+                                              rhs)
 
     use read_input_module, only : temp_fs
     use amr_data_module, only : phi_new, temp, idomain
@@ -798,8 +791,6 @@ contains
     type(amrex_multifab), intent(inout) :: alpha
     type(amrex_multifab), intent(inout) :: beta(amrex_spacedim)
     type(amrex_multifab), intent(inout) :: rhs
-    type(amrex_multifab), intent(inout) :: phi_star
-    type(amrex_multifab), intent(inout) :: temp_star
     type(amrex_fab), intent(inout) :: flux(amrex_spacedim)
 
     ! Local variables
@@ -815,8 +806,6 @@ contains
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pac
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pbc
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: prhs
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ppstar
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptempstar
     type(amrex_box) :: tbx
     type(amrex_box) :: bx
     
@@ -840,8 +829,6 @@ contains
     end do
     pfx => flux(1)%dataptr()
     pfy => flux(2)%dataptr()
-    ppstar => phi_star%dataptr(mfi)
-    ptempstar => temp_star%dataptr(mfi)
     
     ! Get temperature corresponding to the enthalpy (with ghost points)
     call get_temp(lbound(ptempin), ubound(ptempin), &
@@ -868,39 +855,10 @@ contains
                   pin, lbound(pin), ubound(pin), &
                   ptempin, lbound(ptempin), ubound(ptempin), .true.)
     
-    ! ! Explicit update of the enthalpy (prediction step)
-    ! if (temp_fs.gt.0) then
-    !    call get_enthalpy_explicit_fixT(bx%lo, bx%hi, &
-    !                                    pin, lbound(pin),     ubound(pin),     &
-    !                                    ppstar,    lbound(ppstar),    ubound(ppstar),    &
-    !                                    ptempin, lbound(ptempin), ubound(ptempin), &
-    !                                    pfx, lbound(pfx), ubound(pfx), &
-    !                                    pfy, lbound(pfy), ubound(pfy), &
-    !                                    pidout, lbound(pidout), ubound(pidout), &
-    !                                    geom, dt)
-    ! else
-    !    call get_enthalpy_explicit(time, bx%lo, bx%hi, &
-    !                               pin, lbound(pin),     ubound(pin),     &
-    !                               ppstar, lbound(ppstar), ubound(ppstar), &
-    !                               ptempin, lbound(ptempin), ubound(ptempin), &
-    !                               pfx, lbound(pfx), ubound(pfx), &
-    !                               pfy, lbound(pfy), ubound(pfy), &
-    !                               pidout, lbound(pidout), ubound(pidout), &
-    !                               geom, dt)
-    ! end if    
-
-    
-    ! ! Get temperature corresponding to the enthalpy (prediction step)
-    ! call get_temp(lbound(ptempstar), ubound(ptempstar), &
-    !               ppstar, lbound(ppstar), ubound(ppstar), &
-    !               ptempstar, lbound(ptempstar), ubound(ptempstar), .true.)
-    
     ! Get alpha matrix for the linear solver (first term on left hand side)
     call get_alpha(bx%lo, bx%hi, &
                    pin, lbound(pin), ubound(pin), &
-                   ppstar, lbound(ppstar), ubound(ppstar), &
-                   ptempin, lbound(ptempin), ubound(ptempin), &
-                   ptempstar, lbound(ptempstar), ubound(ptempstar), &                         
+                   ptempin, lbound(ptempin), ubound(ptempin), &                       
                    pac, lbound(pac), ubound(pac))
     
 
@@ -939,7 +897,7 @@ contains
                                               temp_tmp, alpha)
 
     use amr_data_module, only : phi_new, temp, idomain
-    use domain_module, only : get_melt_pos
+    use domain_module, only : get_melt_pos, get_idomain
     use material_properties_module, only : get_temp
     use read_input_module, only : temp_fs
     
@@ -988,11 +946,12 @@ contains
                                   ptempin, lbound(ptempin), ubound(ptempin), &
                                   pac, lbound(pac), ubound(pac))
     end if
-    
-    ! Get corrected temperature 
-    call get_temp(lbound(ptemp), ubound(ptemp), &
-                  pout, lbound(pout), ubound(pout), &
-                  ptemp, lbound(ptemp), ubound(ptemp), .true.)
+   
+    ! Update the idomain
+    call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
+                     bx%lo, bx%hi, &
+                     pid, lbound(pid), ubound(pid), &
+                     ptempin, lbound(ptempin), ubound(ptempin))
 
     ! Update melt position
     if (lev.eq.amrex_max_level) then
@@ -1072,7 +1031,7 @@ contains
        call multigrid%set_bottom_solver(ls_bottom_solver)
        
        ! Solve the linear system
-       err = multigrid%solve(sol, rhs, 1.e-10_amrex_real, 0.0_amrex_real)
+       err = multigrid%solve(sol, rhs, 5.e-15_amrex_real, 0.0_amrex_real)
        
        ! Clean memory
        call amrex_abeclaplacian_destroy(abeclap)
@@ -1132,9 +1091,7 @@ contains
   ! -----------------------------------------------------------------  
   subroutine get_alpha(lo, hi, &
                        u_old, uo_lo, uo_hi, &
-                       u_star, us_lo, us_hi, &
                        temp, t_lo, t_hi, &
-                       temp_star, ts_lo, ts_hi, &
                        alpha, a_lo, a_hi)
 
     use material_properties_module, only: get_mass_density, get_heat_capacity, &
@@ -1143,14 +1100,10 @@ contains
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)
     integer, intent(in) :: uo_lo(2), uo_hi(2)
-    integer, intent(in) :: us_lo(2), us_hi(2)
     integer, intent(in) :: t_lo(2), t_hi(2)
-    integer, intent(in) :: ts_lo(2), ts_hi(2)
     integer, intent(in) :: a_lo(2), a_hi(2)
-    real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))
-    real(amrex_real), intent(in) :: u_star(us_lo(1):us_hi(1),us_lo(2):us_hi(2))    
+    real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))  
     real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2))
-    real(amrex_real), intent(in) :: temp_star(ts_lo(1):ts_hi(1),ts_lo(2):ts_hi(2))
     real(amrex_real), intent(out) :: alpha(a_lo(1):a_hi(1),a_lo(2):a_hi(2))
 
     ! Local variables
@@ -1185,14 +1138,6 @@ contains
              rho = (1-lf)*rhos + lf*rhol
              alpha(i,j) = rho*cp
           end if
-          ! ! if (temp_star(i,j).ne.temp(i,j)) then
-          ! !    alpha(i,j) = (u_star(i,j) - u_old(i,j))/(temp_star(i,j) - temp(i,j))
-          ! ! else
-             ! ! The following choice is arbitrary, we have to test if it works ...
-             ! call get_mass_density(temp(i,j), rho)
-             ! call get_heat_capacity(temp(i,j), cp)
-             ! alpha(i,j) = rho*cp
-          !end if
        end do
     end do
 
@@ -1341,29 +1286,57 @@ contains
                                    temp_old, to_lo, to_hi, &
                                    temp_new, tn_lo, tn_hi, &
                                    alpha, a_lo, a_hi)
-   
-    ! Input and output variables
-    integer, intent(in) :: lo(2), hi(2)  
-    integer, intent(in) :: uo_lo(2), uo_hi(2)
-    integer, intent(in) :: un_lo(2), un_hi(2)
-    integer, intent(in) :: to_lo(2), to_hi(2)
-    integer, intent(in) :: tn_lo(2), tn_hi(2)
-    integer, intent(in) :: a_lo(2), a_hi(2)
-    real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))
-    real(amrex_real), intent(out) :: u_new(un_lo(1):un_hi(1),un_lo(2):un_hi(2))
-    real(amrex_real), intent(in) :: temp_old(to_lo(1):to_hi(1),to_lo(2):to_hi(2))
-    real(amrex_real), intent(in) :: temp_new(tn_lo(1):tn_hi(1),tn_lo(2):tn_hi(2))
-    real(amrex_real), intent(in) :: alpha(a_lo(1):a_hi(1),a_lo(2):a_hi(2))
-    
-    ! Local variables
-    integer :: i,j
 
-    ! Get new enthalpy
-    do i = lo(1), hi(1)
-       do j = lo(2), hi(2)
-          u_new(i,j) = u_old(i,j) + alpha(i,j)*(temp_new(i,j) - temp_old(i,j))
-       end do
-    end do
+      use material_properties_module, only : get_temp, &
+                                             temp_melt, &
+                                             enth_at_melt, &
+                                             latent_heat
+      ! Input and output variables
+      integer, intent(in) :: lo(2), hi(2)  
+      integer, intent(in) :: uo_lo(2), uo_hi(2)
+      integer, intent(in) :: un_lo(2), un_hi(2)
+      integer, intent(in) :: to_lo(2), to_hi(2)
+      integer, intent(in) :: tn_lo(2), tn_hi(2)
+      integer, intent(in) :: a_lo(2), a_hi(2)
+      real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))
+      real(amrex_real), intent(out) :: u_new(un_lo(1):un_hi(1),un_lo(2):un_hi(2))
+      real(amrex_real), intent(inout) :: temp_old(to_lo(1):to_hi(1),to_lo(2):to_hi(2))
+      real(amrex_real), intent(inout) :: temp_new(tn_lo(1):tn_hi(1),tn_lo(2):tn_hi(2))
+      real(amrex_real), intent(in) :: alpha(a_lo(1):a_hi(1),a_lo(2):a_hi(2))
+      
+      ! Local variables
+      integer :: i,j
+      real(amrex_real) :: ubase
+  
+      ! General case, when no phase transition
+      ! (will be overwritten for phase transitioning control volumes.)
+      call get_temp(un_lo, un_hi, &
+                    u_new, un_lo, un_hi, &
+                    temp_new, tn_lo, tn_hi, .false.)
+
+      ! Get new enthalpy for points undergoing transition 
+      ! (might overwrite enthalpy found previously.)
+      do i = lo(1), hi(1)
+         do j = lo(2), hi(2)
+            if (temp_old(i,j).le.temp_melt .and. temp_new(i,j).gt.temp_melt) then
+               ubase = max(u_old(i,j), enth_at_melt)
+               u_new(i,j) = ubase + alpha(i,j)*(temp_new(i,j) - temp_melt)
+            elseif (temp_old(i,j).ge.temp_melt .and. temp_new(i,j).lt.temp_melt) then
+               ubase = min(u_old(i,j), enth_at_melt+latent_heat)
+               u_new(i,j) = ubase + alpha(i,j)*(temp_new(i,j) - temp_melt)
+            end if
+         end do
+      end do
+
+      ! Update temperature acordingly (with ghost points)
+      call get_temp(lo, hi, &
+                    u_new, un_lo, un_hi, &
+                    temp_new, tn_lo, tn_hi, .true.)
+            
+      ! Update temperature acordingly (without ghost points)
+      call get_temp(lo, hi, &
+                    u_new, un_lo, un_hi, &
+                    temp_old, to_lo, to_hi, .true.)
 
   end subroutine get_enthalpy_implicit
 
@@ -1380,7 +1353,11 @@ contains
                                         idom, id_lo, id_hi, &
                                         alpha, a_lo, a_hi)
 
-    use material_properties_module, only : get_enthalpy
+    use material_properties_module, only : get_enthalpy, &
+                                           get_temp, &
+                                           temp_melt, &
+                                           enth_at_melt, &
+                                           latent_heat
     use read_input_module, only : temp_fs
     
     ! Input and output variables
@@ -1393,19 +1370,26 @@ contains
     integer, intent(in) :: a_lo(2), a_hi(2)
     real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))
     real(amrex_real), intent(out) :: u_new(un_lo(1):un_hi(1),un_lo(2):un_hi(2))
-    real(amrex_real), intent(in) :: temp_old(to_lo(1):to_hi(1),to_lo(2):to_hi(2))
-    real(amrex_real), intent(in) :: temp_new(tn_lo(1):tn_hi(1),tn_lo(2):tn_hi(2))
+    real(amrex_real), intent(inout) :: temp_old(to_lo(1):to_hi(1),to_lo(2):to_hi(2))
+    real(amrex_real), intent(inout) :: temp_new(tn_lo(1):tn_hi(1),tn_lo(2):tn_hi(2))
     real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2))
     real(amrex_real), intent(in) :: alpha(a_lo(1):a_hi(1),a_lo(2):a_hi(2))
     
     ! Local variables
     integer :: i,j
     real(amrex_real) :: u_fs
+    real(amrex_real) :: ubase
+    real(amrex_real) :: u_tmp(un_lo(1):un_hi(1),un_lo(2):un_hi(2))
 
     ! Enthalpy at the free surface
     call get_enthalpy(temp_fs, u_fs)
-    
-    ! Get new enthalpy
+
+    ! Get enthalpy in the general case, no transition of free surface
+    call get_temp(un_lo, un_hi, &
+                  u_tmp, un_lo, un_hi, &
+                  temp_new, tn_lo, tn_hi, .false.)
+
+    ! Make corrections to prescribe temperature on free surfaces
     do i = lo(1), hi(1)
        do j = lo(2), hi(2)
           if (nint(idom(i,j)).ne.0 .and. nint(idom(i,j+1)).eq.0) then
@@ -1413,40 +1397,30 @@ contains
           else if(nint(idom(i,j)).eq.0) then
              u_new(i,j) = u_fs ! Set background temperature equal to the free surface temperature
           else
-             u_new(i,j) = u_old(i,j) + alpha(i,j)*(temp_new(i,j) - temp_old(i,j))
+            if (temp_old(i,j).le.temp_melt .and. temp_new(i,j).gt.temp_melt) then
+               ubase = max(u_old(i,j), enth_at_melt)
+               u_new(i,j) = ubase + alpha(i,j)*(temp_new(i,j) - temp_melt)
+            elseif (temp_old(i,j).ge.temp_melt .and. temp_new(i,j).lt.temp_melt) then
+               ubase = min(u_old(i,j), enth_at_melt+latent_heat)
+               u_new(i,j) = ubase + alpha(i,j)*(temp_new(i,j) - temp_melt)
+            else 
+               u_new(i,j) = u_tmp(i,j)
+            end if
           end if
        end do
     end do
 
+    ! Update temperature acordingly (with ghost points)
+    call get_temp(lo, hi, &
+                  u_new, un_lo, un_hi, &
+                  temp_new, tn_lo, tn_hi, .true.)
+
+    ! Update temperature acordingly (without ghost points)
+    call get_temp(lo, hi, &
+                  u_new, un_lo, un_hi, &
+                  temp_old, to_lo, to_hi, .true.)
+
   end subroutine get_enthalpy_implicit_fixT
 
-
-  ! ! -----------------------------------------------------------------
-  ! ! Subroutine used to ...
-  ! ! -----------------------------------------------------------------  
-  ! subroutine get_temp_ls(lo, hi, &
-  !                        temp, t_lo, t_hi, &
-  !                        sol, s_lo, s_hi)
-  				
-   
-  !   ! Input and output variables
-  !   integer, intent(in) :: lo(2), hi(2)  
-  !   integer, intent(in) :: t_lo(2), t_hi(2)
-  !   integer, intent(in) :: s_lo(2), s_hi(2)
-  !   real(amrex_real), intent(out) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2))
-  !   real(amrex_real), intent(in) :: sol(s_lo(1):s_hi(1),s_lo(2):s_hi(2))
-    
-  !   ! Local variables
-  !   integer :: i,j
-
-     
-  !   ! Map solution to temperature
-  !   do i = lo(1), hi(1)
-  !      do j = lo(2), hi(2)          
-  !         temp(i,j) = sol(i,j)
-  !      end do
-  !   end do
-    
-  ! end subroutine get_temp_ls
   
 end module heat_transfer_module
