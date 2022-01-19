@@ -33,7 +33,7 @@ module amr_data_module
   ! Enthalpy
   public :: phi_new
   public :: phi_old
-  ! Grid parameters for the 1D grid used in shallow water
+  ! Variables used for the solution of the shallow water equations
   public :: surf_dx ! Grid resolution 
   public :: surf_ind ! Grid index 
   public :: surf_pos ! Free surface position

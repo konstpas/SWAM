@@ -131,7 +131,7 @@ module material_properties_module
    public :: get_mass_density
    public :: get_heat_capacity
    public :: finalize_mat_prop
-   
+   public :: get_viscosity
  
    ! -----------------------------------------------------------------
    ! Declare public variables

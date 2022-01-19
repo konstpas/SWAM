@@ -79,6 +79,10 @@ module read_input_module
   public :: restart
   public :: solve_sw
   public :: solve_sw_momentum
+  public :: sw_iter
+  public :: sw_gravity
+  public :: sw_drytol
+  public :: sw_jxb
   public :: stop_time
   public :: surfdist
   public :: surf_pos_init
@@ -116,6 +120,7 @@ module read_input_module
   integer, save :: phiT_table_n_points
   integer, save :: plot_int
   integer, save :: regrid_int
+  integer, save :: sw_iter
   integer, save :: verbose
   logical, save :: cooling_thermionic
   logical, save :: cooling_vaporization
@@ -132,12 +137,15 @@ module read_input_module
   real(amrex_real), save :: phiT_table_max_T
   real(amrex_real), save :: stop_time
   real(amrex_real), save :: surf_pos_init
+  real(amrex_real), save :: sw_gravity
+  real(amrex_real), save :: sw_drytol
   real(amrex_real), save :: temp_fs
   real(amrex_real), save :: temp_init
   real(amrex_real), save :: thermionic_alpha
   real(amrex_real), allocatable, save :: cooling_debug(:)
   real(amrex_real), allocatable, save :: fixed_melt_velocity(:)
   real(amrex_real), allocatable, save :: surfdist(:)
+  real(amrex_real), allocatable, save :: sw_jxb(:)
   real(amrex_real), allocatable, save :: plasma_flux_params(:)
   
 contains
@@ -200,10 +208,14 @@ contains
     call pp%query("heat_solver",heat_solver)
     call amrex_parmparse_destroy(pp)
 
-    ! Parameters for the heat solver
+    ! Parameters for the shallow water solver
     call amrex_parmparse_build(pp, "sw")
     call pp%query("solve", solve_sw)
     call pp%query("solve_momentum", solve_sw_momentum)
+    call pp%query("geoclaw_iter", sw_iter)
+    call pp%query("geoclaw_gravity", sw_gravity)
+    call pp%query("geoclaw_drytol", sw_drytol)
+    call pp%getarr("jxb", sw_jxb)
     call amrex_parmparse_destroy(pp)
     
     ! Parameters for the material
@@ -252,6 +264,7 @@ contains
     allocate(cooling_debug(5))
     allocate(fixed_melt_velocity(2))
     allocate(surfdist(0:amrex_max_level))
+    allocate(sw_jxb(2))
     allocate(plasma_flux_params(100))
     
     cfl = 0.70
@@ -300,6 +313,11 @@ contains
     regrid_int = 2
     solve_sw = .true.
     solve_sw_momentum = .true.
+    sw_drytol = 1e-6_amrex_real
+    sw_iter = 1000
+    sw_gravity = 1.0_amrex_real
+    sw_jxb(1) = 0.0_amrex_real
+    sw_jxb(2) = 0.0_amrex_real
     stop_time = 1.0
     do i = 0, amrex_max_level
        surfdist(i) = 0.0_amrex_real

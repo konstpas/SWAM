@@ -200,7 +200,7 @@ contains
     call pp%query("heat_solver",heat_solver)
     call amrex_parmparse_destroy(pp)
     
-    ! Parameters for the shallow waters solver
+    ! Parameters for the shallow water solver
     call amrex_parmparse_build(pp, "sw")
     call pp%query("solve", solve_sw)
     call pp%query("solve_momentum", solve_sw_momentum)

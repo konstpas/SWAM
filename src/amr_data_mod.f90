@@ -33,13 +33,14 @@ module amr_data_module
   ! Enthalpy
   public :: phi_new
   public :: phi_old
-  ! Grid parameters for the 2D grid used in shallow water
+  ! Variables used for the solution of the shallow water equations
   public :: surf_dx ! Grid resolution 
   public :: surf_ind ! Grid index 
   public :: surf_pos ! Free surface position
   public :: surf_xlo ! Free surface lowest corner
   public :: surf_temperature ! Free surface temperature
-  public :: surf_evap_flux ! Free surface evaporation flux 
+  public :: surf_evap_flux ! Free surface evaporation flux
+  public :: qnew ! Variable to store the solution
   ! Temperature
   public :: temp
   ! Time
@@ -71,6 +72,7 @@ module amr_data_module
   real(amrex_real), allocatable, save :: melt_pos(:,:)
   real(amrex_real), allocatable, save :: melt_top(:,:)
   real(amrex_real), allocatable, save :: melt_vel(:,:,:)
+  real(amrex_real), allocatable, save :: qnew(:,:,:)
   real(amrex_real), allocatable, save :: t_new(:)
   real(amrex_real), allocatable, save :: t_old(:)
   real(amrex_real), allocatable, save :: surf_evap_flux(:,:)
@@ -121,6 +123,7 @@ contains
     allocate(melt_vel(lo_x:hi_x+1,lo_z:hi_z+1, 1:amrex_spacedim-1))
     allocate(phi_new(0:amrex_max_level))
     allocate(phi_old(0:amrex_max_level))
+    allocate(qnew(1:3,lo_x-3:hi_x+3,lo_z-3:hi_z+3))
     allocate(surf_evap_flux(lo_x:hi_x,lo_z:hi_z))
     allocate(surf_pos(lo_x:hi_x,lo_z:hi_z))
     allocate(surf_temperature(lo_x:hi_x,lo_z:hi_z))
@@ -142,6 +145,9 @@ contains
     melt_pos = surf_pos_init
     melt_top = surf_pos_init
     melt_vel = 0.0_amrex_real
+    qnew(1,:,:) = 0.0_amrex_real
+    qnew(2,:,:) = 0.0_amrex_real
+    qnew(3,:,:) = 0.0_amrex_real
     surf_dx(1) = amrex_geom(amrex_max_level)%dx(1)
     surf_dx(2) = amrex_geom(amrex_max_level)%dx(3)
     surf_ind(1,1) = lo_x
@@ -178,6 +184,7 @@ contains
     deallocate(last_regrid_step)
     deallocate(melt_pos)
     deallocate(melt_vel)
+    deallocate(qnew)
     deallocate(surf_evap_flux)
     deallocate(surf_pos)
     deallocate(surf_temperature)
