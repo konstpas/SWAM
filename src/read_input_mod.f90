@@ -51,28 +51,28 @@ module read_input_module
   public :: cooling_radiation
   public :: do_reflux
   public :: dt_change_max
+  public :: fixed_melt_velocity
   public :: heat_solver
   public :: in_dt
-  public :: ls_composite_solve
   public :: ls_verbose
   public :: ls_bottom_verbose
   public :: ls_max_iter
   public :: ls_max_fmg_iter
   public :: ls_bottom_solver
   public :: ls_linop_maxorder
+  public :: ls_composite_solve  
   public :: ls_agglomeration
   public :: ls_consolidation
   public :: ls_max_coarsening_level
-  public :: material
-  public :: max_grid_size_1d
-  public :: max_step
-  public :: meltvel
-  public :: phase_init
-  public :: phiT_table_max_T
-  public :: phiT_table_n_points
   public :: plasma_flux_type
   public :: plasma_flux_params
   public :: plasma_flux_input_file
+  public :: material
+  public :: max_grid_size_2d
+  public :: max_step
+  public :: phase_init
+  public :: phiT_table_max_T
+  public :: phiT_table_n_points
   public :: plot_file
   public :: plot_int
   public :: regrid_int
@@ -86,7 +86,7 @@ module read_input_module
   public :: temp_init
   public :: thermionic_alpha
   public :: verbose
-  
+
   ! -----------------------------------------------------------------
   ! Public subroutines
   ! -----------------------------------------------------------------
@@ -102,7 +102,7 @@ module read_input_module
   character(len=:), allocatable, save :: plasma_flux_input_file
   character(len=:), allocatable, save :: phase_init
   character(len=:), allocatable, save :: plot_file
-  character(len=:), allocatable, save :: restart   
+  character(len=:), allocatable, save :: restart
   integer, save :: check_int
   integer, save :: ls_verbose
   integer, save :: ls_bottom_verbose
@@ -111,7 +111,7 @@ module read_input_module
   integer, save :: ls_bottom_solver
   integer, save :: ls_linop_maxorder
   integer, save :: ls_max_coarsening_level
-  integer, save :: max_grid_size_1d
+  integer, save :: max_grid_size_2d
   integer, save :: max_step
   integer, save :: phiT_table_n_points
   integer, save :: plot_int
@@ -128,8 +128,7 @@ module read_input_module
   logical, save :: solve_sw_momentum
   real(amrex_real), save :: cfl
   real(amrex_real), save :: dt_change_max
-  real(amrex_real), save :: in_dt  
-  real(amrex_real), save :: meltvel
+  real(amrex_real), save :: in_dt
   real(amrex_real), save :: phiT_table_max_T
   real(amrex_real), save :: stop_time
   real(amrex_real), save :: surf_pos_init
@@ -137,6 +136,7 @@ module read_input_module
   real(amrex_real), save :: temp_init
   real(amrex_real), save :: thermionic_alpha
   real(amrex_real), allocatable, save :: cooling_debug(:)
+  real(amrex_real), allocatable, save :: fixed_melt_velocity(:)
   real(amrex_real), allocatable, save :: surfdist(:)
   real(amrex_real), allocatable, save :: plasma_flux_params(:)
   
@@ -154,7 +154,7 @@ contains
     ! Default parameters
     call set_default_values
 
-    ! Parameters for the simulation length and timestep
+    ! Parameters for the simulation length
     call amrex_parmparse_build(pp, "length")
     call pp%query("max_step", max_step)
     call pp%query("stop_time", stop_time)
@@ -164,7 +164,7 @@ contains
     ! Parameters for the grid control
     call amrex_parmparse_build(pp, "grid")
     call pp%query("regrid_int", regrid_int)
-    call pp%query("max_grid_size_1d", max_grid_size_1d)
+    call pp%query("max_grid_size_2d", max_grid_size_2d)
     call pp%getarr("surfdist", surfdist)
     call amrex_parmparse_destroy(pp)
 
@@ -185,7 +185,7 @@ contains
     ! Parameters for the heat solver
     call amrex_parmparse_build(pp, "heat")
     call pp%query("surf_pos", surf_pos_init)   
-    call pp%query("meltvel", meltvel)  
+    call pp%getarr("fixed_melt_velocity", fixed_melt_velocity)  
     call pp%query("temp_init", temp_init)
     call pp%query("phase_init", phase_init)
     call pp%query("plasma_flux_type", plasma_flux_type) 
@@ -199,13 +199,13 @@ contains
     call pp%query("thermionic_alpha",thermionic_alpha)
     call pp%query("heat_solver",heat_solver)
     call amrex_parmparse_destroy(pp)
-    
-    ! Parameters for the shallow waters solver
+
+    ! Parameters for the heat solver
     call amrex_parmparse_build(pp, "sw")
     call pp%query("solve", solve_sw)
     call pp%query("solve_momentum", solve_sw_momentum)
     call amrex_parmparse_destroy(pp)
-
+    
     ! Parameters for the material
     call amrex_parmparse_build(pp, "material")
     call pp%query("material", material)
@@ -249,10 +249,11 @@ contains
     allocate(character(len=9)::phase_init)
     allocate(character(len=3)::plot_file)
     allocate(character(len=0)::restart)
-    allocate(cooling_debug(5))    
+    allocate(cooling_debug(5))
+    allocate(fixed_melt_velocity(2))
     allocate(surfdist(0:amrex_max_level))
     allocate(plasma_flux_params(100))
-
+    
     cfl = 0.70
     check_file = "chk"
     check_int = -1
@@ -266,9 +267,10 @@ contains
     cooling_radiation = .true.
     do_reflux = .true.
     dt_change_max = 1.1
+    fixed_melt_velocity(1) = 0.0_amrex_real
+    fixed_melt_velocity(2) = 0.0_amrex_real
     in_dt = 0.0001
     heat_solver = "explicit"
-    ls_composite_solve = .true.
     ls_verbose = 1
     ls_bottom_verbose = 0
     ls_max_iter = 100
@@ -279,16 +281,18 @@ contains
     ls_consolidation = .true.
     ls_max_coarsening_level = 30
     material = "Tungsten"
-    max_grid_size_1d = 16
+    max_grid_size_2d = 16
     max_step = 10000
     phase_init = "undefined"
     phiT_table_max_T = 10000.0
     phiT_table_n_points = 10000
     plasma_flux_params(1) = 0.0
     plasma_flux_params(2) = 1.0
-    plasma_flux_params(3) = 300e6
+    plasma_flux_params(3) = 300E6
     plasma_flux_params(4) = 0.0
     plasma_flux_params(5) = 0.01
+    plasma_flux_params(6) = 0.0
+    plasma_flux_params(7) = 0.01
     plasma_flux_type = "Gaussian"
     plasma_flux_input_file = "plasma_flux.dat"
     plot_file = "plt"
@@ -298,11 +302,11 @@ contains
     solve_sw_momentum = .true.
     stop_time = 1.0
     do i = 0, amrex_max_level
-       surfdist(i) = 0.0
+       surfdist(i) = 0.0_amrex_real
     end do
     surf_pos_init = 0.020
     thermionic_alpha = 90.0
-    temp_fs = -1.0
+    temp_fs = -1
     verbose = 0
     
   end subroutine set_default_values

@@ -159,7 +159,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine est_timestep(lev, dt)
 
-    use read_input_module, only : cfl, heat_solver, meltvel
+    use read_input_module, only : cfl, heat_solver
     use material_properties_module, only : max_diffus 
 
     ! Input and output variables 
@@ -175,12 +175,12 @@ contains
        
        ! NOTE: There are two stability criteria to take into
        ! account, the von Neumann stability and the CFL
-       ! condition. 
+       ! condition. The CFL condition is not yet implemented
        
        ! Von Neumann stability criterion 
        dxsqr= (1/amrex_geom(lev)%dx(1)**2 + &
             1/amrex_geom(lev)%dx(2)**2) 
-       dt = min(0.5/(dxsqr*max_diffus), amrex_geom(lev)%dx(1)/meltvel)
+       dt = 0.5/(dxsqr*max_diffus)
        dt = dt * cfl
 
     else

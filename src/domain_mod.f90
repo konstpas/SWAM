@@ -179,12 +179,12 @@ module domain_module
       type(amrex_geometry), intent(in) :: geom
       
       ! Local variables
-      logical :: check_warning
+      !logical :: check_warning
       integer :: i,j,k
       integer :: it(1:3) 
       real(amrex_real) :: grid_pos(1:3)
       
-      check_warning = .true.
+      !check_warning = .true.
       
       do i = lo(1), hi(1)  ! x-direction
          do k = lo(3), hi(3)  ! z-direction 	
@@ -205,10 +205,10 @@ module domain_module
                   it(3) = k 
                   grid_pos = geom%get_physical_location(it)
                   melt_top(i,k) = grid_pos(2) 
-                  if (nint(idom(i,j,k)).ne.0) then
-                     print *, 'WARNING: Melt top not at free surface. Results from the shallow water solver should not be trusted.'
-                     check_warning = .false.
-                  end if
+                  ! if (nint(idom(i,j,k)).ne.0 .and. check_warning) then
+                  !    print *, 'WARNING: Melt top not at free surface. Results from the shallow water solver should not be trusted.'
+                  !    check_warning = .false.
+                  ! end if
                   
                end if
                

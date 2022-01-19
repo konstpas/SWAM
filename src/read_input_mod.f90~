@@ -69,7 +69,7 @@ module read_input_module
   public :: material
   public :: max_grid_size_2d
   public :: max_step
-  public :: meltvel
+  public :: fixed_melt_velocity
   public :: phase_init
   public :: phiT_table_max_T
   public :: phiT_table_n_points
@@ -78,6 +78,7 @@ module read_input_module
   public :: regrid_int
   public :: restart
   public :: solve_sw
+  public :: solve_sw_momentum
   public :: stop_time
   public :: surfdist
   public :: surf_pos_init
@@ -124,10 +125,10 @@ module read_input_module
   logical, save :: ls_agglomeration
   logical, save :: ls_consolidation
   logical, save :: solve_sw
+  logical, save :: solve_sw_momentum
   real(amrex_real), save :: cfl
   real(amrex_real), save :: dt_change_max
   real(amrex_real), save :: in_dt
-  real(amrex_real), save :: meltvel
   real(amrex_real), save :: phiT_table_max_T
   real(amrex_real), save :: stop_time
   real(amrex_real), save :: surf_pos_init
@@ -137,7 +138,7 @@ module read_input_module
   real(amrex_real), allocatable, save :: cooling_debug(:)
   real(amrex_real), allocatable, save :: surfdist(:)
   real(amrex_real), allocatable, save :: plasma_flux_params(:)
-  
+  real(amrex_real), allocatable, save :: fixed_melt_velocity(:)
 contains
 
   ! ------------------------------------------------------------------
@@ -183,7 +184,7 @@ contains
     ! Parameters for the heat solver
     call amrex_parmparse_build(pp, "heat")
     call pp%query("surf_pos", surf_pos_init)   
-    call pp%query("meltvel", meltvel)  
+    call pp%getarr("fixed_melt_velocity", fixed_melt_velocity)  
     call pp%query("temp_init", temp_init)
     call pp%query("phase_init", phase_init)
     call pp%query("plasma_flux_type", plasma_flux_type) 
@@ -201,6 +202,7 @@ contains
     ! Parameters for the heat solver
     call amrex_parmparse_build(pp, "sw")
     call pp%query("solve", solve_sw)
+    call pp%query("solve_momentum", solve_sw_momentum)
     call amrex_parmparse_destroy(pp)
     
     ! Parameters for the material
@@ -249,6 +251,7 @@ contains
     allocate(cooling_debug(5))
     allocate(surfdist(0:amrex_max_level))
     allocate(plasma_flux_params(100))
+    allocate(fixed_melt_velocity(2))
     
     cfl = 0.70
     check_file = "chk"
@@ -293,6 +296,7 @@ contains
     plot_int = -1
     regrid_int = 2
     solve_sw = .true.
+    solve_sw_momentum = .true.
     stop_time = 1.0
     do i = 0, amrex_max_level
        surfdist(i) = 0.0_amrex_real

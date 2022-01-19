@@ -110,20 +110,8 @@ module heat_flux_module
                ! Note: the term /dx(2) converts a surface heat flux [W/m^2]
                ! into a volumetric heat flux [W/m^3]
                qb(i,j) = qb(i,j)/dx(2)
-               ! if(qb(i,j).le.0) then
-               !    write(*,*) 'Negative surface heat flux at cell ' 
-               !    write(*,*) i, j
-               !    write(*,*) 'Where the surface temperature is '
-               !    write(*,*) temp(i,j)      
-               !    do k = lo(1), hi(1)
-               !       do l = lo(2), hi(2)
-               !          write(*,*) k,l
-               !          write(*,*) temp(k,l)   
-               !       end do 
-               !    end do
-               !    STOP 'Negative heat flux.'
-               ! end if      
-               
+
+               ! Check the validity of the heat flux
                if(qb(i,j).ne.qb(i,j)) then
                   ypos = xlo(2) + (j-lo(2))*dx(2)
                   write(*,*) 'Nan heat flux at cell ' 
@@ -131,14 +119,8 @@ module heat_flux_module
                   write(*,*) xpos, ypos
                   write(*,*) 'Where the surface temperature is '
                   write(*,*) temp(i,j)
-                  ! do k = lo(1), hi(1)
-                  !    do l = lo(2), hi(2)
-                  !       write(*,*) k,l
-                  !       write(*,*) temp(k,l)   
-                  !    end do 
-                  ! end do
-                  STOP 'Nan heat flux.'
-               end if             
+               end if
+               
             end if
             
          end do

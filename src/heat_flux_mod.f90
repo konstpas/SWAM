@@ -62,7 +62,7 @@ contains
     integer :: i, j, k
     real(amrex_real) :: q_plasma
     real(amrex_real) :: q_vap, q_rad, q_therm
-    real(amrex_real) :: xpos, zpos
+    real(amrex_real) :: xpos, ypos, zpos
 
     qb = 0.0
     q_plasma = 0.0
@@ -115,6 +115,16 @@ contains
                 ! Note: the term /dx(2) converts a surface heat flux [W/m^2]
                 ! into a volumetric heat flux [W/m^3]
                 qb(i,j,k) = qb(i,j,k)/dx(2)
+
+                ! Check the validity of the heat flux
+               if(qb(i,j,k).ne.qb(i,j,k)) then
+                  ypos = xlo(2) + (j-lo(2))*dx(2)
+                  write(*,*) 'Nan heat flux at cell ' 
+                  write(*,*) i, j, k
+                  write(*,*) xpos, ypos, zpos
+                  write(*,*) 'Where the surface temperature is '
+                  write(*,*) temp(i,j,k)
+               end if
                 
              end if
              

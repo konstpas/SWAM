@@ -66,7 +66,7 @@ contains
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the temperature dependent terms
-  ! in the shallow water equation
+  ! in the shallow water equations
   ! -----------------------------------------------------------------
   subroutine compute_SW_temperature_terms(lo, hi, &
                                           temp, temp_lo, temp_hi, &
@@ -152,7 +152,7 @@ contains
                                 melt_pos, &
                                 melt_vel
     
-    use read_input_module, only : meltvel
+    use read_input_module, only : fixed_melt_velocity
     
     ! Input and output variables
     real(amrex_real), intent(in) :: dt
@@ -163,7 +163,7 @@ contains
     real(amrex_real) :: height_flux(surf_ind(1,1):surf_ind(1,2)+1,1)
     
     ! Momentum continuity equation (not solved for now, only prescribed) 
-    melt_vel = meltvel
+    melt_vel = fixed_melt_velocity
 
 
     ! Mass (column height) continuity equation 

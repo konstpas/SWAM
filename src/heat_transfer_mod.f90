@@ -558,10 +558,16 @@ module heat_transfer_module
              else
                 
                 ! Advective component
-                if (vx(i,j,k) > 0_amrex_real) then 
-                   flxx(i,j,k)  = u_old(i-1,j,k)*vx(i,j,k)
-                else 
-                   flxx(i,j,k)  = u_old(i,j,k)*vx(i,j,k)
+                if (nint(idom(i-1,j,k)).ge.2 .and. nint(idom(i,j,k)).ge.2) then
+                   
+                   if (vx(i,j,k) > 0_amrex_real) then 
+                      flxx(i,j,k)  = u_old(i-1,j,k)*vx(i,j,k)
+                   else 
+                      flxx(i,j,k)  = u_old(i,j,k)*vx(i,j,k)
+                   end if
+
+                else
+                   flxx(i,j,k) = 0.0_amrex_real
                 end if
                 
                 ! Diffusive component
@@ -611,10 +617,16 @@ module heat_transfer_module
              else
                 
                 ! Advective component
-                if (vz(i,j,k) > 0_amrex_real) then 
-                   flxz(i,j,k)  = u_old(i,j,k-1)*vz(i,j,k)
-                else 
-                   flxz(i,j,k)  = u_old(i,j,k)*vz(i,j,k)
+                if (nint(idom(i,j,k-1)).ge.2 .and. nint(idom(i,j,k)).ge.2) then
+                   
+                   if (vz(i,j,k) > 0_amrex_real) then 
+                      flxz(i,j,k)  = u_old(i,j,k-1)*vz(i,j,k)
+                   else 
+                      flxz(i,j,k)  = u_old(i,j,k)*vz(i,j,k)
+                   end if
+
+                else
+                   flxz(i,j,k) = 0.0_amrex_real
                 end if
                 
                 ! Diffusive component
@@ -717,7 +729,7 @@ module heat_transfer_module
                                temp, t_lo, t_hi)
 
     use material_properties_module, only : temp_melt
-    use read_input_module, only : meltvel
+    use amr_data_module, only : melt_vel
     
     ! Input and output variables
     integer, intent(in) :: lo(3), hi(3)
@@ -731,12 +743,12 @@ module heat_transfer_module
     ! Local variables
     integer :: i,j,k
     
-    ! THIS MUST BE UPDATED 
+    ! Assign x-component of the velocity 
     do i = lo(1), hi(1)+1
        do j = lo(2), hi(2)
           do k = lo(3), hi(3)
-             if (temp(i,j,k).gt.temp_melt) then
-                vx(i,j,k) = meltvel
+             if (temp(i,j,k).ge.temp_melt) then
+                vx(i,j,k) = melt_vel(i,k,1)
              else
                 vx(i,j,k) = 0_amrex_real
              end if
@@ -744,11 +756,12 @@ module heat_transfer_module
        end do   
     end do
 
+    ! Assign z-component of the velocity
     do i = lo(1), hi(1)
        do j = lo(2), hi(2)
           do k = lo(3), hi(3)+1
-             if (temp(i,j,k).gt.temp_melt) then
-                vz(i,j,k) = meltvel
+             if (temp(i,j,k).ge.temp_melt) then
+                vz(i,j,k) = melt_vel(i,k,2)
              else
                 vz(i,j,k) = 0_amrex_real
              end if

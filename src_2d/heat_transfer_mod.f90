@@ -633,7 +633,7 @@ contains
     ! Local variables
     integer :: i,j
     
-    ! Assign velocity
+    ! Assign x-component of the velocity
     do i = lo(1), hi(1)+1
        do j = lo(2), hi(2) 
           if (temp(i,j).ge.temp_melt) then
