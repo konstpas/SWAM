@@ -511,10 +511,16 @@ contains
           else
              
              ! Advective component
-             if (vx(i,j) > 0_amrex_real) then 
-                flxx(i,j)  = u_old(i-1,j)*vx(i,j)
-             else 
-                flxx(i,j)  = u_old(i,j)*vx(i,j)
+             if (nint(idom(i-1,j)).ge.2 .and. nint(idom(i,j)).ge.2) then
+                
+                if (vx(i,j) > 0_amrex_real) then 
+                   flxx(i,j)  = u_old(i-1,j)*vx(i,j)
+                else
+                   flxx(i,j)  = u_old(i,j)*vx(i,j)
+                end if
+                
+             else
+                flxx(i,j) = 0_amrex_real
              end if
              
              ! Diffusive component
@@ -615,7 +621,7 @@ contains
                                temp, t_lo, t_hi)
 
     use material_properties_module, only : temp_melt
-    use read_input_module, only : meltvel
+    use amr_data_module, only : melt_vel
     
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)
@@ -627,11 +633,11 @@ contains
     ! Local variables
     integer :: i,j
     
-    ! THIS MUST BE UPDATED 
+    ! Assign velocity
     do i = lo(1), hi(1)+1
        do j = lo(2), hi(2) 
-          if (temp(i,j).gt.temp_melt) then
-             vx(i,j) = meltvel
+          if (temp(i,j).ge.temp_melt) then
+             vx(i,j) = melt_vel(i,1)
           else
              vx(i,j) = 0_amrex_real
           end if

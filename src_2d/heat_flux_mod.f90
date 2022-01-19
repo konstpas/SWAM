@@ -58,7 +58,7 @@ module heat_flux_module
       real(amrex_real), intent(out) :: qb(lo(1):hi(1),lo(2):hi(2))
 
       ! Local variables
-      integer :: i, j, k, l
+      integer :: i, j
       real(amrex_real) :: q_plasma
       real(amrex_real) :: q_vap, q_rad, q_therm
       real(amrex_real) :: xpos, ypos
@@ -131,12 +131,12 @@ module heat_flux_module
                   write(*,*) xpos, ypos
                   write(*,*) 'Where the surface temperature is '
                   write(*,*) temp(i,j)
-                  do k = lo(1), hi(1)
-                     do l = lo(2), hi(2)
-                        write(*,*) k,l
-                        write(*,*) temp(k,l)   
-                     end do 
-                  end do
+                  ! do k = lo(1), hi(1)
+                  !    do l = lo(2), hi(2)
+                  !       write(*,*) k,l
+                  !       write(*,*) temp(k,l)   
+                  !    end do 
+                  ! end do
                   STOP 'Nan heat flux.'
                end if             
             end if

@@ -101,7 +101,47 @@ contains
   ! -----------------------------------------------------------------     
   subroutine get_surf_pos(xlo, dx, lo, hi, surf_pos_heat_domain)
 
-    use amr_data_module, only : surf_ind, surf_pos, surf_xlo, surf_dx  
+    ! use amr_data_module, only : surf_ind, &
+    !                             surf_pos, &
+    !                             surf_xlo, &
+    !                             surf_dx
+    
+    ! ! Input and output variables
+    ! integer, intent(in) :: lo(2), hi(2) 
+    ! real(amrex_real), intent(in) :: xlo(2)
+    ! real(amrex_real), intent(in) :: dx(2)
+    ! real(amrex_real), intent(out) :: surf_pos_heat_domain(lo(1):hi(1))
+
+    ! ! Local variables
+    ! integer :: i
+    ! integer :: xind
+    ! real(amrex_real) :: xpos
+    ! real(amrex_real) :: x_alpha
+    
+    ! do  i = lo(1),hi(1)
+   
+    !    xpos = xlo(1) + (0.5 + i-lo(1))*dx(1) 
+       
+    !    ! In what follows -surf_dx(1)/2  and ceiling are used since
+    !    ! the surface is staggered 'backwards' on the faces with
+    !    ! respect to the xlo and xpos values which are defined on the
+    !    ! centers. 
+    !    xind = ceiling((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
+    !    x_alpha = mod(xpos - surf_dx(1)/2 - surf_xlo(1), surf_dx(1))
+       
+    !    if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
+    !    if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
+       
+    !    ! Interpolation
+    !    surf_pos_heat_domain(i) = surf_pos(xind) + &
+    !         x_alpha * (surf_pos(xind+1)-surf_pos(xind))
+       
+    ! end do
+    
+    use amr_data_module, only : surf_ind, &
+                                surf_pos, &
+                                surf_xlo, &
+                                surf_dx  
 
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) 
@@ -146,7 +186,10 @@ contains
   ! -----------------------------------------------------------------      
   subroutine reset_melt_pos()
     
-    use amr_data_module, only : surf_pos, melt_pos, melt_top, surf_ind
+    use amr_data_module, only : surf_pos, &
+                                melt_pos, &
+                                melt_top, &
+                                surf_ind
     
     integer :: i
   
@@ -164,7 +207,9 @@ contains
   ! -----------------------------------------------------------------
   subroutine get_melt_pos(lo, hi, idom, id_lo, id_hi, geom)
        
-    use amr_data_module, only : melt_pos, melt_top
+    use amr_data_module, only : melt_pos, &
+                                melt_top, &
+                                surf_pos
        
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) 
@@ -194,10 +239,10 @@ contains
             it(2) = j
             grid_pos = geom%get_physical_location(it)
             melt_top(i) = grid_pos(2)
-            if (nint(idom(i,j)).ne.0) write(*,*) &
-             'WARNING: Melt top not at free surface. Results from the shallow water solver should not be trusted.'
+          !   if (nint(idom(i,j)).ne.0) write(*,*) &
+          !    'WARNING: Melt top not at free surface. Results from the shallow water solver should not be trusted.'
           end if
-          
+
        end do   
     end do
     

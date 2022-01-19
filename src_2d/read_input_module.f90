@@ -78,6 +78,7 @@ module read_input_module
   public :: regrid_int
   public :: restart
   public :: solve_sw
+  public :: solve_sw_momentum
   public :: stop_time
   public :: surfdist
   public :: surf_pos_init
@@ -124,6 +125,7 @@ module read_input_module
   logical, save :: ls_agglomeration
   logical, save :: ls_consolidation
   logical, save :: solve_sw
+  logical, save :: solve_sw_momentum
   real(amrex_real), save :: cfl
   real(amrex_real), save :: dt_change_max
   real(amrex_real), save :: in_dt  
@@ -201,6 +203,7 @@ contains
     ! Parameters for the shallow waters solver
     call amrex_parmparse_build(pp, "sw")
     call pp%query("solve", solve_sw)
+    call pp%query("solve_momentum", solve_sw_momentum)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the material
@@ -292,6 +295,7 @@ contains
     plot_int = -1
     regrid_int = 2
     solve_sw = .true.
+    solve_sw_momentum = .true.
     stop_time = 1.0
     do i = 0, amrex_max_level
        surfdist(i) = 0.0

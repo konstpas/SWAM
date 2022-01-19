@@ -34,11 +34,12 @@ module amr_data_module
   public :: phi_new
   public :: phi_old
   ! Grid parameters for the 1D grid used in shallow water
-  public :: surf_dx
-  public :: surf_ind
-  public :: surf_pos
-  public :: surf_xlo
-  public :: surf_temperature
+  public :: surf_dx ! Grid resolution 
+  public :: surf_ind ! Grid index 
+  public :: surf_pos ! Free surface position
+  public :: surf_xlo ! Free surface lowest corner
+  public :: surf_temperature ! Free surface temperature
+  public :: surf_evap_flux ! Free surface evaporation flux 
   ! Temperature
   public :: temp
   ! Time
@@ -72,6 +73,7 @@ module amr_data_module
   real(amrex_real), allocatable, save :: melt_vel(:,:)
   real(amrex_real), allocatable, save :: t_new(:)
   real(amrex_real), allocatable, save :: t_old(:)
+  real(amrex_real), allocatable, save :: surf_evap_flux(:)
   real(amrex_real), allocatable, save :: surf_pos(:)
   real(amrex_real), allocatable, save :: surf_temperature(:)
   real(amrex_real), save :: surf_xlo(1)
@@ -94,7 +96,7 @@ contains
   subroutine amr_data_init()
     
     use read_input_module, only : surf_pos_init
-    
+  
     integer ::  lev
     integer ::  lo_x
     integer ::  hi_x
@@ -114,6 +116,7 @@ contains
     allocate(melt_vel(lo_x:hi_x+1, 1:amrex_spacedim-1))
     allocate(phi_new(0:amrex_max_level))
     allocate(phi_old(0:amrex_max_level))
+    allocate(surf_evap_flux(lo_x:hi_x))
     allocate(surf_pos(lo_x:hi_x))
     allocate(surf_temperature(lo_x:hi_x))
     allocate(temp(0:amrex_max_level))
@@ -137,6 +140,7 @@ contains
     surf_dx(1) = amrex_geom(amrex_max_level)%dx(1)
     surf_ind(1,1) = lo_x
     surf_ind(1,2) = hi_x
+    surf_evap_flux = 0.0_amrex_real
     surf_pos = surf_pos_init
     surf_temperature = 0.0_amrex_real
     surf_xlo(1) = amrex_problo(1) 
@@ -165,6 +169,7 @@ contains
     deallocate(last_regrid_step)
     deallocate(melt_pos)
     deallocate(melt_vel)
+    deallocate(surf_evap_flux)
     deallocate(surf_pos)
     deallocate(surf_temperature)
     deallocate(t_new)
