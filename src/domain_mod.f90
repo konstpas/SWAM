@@ -21,13 +21,42 @@ module domain_module
     public :: reset_melt_pos
   
   contains
-    
-    
+
     ! -----------------------------------------------------------------
     ! Subroutine used to obtain the integer field used to distinguish
     ! between material and background
     ! -----------------------------------------------------------------
     subroutine get_idomain(xlo, dx, lo, hi, &
+                            idom, id_lo, id_hi, &
+                            temp, t_lo, t_hi)  
+ 
+       use read_input_module, only : geometry_name 
+       
+       ! Input and output variables
+      integer, intent(in) :: lo(3), hi(3)
+      integer, intent(in) :: id_lo(3), id_hi(3)
+      integer, intent(in) :: t_lo(3), t_hi(3)
+      real(amrex_real), intent(in) :: dx(3)    
+      real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1), t_lo(2):t_hi(2), t_lo(3):t_hi(3))
+      real(amrex_real), intent(inout) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2), id_lo(3):id_hi(3))
+      real(amrex_real), intent(in) :: xlo(3)
+
+       if (geometry_name .eq. "Slab") then
+          call get_slab_idomain(xlo, dx, lo, hi, &
+                               idom, id_lo, id_hi, &
+                               temp, t_lo, t_hi)
+       elseif (geometry_name .eq. "West") then
+          call get_west_idomain(xlo, dx, lo, hi, &
+                               idom, id_lo, id_hi, &
+                               temp, t_lo, t_hi)
+       end if
+    end subroutine get_idomain 
+    
+    ! -----------------------------------------------------------------
+    ! Subroutine used to obtain the integer field used to distinguish
+    ! between material and background in slab geometry
+    ! -----------------------------------------------------------------
+    subroutine get_slab_idomain(xlo, dx, lo, hi, &
                            idom, id_lo, id_hi, &
                            temp, t_lo, t_hi)
   
@@ -52,49 +81,135 @@ module domain_module
       call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
   
       ! Check whether the liquid should be distinguished from the solid or not
-    if (t_lo(1).eq.lo(1)-1 .and. t_hi(1).eq.hi(1)+1 .and. &
-         t_lo(2).eq.lo(2)-1 .and. t_hi(2).eq.hi(2)+1 .and. &
-         t_lo(3).eq.lo(3)-1 .and. t_hi(3).eq.hi(3)+1) then
-       find_liquid = .true.
-    else
-       find_liquid = .false.
-    end if
+      if (t_lo(1).eq.lo(1)-1 .and. t_hi(1).eq.hi(1)+1 .and. &
+            t_lo(2).eq.lo(2)-1 .and. t_hi(2).eq.hi(2)+1 .and. &
+            t_lo(3).eq.lo(3)-1 .and. t_hi(3).eq.hi(3)+1) then
+         find_liquid = .true.
+      else
+         find_liquid = .false.
+      end if
+         
+      ! Set flags to distinguish between material and background
+      do i = lo(1)-1,hi(1)+1
+         do k = lo(3)-1,hi(3)+1
+            
+            surf_ind_heat_domain = id_lo(2) + &
+                  floor((surf_pos_heat_domain(i,k) - &
+                  xlo(2)+dx(2))/dx(2))
+            
+            do j = lo(2)-1, hi(2)+1
+
+               if (j .le. surf_ind_heat_domain) then
+                  
+                  if (find_liquid) then
+                     if (temp(i,j,k).gt.temp_melt) then
+                        idom(i,j,k) = 3 ! Liquid
+                     else if (temp(i,j,k).eq.temp_melt) then
+                        idom(i,j,k) = 2 ! Liquid
+                     else
+                        idom(i,j,k) = 1 ! Solid
+                     end if
+                  else
+                     idom(i,j,k) = 1 ! Liquid or solid (no distinction is made)
+                  end if
+                  
+               else
+                  idom(i,j,k) = 0 ! Background
+               end if
+            
+            end do
+
+         end do
+      end do
+  
+    end subroutine get_slab_idomain
+
+    ! -----------------------------------------------------------------
+    ! Subroutine used to obtain the integer field used to distinguish
+    ! between material and background
+    ! -----------------------------------------------------------------
+    subroutine get_west_idomain(xlo, dx, lo, hi, &
+                                idom, id_lo, id_hi, &
+                                temp, t_lo, t_hi)
+  
+      use material_properties_module, only : temp_melt 
+      use read_input_module, only : sample_edge, &
+                                    cool_pipe_cntr, &
+                                    cool_pipe_radius     
       
-    ! Set flags to distinguish between material and background
-    do i = lo(1)-1,hi(1)+1
-       do k = lo(3)-1,hi(3)+1
-          
-          surf_ind_heat_domain = id_lo(2) + &
-               floor((surf_pos_heat_domain(i,k) - &
-               xlo(2)+dx(2))/dx(2))
-          
-          do j = lo(2)-1, hi(2)+1
-
-             if (j .le. surf_ind_heat_domain) then
-                
-                if (find_liquid) then
-                   if (temp(i,j,k).gt.temp_melt) then
-                      idom(i,j,k) = 3 ! Liquid
-                   else if (temp(i,j,k).eq.temp_melt) then
-                      idom(i,j,k) = 2 ! Liquid
-                   else
-                      idom(i,j,k) = 1 ! Solid
-                   end if
-                else
-                   idom(i,j,k) = 1 ! Liquid or solid (no distinction is made)
-                end if
-                
-             else
-                idom(i,j,k) = 0 ! Background
-             end if
-          
-          end do
-
-       end do
-    end do
+      ! Input and output variables
+      integer, intent(in) :: lo(3), hi(3)
+      integer, intent(in) :: id_lo(3), id_hi(3)
+      integer, intent(in) :: t_lo(3), t_hi(3)
+      real(amrex_real), intent(in) :: dx(3)    
+      real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1), t_lo(2):t_hi(2), t_lo(3):t_hi(3))
+      real(amrex_real), intent(inout) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2), id_lo(3):id_hi(3))
+      real(amrex_real), intent(in) :: xlo(3)
   
-    end subroutine get_idomain
+      ! Local variables
+      logical :: find_liquid
+      integer :: i,j,k
+      integer :: surf_ind_heat_domain
+      real(amrex_real) :: xpos, ypos
+      real(amrex_real) :: surf_pos_heat_domain(id_lo(1):id_hi(1),id_lo(3):id_hi(3))
+      logical :: pipe_flag
   
+      ! Get location of the free surface
+      call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
+  
+      ! Check whether the liquid should be distinguished from the solid or not
+      if (t_lo(1).eq.lo(1)-1 .and. t_hi(1).eq.hi(1)+1 .and. &
+            t_lo(2).eq.lo(2)-1 .and. t_hi(2).eq.hi(2)+1 .and. &
+            t_lo(3).eq.lo(3)-1 .and. t_hi(3).eq.hi(3)+1) then
+         find_liquid = .true.
+      else
+         find_liquid = .false.
+      end if
+         
+      ! Set flags to distinguish between material and background
+      do i = lo(1)-1,hi(1)+1
+         do k = lo(3)-1,hi(3)+1
+            
+            surf_ind_heat_domain = id_lo(2) + &
+                  floor((surf_pos_heat_domain(i,k) - &
+                  xlo(2)+dx(2))/dx(2))
+
+            xpos = xlo(1) + (0.5+i-lo(1))*dx(1) 
+            
+            do j = lo(2)-1, hi(2)+1
+               
+               ypos = xlo(2) + (0.5+j-lo(2))*dx(2) 
+               if (sqrt((xpos-cool_pipe_cntr(1))**2+(ypos-cool_pipe_cntr(2))**2).lt.cool_pipe_radius) then
+                  pipe_flag = .true.
+               else
+                  pipe_flag = .false.
+               end if
+
+               if (j .le. surf_ind_heat_domain .and. xpos .le. sample_edge .and. (.not.pipe_flag)) then
+
+                  if (find_liquid) then
+                     if (temp(i,j,k).gt.temp_melt) then
+                        idom(i,j,k) = 3 ! Liquid
+                     else if (temp(i,j,k).eq.temp_melt) then
+                        idom(i,j,k) = 2 ! Liquid
+                     else
+                        idom(i,j,k) = 1 ! Solid
+                     end if
+                  else
+                     idom(i,j,k) = 1 ! Liquid or solid (no distinction is made)
+                  end if
+               elseif (pipe_flag) then
+                  idom(i,j,k) = -1   
+               else
+                  idom(i,j,k) = 0 ! Background
+               end if
+            
+            end do
+
+         end do
+      end do
+  
+    end subroutine get_west_idomain    
     
     ! -----------------------------------------------------------------
     ! Subroutine used to interpolate the free surface position as given

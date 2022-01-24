@@ -24,10 +24,18 @@ module heat_flux_module
   public :: plasma_flux_surf_x_mesh
   public :: plasma_flux_surf_z_mesh
   public :: heat_flux_table
+  public :: plasma_side_flux_time_mesh
+  public :: plasma_side_flux_surf_y_mesh
+  public :: plasma_side_flux_surf_z_mesh
+  public :: heat_side_flux_table
   real(amrex_real), allocatable, dimension(:), save :: plasma_flux_time_mesh
   real(amrex_real), allocatable, dimension(:), save :: plasma_flux_surf_x_mesh
   real(amrex_real), allocatable, dimension(:), save :: plasma_flux_surf_z_mesh
   real(amrex_real), allocatable, dimension(:,:,:), save :: heat_flux_table
+  real(amrex_real), allocatable, dimension(:), save :: plasma_side_flux_time_mesh
+  real(amrex_real), allocatable, dimension(:), save :: plasma_side_flux_surf_y_mesh
+  real(amrex_real), allocatable, dimension(:), save :: plasma_side_flux_surf_z_mesh
+  real(amrex_real), allocatable, dimension(:,:,:), save :: heat_side_flux_table
   
 contains
   
@@ -45,7 +53,10 @@ contains
     use read_input_module, only : plasma_flux_type, &
                                   cooling_thermionic, &
                                   cooling_vaporization, &
-                                  cooling_radiation
+                                  cooling_radiation, &
+                                  geometry_name, &
+                                  plasma_side_flux_type, &
+                                  sample_edge
 
     ! Input and output variables
     integer, intent(in) :: lo(3), hi(3)  
@@ -61,14 +72,16 @@ contains
     ! Local variables
     integer :: i, j, k
     real(amrex_real) :: q_plasma
-    real(amrex_real) :: q_vap, q_rad, q_therm
-    real(amrex_real) :: xpos, zpos
+    real(amrex_real) :: q_vap, q_rad, q_therm, q_cool
+    real(amrex_real) :: xpos, ypos, zpos
+    logical :: side_flag
 
     qb = 0.0
     q_plasma = 0.0
     q_rad = 0.0
     q_vap = 0.0
     q_therm = 0.0
+    q_cool = 0.0
 
     do i = lo(1), hi(1)
        do j = lo(2), hi(2)
@@ -77,19 +90,25 @@ contains
              ! Assign fluxes only on free surface
              if(nint(idom(i,j,k)).ne.0 .and. nint(idom(i,j+1,k)).eq.0) then
                 
+               side_flag = .false.
+               q_plasma = 0.0
+               q_therm = 0.0
+               q_vap = 0.0
+               q_rad = 0.0
+
                 ! Location of the free surface
                 xpos = xlo(1) + (i-lo(1))*dx(1)
                 zpos = xlo(3) + (k-lo(3))*dx(3)
                 
                 ! Plasma flux
                 if (plasma_flux_type.eq.'Gaussian') then
-                   call gaussian_heat_flux(time, xpos, zpos, q_plasma)
+                   call gaussian_heat_flux(time, xpos, zpos, side_flag, q_plasma)
                 elseif (plasma_flux_type.eq.'Gaussian_tube') then
-                  call gaussian_tube_heat_flux(time, xpos, q_plasma)
+                  call gaussian_tube_heat_flux(time, xpos, side_flag, q_plasma)
                 elseif (plasma_flux_type.eq.'Uniform') then
-                  call uniform_heat_flux(time, xpos, zpos, q_plasma)
+                  call uniform_heat_flux(time, xpos, zpos, side_flag, q_plasma)
                 elseif (plasma_flux_type.eq.'Input_file') then
-                  call file_heat_flux(time, xpos, zpos, q_plasma)
+                  call file_heat_flux(time, xpos, zpos, side_flag, q_plasma)
                 else
                    STOP "Unknown plasma heat flux type"
                 end if
@@ -114,10 +133,76 @@ contains
                 
                 ! Note: the term /dx(2) converts a surface heat flux [W/m^2]
                 ! into a volumetric heat flux [W/m^3]
-                qb(i,j,k) = qb(i,j,k)/dx(2)
-                
+                qb(i,j,k) = qb(i,j,k)/dx(2)           
+            end if
+               
+             if(nint(idom(i,j,k)).ne.-1 .and. nint(idom(i,j+1,k)).eq.-1) then
+                call active_cooling(temp(i,j,k), q_cool)
+                qb(i,j,k) = qb(i,j,k) - q_cool/dx(2)
              end if
-             
+             if(nint(idom(i,j,k)).ne.-1 .and. nint(idom(i,j-1,k)).eq.-1) then
+                call active_cooling(temp(i,j,k), q_cool)
+                qb(i,j,k) = qb(i,j,k) - q_cool/dx(2)
+             end if
+             if(nint(idom(i,j,k)).ne.-1 .and. nint(idom(i+1,j,k)).eq.-1) then
+                call active_cooling(temp(i,j,k), q_cool)
+                qb(i,j,k) = qb(i,j,k) - q_cool/dx(1)
+             end if
+             if(nint(idom(i,j,k)).ne.-1 .and. nint(idom(i-1,j,k)).eq.-1) then
+                call active_cooling(temp(i,j,k), q_cool)
+                qb(i,j,k) = qb(i,j,k) - q_cool/dx(1)
+             end if                   
+             if(nint(idom(i,j,k)).ne.-1 .and. nint(idom(i,j,k+1)).eq.-1) then
+                call active_cooling(temp(i,j,k), q_cool)
+                qb(i,j,k) = qb(i,j,k) - q_cool/dx(3)
+             end if
+             if(nint(idom(i,j,k)).ne.-1 .and. nint(idom(i,j,k-1)).eq.-1) then
+                call active_cooling(temp(i,j,k), q_cool)
+                qb(i,j,k) = qb(i,j,k) - q_cool/dx(3)
+             end if   
+
+
+             zpos = xlo(3) + (1+k-lo(3))*dx(3)
+             ypos = xlo(2) + (1+j-lo(2))*dx(2)
+             if(geometry_name .eq. "West" .and. nint(idom(i,j,k)).ne.0 .and. & 
+               (xpos.ge.sample_edge .or. nint(idom(i+1,j,k)).eq.0)) then           
+                side_flag = .true.
+                q_plasma = 0.0
+                q_therm = 0.0
+                q_vap = 0.0
+                q_rad = 0.0
+
+                ! Plasma flux
+                if (plasma_side_flux_type.eq.'Gaussian') then
+                   call gaussian_heat_flux(time, ypos, zpos, side_flag, q_plasma)
+                elseif (plasma_side_flux_type.eq.'Gaussian_tube') then
+                   call gaussian_tube_heat_flux(time, ypos, side_flag, q_plasma)
+                elseif (plasma_side_flux_type.eq.'Uniform') then
+                  call uniform_heat_flux(time, ypos, zpos, side_flag, q_plasma)
+                elseif (plasma_side_flux_type.eq.'Input_file') then
+                   call file_heat_flux (time, ypos, zpos, side_flag, q_plasma)
+                else
+                   STOP "Unknown plasma heat flux type"
+                end if
+ 
+                ! Thermionic cooling flux
+                if (cooling_thermionic) then
+                   call thermionic_cooling(temp(i,j,k), q_plasma, q_therm)
+                end if
+ 
+                ! Vaporization cooling flux
+                if (cooling_vaporization) then
+                   call vaporization_cooling(temp(i,j,k), q_vap)
+                end if
+ 
+                ! Radiative cooling flux
+                if (cooling_radiation) then
+                   call radiation_cooling(temp(i,j,k), q_rad)
+                end if
+                qb(i,j,k) = qb(i,j,k) + (q_plasma-q_therm-q_vap-q_rad)/dx(1)
+             end if
+              
+
           end do
        end do
     end do
@@ -129,23 +214,34 @@ contains
    ! Subroutine used to prescribe a gaussian heat flux active for
    ! time <= time_exposure
    ! -----------------------------------------------------------------   
-   subroutine gaussian_heat_flux(time, xpos, zpos, qb) 
+   subroutine gaussian_heat_flux(time, xpos, zpos, side_flag, qb) 
  
-     use read_input_module, only : plasma_flux_params
+     use read_input_module, only : plasma_flux_params, &
+                                   plasma_side_flux_params
      
      ! Input and output variables
      real(amrex_real), intent(in) :: time
      real(amrex_real), intent(in) :: xpos
      real(amrex_real), intent(in) :: zpos
+     logical, intent(in) :: side_flag
      real(amrex_real), intent(out) :: qb
      
-     
+     ! Local variables
+     real(amrex_real), dimension(1:7) :: plasma_params
+
      qb = 0_amrex_real
+     plasma_params = 0.0
+
+     if (side_flag) then
+      plasma_params = plasma_side_flux_params
+     else
+      plasma_params = plasma_flux_params
+     end if
      
-     if (time.ge.plasma_flux_params(1) .and. time.le.plasma_flux_params(2)) then
-        qb = plasma_flux_params(3) &
-             *EXP(-((xpos-plasma_flux_params(4))**2)/(plasma_flux_params(5)**2) &
-                  -((zpos-plasma_flux_params(6))**2)/(plasma_flux_params(7)**2))
+     if (time.ge.plasma_params(1) .and. time.le.plasma_params(2)) then
+        qb = plasma_params(3) &
+             *EXP(-((xpos-plasma_params(4))**2)/(plasma_params(5)**2) &
+                  -((zpos-plasma_params(6))**2)/(plasma_params(7)**2))
      end if
      
    end subroutine gaussian_heat_flux
@@ -156,21 +252,32 @@ contains
    ! in the x-t plane and uniform profile in the z-t plane, active for
    ! time <= time_exposure
    ! -----------------------------------------------------------------   
-   subroutine gaussian_tube_heat_flux(time, xpos, qb) 
+   subroutine gaussian_tube_heat_flux(time, xpos, side_flag, qb) 
  
-      use read_input_module, only : plasma_flux_params
+      use read_input_module, only : plasma_flux_params, &
+                                    plasma_side_flux_params
       
       ! Input and output variables
       real(amrex_real), intent(in) :: time
       real(amrex_real), intent(in) :: xpos
+      logical, intent(in) :: side_flag
       real(amrex_real), intent(out) :: qb
       
+      ! Local variables
+      real(amrex_real), dimension(1:5) :: plasma_params
       
       qb = 0_amrex_real
+      plasma_params = 0.0
       
-      if (time.ge.plasma_flux_params(1) .and. time.le.plasma_flux_params(2)) then
-         qb = plasma_flux_params(3) &
-              *EXP(-((xpos-plasma_flux_params(4))**2)/(plasma_flux_params(5)**2))
+      if (side_flag) then
+         plasma_params = plasma_side_flux_params
+      else
+         plasma_params = plasma_flux_params
+      end if
+
+      if (time.ge.plasma_params(1) .and. time.le.plasma_params(2)) then
+         qb = plasma_params(3) &
+              *EXP(-((xpos-plasma_params(4))**2)/(plasma_params(5)**2))
       end if
       
     end subroutine gaussian_tube_heat_flux   
@@ -179,23 +286,34 @@ contains
    ! Subroutine used to prescribe a uniform heat flux active for
    ! time <= time_exposure
    ! -----------------------------------------------------------------   
-   subroutine uniform_heat_flux(time, xpos, zpos, qb) 
+   subroutine uniform_heat_flux(time, xpos, zpos, side_flag, qb) 
  
-      use read_input_module, only : plasma_flux_params
+      use read_input_module, only : plasma_flux_params, &
+                                    plasma_side_flux_params
       
       ! Input and output variables
       real(amrex_real), intent(in) :: time
       real(amrex_real), intent(in) :: xpos
       real(amrex_real), intent(in) :: zpos
+      logical, intent(in) :: side_flag
       real(amrex_real), intent(out) :: qb
       
-      
+      ! Local variables
+      real(amrex_real), dimension(1:7) :: plasma_params
+
       qb = 0_amrex_real
+      plasma_params = 0.0
       
-      if (time.ge.plasma_flux_params(1) .and. time.le.plasma_flux_params(2)) then
-         if(xpos.ge.plasma_flux_params(4) .and. xpos.le.plasma_flux_params(5) .and. &
-            zpos.ge.plasma_flux_params(6) .and. zpos.le.plasma_flux_params(7)) then
-            qb = plasma_flux_params(3) 
+      if (side_flag) then
+         plasma_params = plasma_side_flux_params
+        else
+         plasma_params = plasma_flux_params
+      end if
+      
+      if (time.ge.plasma_params(1) .and. time.le.plasma_params(2)) then
+         if(xpos.ge.plasma_params(4) .and. xpos.le.plasma_params(5) .and. &
+          zpos.ge.plasma_params(6) .and. zpos.le.plasma_params(7)) then
+            qb = plasma_params(3) 
          end if
       end if
       
@@ -205,32 +323,59 @@ contains
    ! Subroutine used to prescribe a heat flux defined in an
    ! input file.
    ! -----------------------------------------------------------------   
-    subroutine file_heat_flux(time, xpos, zpos, qb) 
+    subroutine file_heat_flux(time, xpos, zpos, side_flag, qb) 
       
       ! Input and output variables
       real(amrex_real), intent(in) :: time
       real(amrex_real), intent(in) :: xpos
       real(amrex_real), intent(in) :: zpos
+      logical, intent(in) :: side_flag
       real(amrex_real), intent(out) :: qb
 
       ! Local variables 
       integer :: i_z, i_x, i_t, k, n, m
       real(amrex_real) :: z(2), x(2), t(2), val(8)
       real(amrex_real) :: txz_query(3)
+      real(amrex_real), allocatable, dimension(:) :: spatial_mesh_1
+      real(amrex_real), allocatable, dimension(:) :: spatial_mesh_2
+      real(amrex_real), allocatable, dimension(:) :: temporal_mesh
+      real(amrex_real), allocatable, dimension(:,:,:) :: heat_flux
       
       
       qb = 0_amrex_real
       
-      n = size(plasma_flux_time_mesh,1)
-      m = size(plasma_flux_surf_x_mesh,1)
-      k = size(plasma_flux_surf_z_mesh,1)
+      if(side_flag) then
+         n = size(plasma_side_flux_time_mesh,1)
+         m = size(plasma_side_flux_surf_y_mesh,1)
+         k = size(plasma_side_flux_surf_z_mesh,1)
+         allocate (heat_flux(1:n,1:m,1:k))
+         allocate (temporal_mesh(1:n))
+         allocate (spatial_mesh_1(1:m))
+         allocate (spatial_mesh_2(1:k))
+         spatial_mesh_1 = plasma_side_flux_surf_y_mesh
+         spatial_mesh_2 = plasma_side_flux_surf_z_mesh
+         temporal_mesh = plasma_side_flux_time_mesh
+         heat_flux = heat_side_flux_table
+      else
+         n = size(plasma_flux_time_mesh,1)
+         m = size(plasma_flux_surf_x_mesh,1)
+         k = size(plasma_flux_surf_z_mesh,1)
+         allocate (heat_flux(1:n,1:m,1:k))
+         allocate (temporal_mesh(1:n))
+         allocate (spatial_mesh_1(1:m))
+         allocate (spatial_mesh_2(1:k))
+         spatial_mesh_1 = plasma_flux_surf_x_mesh
+         spatial_mesh_2 = plasma_flux_surf_z_mesh
+         temporal_mesh = plasma_flux_time_mesh
+         heat_flux = heat_flux_table
+      end if
 
       ! Find the maximum index i_t such that the time
-      ! falls in-between plasma_flux_time_mesh(i_t) and
-      ! plasma_flux_time_mesh(i_t+1). Similar for i_x and i_z      
-      call bisection(plasma_flux_time_mesh, n, time, i_t)
-      call bisection(plasma_flux_surf_x_mesh, m, xpos, i_x)
-      call bisection(plasma_flux_surf_z_mesh, k, zpos, i_z)
+      ! falls in-between temporal_mesh(i_t) and
+      ! temporal_mesh(i_t+1). Similar for i_x and i_z      
+      call bisection(temporal_mesh, n, time, i_t)
+      call bisection(spatial_mesh_1, m, xpos, i_x)
+      call bisection(spatial_mesh_2, k, zpos, i_z)
 
       ! Check if the query falls outside the domain
       ! defined by the heat flux mesh.
@@ -240,141 +385,141 @@ contains
          ! If query point is outside the 6 bounds
          ! then take the closest of the 8 corners
          if(i_t.eq.0 .and. i_x.eq.0 .and. i_z.eq.0) then
-            qb = heat_flux_table(1,1,1)
+            qb = heat_flux(1,1,1)
          elseif(i_t.eq.0 .and. i_x.eq.0 .and. i_z.eq.k) then
-            qb = heat_flux_table(1,1,k)
+            qb = heat_flux(1,1,k)
          elseif(i_t.eq.0 .and. i_x.eq.m .and. i_z.eq.0) then
-            qb = heat_flux_table(1,m,1)
+            qb = heat_flux(1,m,1)
          elseif(i_t.eq.0 .and. i_x.eq.m .and. i_z.eq.k) then
-            qb = heat_flux_table(1,m,k)
+            qb = heat_flux(1,m,k)
          elseif(i_t.eq.n .and. i_x.eq.0 .and. i_z.eq.0) then
-            qb = heat_flux_table(n,1,1)
+            qb = heat_flux(n,1,1)
          elseif(i_t.eq.n .and. i_x.eq.0 .and. i_z.eq.k) then
-            qb = heat_flux_table(n,1,k)
+            qb = heat_flux(n,1,k)
          elseif(i_t.eq.n .and. i_x.eq.m .and. i_z.eq.0) then
-            qb = heat_flux_table(n,m,1)
+            qb = heat_flux(n,m,1)
          elseif(i_t.eq.n .and. i_x.eq.m .and. i_z.eq.k) then
-            qb = heat_flux_table(n,m,k)
+            qb = heat_flux(n,m,k)
 
          ! If query point is outside 2 bounds then
          ! linear interpolation on one of the 12 edges
          elseif (i_t.eq.0 .and. i_x.eq.0) then
-            z(1) = plasma_flux_surf_z_mesh(i_z)
-            z(2) = plasma_flux_surf_z_mesh(i_z+1)
-            val(1) = heat_flux_table(1, 1, i_z)
-            val(2) = heat_flux_table(1, 1, i_z+1)
+            z(1) = spatial_mesh_2(i_z)
+            z(2) = spatial_mesh_2(i_z+1)
+            val(1) = heat_flux(1, 1, i_z)
+            val(2) = heat_flux(1, 1, i_z+1)
             call lin_intrp(z, val(1:2), zpos, qb)
          elseif (i_t.eq.0 .and. i_x.eq.m) then
-            z(1) = plasma_flux_surf_z_mesh(i_z)
-            z(2) = plasma_flux_surf_z_mesh(i_z+1)
-            val(1) = heat_flux_table(1, m, i_z)
-            val(2) = heat_flux_table(1, m, i_z+1)
+            z(1) = spatial_mesh_2(i_z)
+            z(2) = spatial_mesh_2(i_z+1)
+            val(1) = heat_flux(1, m, i_z)
+            val(2) = heat_flux(1, m, i_z+1)
             call lin_intrp(z, val(1:2), zpos, qb)
          elseif (i_t.eq.n .and. i_x.eq.0) then
-            z(1) = plasma_flux_surf_z_mesh(i_z)
-            z(2) = plasma_flux_surf_z_mesh(i_z+1)
-            val(1) = heat_flux_table(n, 1, i_z)
-            val(2) = heat_flux_table(n, 1, i_z+1)
+            z(1) = spatial_mesh_2(i_z)
+            z(2) = spatial_mesh_2(i_z+1)
+            val(1) = heat_flux(n, 1, i_z)
+            val(2) = heat_flux(n, 1, i_z+1)
             call lin_intrp(z, val(1:2), zpos, qb)
          elseif (i_t.eq.n .and. i_x.eq.m) then
-            z(1) = plasma_flux_surf_z_mesh(i_z)
-            z(2) = plasma_flux_surf_z_mesh(i_z+1)
-            val(1) = heat_flux_table(n, m, i_z)
-            val(2) = heat_flux_table(n, m, i_z+1)
+            z(1) = spatial_mesh_2(i_z)
+            z(2) = spatial_mesh_2(i_z+1)
+            val(1) = heat_flux(n, m, i_z)
+            val(2) = heat_flux(n, m, i_z+1)
             call lin_intrp(z, val(1:2), zpos, qb)
 
 
          elseif (i_t.eq.0 .and. i_z.eq.0) then
-            x(1) = plasma_flux_surf_x_mesh(i_x)
-            x(2) = plasma_flux_surf_x_mesh(i_x+1)
-            val(1) = heat_flux_table(1, i_x, 1)
-            val(2) = heat_flux_table(1, i_x+1, 1)
+            x(1) = spatial_mesh_1(i_x)
+            x(2) = spatial_mesh_1(i_x+1)
+            val(1) = heat_flux(1, i_x, 1)
+            val(2) = heat_flux(1, i_x+1, 1)
             call lin_intrp(x, val(1:2), xpos, qb)
          elseif (i_t.eq.0 .and. i_z.eq.k) then
-            x(1) = plasma_flux_surf_x_mesh(i_x)
-            x(2) = plasma_flux_surf_x_mesh(i_x+1)
-            val(1) = heat_flux_table(1, i_x, k)
-            val(2) = heat_flux_table(1, i_x+1, k)
+            x(1) = spatial_mesh_1(i_x)
+            x(2) = spatial_mesh_1(i_x+1)
+            val(1) = heat_flux(1, i_x, k)
+            val(2) = heat_flux(1, i_x+1, k)
             call lin_intrp(x, val(1:2), xpos, qb)
          elseif (i_t.eq.n .and. i_z.eq.0) then
-            x(1) = plasma_flux_surf_x_mesh(i_x)
-            x(2) = plasma_flux_surf_x_mesh(i_x+1)
-            val(1) = heat_flux_table(n, i_x, 1)
-            val(2) = heat_flux_table(n, i_x+1, 1)
+            x(1) = spatial_mesh_1(i_x)
+            x(2) = spatial_mesh_1(i_x+1)
+            val(1) = heat_flux(n, i_x, 1)
+            val(2) = heat_flux(n, i_x+1, 1)
             call lin_intrp(x, val(1:2), xpos, qb)
          elseif (i_t.eq.n .and. i_z.eq.k) then
-            x(1) = plasma_flux_surf_x_mesh(i_x)
-            x(2) = plasma_flux_surf_x_mesh(i_x+1)
-            val(1) = heat_flux_table(n, i_x, k)
-            val(2) = heat_flux_table(n, i_x+1, k)
+            x(1) = spatial_mesh_1(i_x)
+            x(2) = spatial_mesh_1(i_x+1)
+            val(1) = heat_flux(n, i_x, k)
+            val(2) = heat_flux(n, i_x+1, k)
             call lin_intrp(x, val(1:2), xpos, qb)
 
 
          elseif (i_x.eq.0 .and. i_z.eq.0) then
-            t(1) = plasma_flux_time_mesh(i_t)
-            t(2) = plasma_flux_time_mesh(i_t+1)
-            val(1) = heat_flux_table(i_t, 1, 1)
-            val(2) = heat_flux_table(i_t+1, 1, 1)
+            t(1) = temporal_mesh(i_t)
+            t(2) = temporal_mesh(i_t+1)
+            val(1) = heat_flux(i_t, 1, 1)
+            val(2) = heat_flux(i_t+1, 1, 1)
             call lin_intrp(t, val(1:2), time, qb)
          elseif (i_x.eq.0 .and. i_z.eq.k) then
-            t(1) = plasma_flux_time_mesh(i_t)
-            t(2) = plasma_flux_time_mesh(i_t+1)
-            val(1) = heat_flux_table(i_t, 1, k)
-            val(2) = heat_flux_table(i_t+1, 1, k)
+            t(1) = temporal_mesh(i_t)
+            t(2) = temporal_mesh(i_t+1)
+            val(1) = heat_flux(i_t, 1, k)
+            val(2) = heat_flux(i_t+1, 1, k)
             call lin_intrp(t, val(1:2), time, qb)   
          elseif (i_x.eq.m .and. i_z.eq.0) then
-            t(1) = plasma_flux_time_mesh(i_t)
-            t(2) = plasma_flux_time_mesh(i_t+1)
-            val(1) = heat_flux_table(i_t, m, 1)
-            val(2) = heat_flux_table(i_t+1, m, 1)
+            t(1) = temporal_mesh(i_t)
+            t(2) = temporal_mesh(i_t+1)
+            val(1) = heat_flux(i_t, m, 1)
+            val(2) = heat_flux(i_t+1, m, 1)
             call lin_intrp(t, val(1:2), time, qb) 
          elseif (i_x.eq.m .and. i_z.eq.k) then
-            t(1) = plasma_flux_time_mesh(i_t)
-            t(2) = plasma_flux_time_mesh(i_t+1)
-            val(1) = heat_flux_table(i_t, m, k)
-            val(2) = heat_flux_table(i_t+1, m, k)
+            t(1) = temporal_mesh(i_t)
+            t(2) = temporal_mesh(i_t+1)
+            val(1) = heat_flux(i_t, m, k)
+            val(2) = heat_flux(i_t+1, m, k)
             call lin_intrp(t, val(1:2), time, qb)
             
          ! If query point outside one of the domain bounds
          ! then bilinear interpolation in one the 6 surfaces.
          elseif(i_z.eq.0 .or. i_z.eq.k) then
             if (i_z.eq.0) i_z=1
-            t(1) = plasma_flux_time_mesh(i_t)
-            t(2) = plasma_flux_time_mesh(i_t+1)
-            x(1) = plasma_flux_surf_x_mesh(i_x)
-            x(2) = plasma_flux_surf_x_mesh(i_x+1)
-            val(1) = heat_flux_table(i_t,i_x,i_z)
-            val(2) = heat_flux_table(i_t+1,i_x,i_z)
-            val(3) = heat_flux_table(i_t+1,i_x+1,i_z)
-            val(4) = heat_flux_table(i_t,i_x+1,i_z)
+            t(1) = temporal_mesh(i_t)
+            t(2) = temporal_mesh(i_t+1)
+            x(1) = spatial_mesh_1(i_x)
+            x(2) = spatial_mesh_1(i_x+1)
+            val(1) = heat_flux(i_t,i_x,i_z)
+            val(2) = heat_flux(i_t+1,i_x,i_z)
+            val(3) = heat_flux(i_t+1,i_x+1,i_z)
+            val(4) = heat_flux(i_t,i_x+1,i_z)
             txz_query(1) = time
             txz_query(2) = xpos
             call bilin_intrp(t, x, val(1:4), txz_query(1:2), qb)
 
          elseif(i_x.eq.0 .or. i_x.eq.m) then
             if (i_x.eq.0) i_x=1
-            t(1) = plasma_flux_time_mesh(i_t)
-            t(2) = plasma_flux_time_mesh(i_t+1)
-            z(1) = plasma_flux_surf_z_mesh(i_z)
-            z(2) = plasma_flux_surf_z_mesh(i_z+1)
-            val(1) = heat_flux_table(i_t,i_x,i_z)
-            val(2) = heat_flux_table(i_t+1,i_x,i_z)
-            val(3) = heat_flux_table(i_t+1,i_x,i_z+1)
-            val(4) = heat_flux_table(i_t,i_x,i_z+1)
+            t(1) = temporal_mesh(i_t)
+            t(2) = temporal_mesh(i_t+1)
+            z(1) = spatial_mesh_2(i_z)
+            z(2) = spatial_mesh_2(i_z+1)
+            val(1) = heat_flux(i_t,i_x,i_z)
+            val(2) = heat_flux(i_t+1,i_x,i_z)
+            val(3) = heat_flux(i_t+1,i_x,i_z+1)
+            val(4) = heat_flux(i_t,i_x,i_z+1)
             txz_query(1) = time
             txz_query(2) = zpos
             call bilin_intrp(t, z, val(1:4), txz_query(1:2), qb)
 
          elseif(i_t.eq.0 .or. i_t.eq.n) then
             if (i_t.eq.0) i_t=1
-            x(1) = plasma_flux_surf_x_mesh(i_x)
-            x(2) = plasma_flux_surf_x_mesh(i_x+1)
-            z(1) = plasma_flux_surf_z_mesh(i_z)
-            z(2) = plasma_flux_surf_z_mesh(i_z+1)
-            val(1) = heat_flux_table(i_t,i_x,i_z)
-            val(2) = heat_flux_table(i_t,i_x+1,i_z)
-            val(3) = heat_flux_table(i_t,i_x+1,i_z+1)
-            val(4) = heat_flux_table(i_t,i_x,i_z+1)
+            x(1) = spatial_mesh_1(i_x)
+            x(2) = spatial_mesh_1(i_x+1)
+            z(1) = spatial_mesh_2(i_z)
+            z(2) = spatial_mesh_2(i_z+1)
+            val(1) = heat_flux(i_t,i_x,i_z)
+            val(2) = heat_flux(i_t,i_x+1,i_z)
+            val(3) = heat_flux(i_t,i_x+1,i_z+1)
+            val(4) = heat_flux(i_t,i_x,i_z+1)
             txz_query(1) = xpos
             txz_query(2) = zpos
             call bilin_intrp(x, z, val(1:4), txz_query(1:2), qb)
@@ -382,20 +527,20 @@ contains
       
       ! In all other cases, trilinear interpolation   
       else
-         t(1) = plasma_flux_time_mesh(i_t)
-         t(2) = plasma_flux_time_mesh(i_t+1)
-         x(1) = plasma_flux_surf_x_mesh(i_x)
-         x(2) = plasma_flux_surf_x_mesh(i_x+1)
-         z(1) = plasma_flux_surf_z_mesh(i_z)
-         z(2) = plasma_flux_surf_z_mesh(i_z+1)
-         val(1) = heat_flux_table(i_t,i_x,i_z)
-         val(2) = heat_flux_table(i_t+1,i_x,i_z)
-         val(3) = heat_flux_table(i_t+1,i_x+1,i_z)
-         val(4) = heat_flux_table(i_t,i_x+1,i_z)
-         val(5) = heat_flux_table(i_t,i_x,i_z+1)
-         val(6) = heat_flux_table(i_t+1,i_x,i_z+1)
-         val(7) = heat_flux_table(i_t+1,i_x+1,i_z+1)
-         val(8) = heat_flux_table(i_t,i_x+1,i_z+1)
+         t(1) = temporal_mesh(i_t)
+         t(2) = temporal_mesh(i_t+1)
+         x(1) = spatial_mesh_1(i_x)
+         x(2) = spatial_mesh_1(i_x+1)
+         z(1) = spatial_mesh_2(i_z)
+         z(2) = spatial_mesh_2(i_z+1)
+         val(1) = heat_flux(i_t,i_x,i_z)
+         val(2) = heat_flux(i_t+1,i_x,i_z)
+         val(3) = heat_flux(i_t+1,i_x+1,i_z)
+         val(4) = heat_flux(i_t,i_x+1,i_z)
+         val(5) = heat_flux(i_t,i_x,i_z+1)
+         val(6) = heat_flux(i_t+1,i_x,i_z+1)
+         val(7) = heat_flux(i_t+1,i_x+1,i_z+1)
+         val(8) = heat_flux(i_t,i_x+1,i_z+1)
          txz_query(1) = time
          txz_query(2) = xpos
          txz_query(3) = zpos
@@ -510,6 +655,22 @@ contains
       
     end subroutine vaporization_cooling
 
+    ! -----------------------------------------------------------------
+    ! Subroutine used to prescribe the cooling flux from cooling pipes
+    ! -----------------------------------------------------------------
+    subroutine active_cooling(T, q_cool)
+      ! Input and output variables
+      real(amrex_real), intent(in) :: T
+      real(amrex_real), intent(out) :: q_cool
+
+      ! Local variables
+      real(amrex_real) :: h   ! [W/K m^2]
+      real(amrex_real) :: T0  ! [K]
+
+      T0 = 343
+      call get_convection_coeff(T, h)
+      q_cool = h*(T-T0)
+    end subroutine active_cooling
 
     ! -----------------------------------------------------------------
     ! Subroutine used to print the cooling fluxes as a function of
@@ -655,5 +816,42 @@ contains
                   + t*u*w*val(7) + (1-t)*u*w*val(8)
 
    end subroutine trilin_intrp
+
+
+   ! -----------------------------------------------------------------
+   ! Subroutine that returns the convection coefficient given a 
+   ! temperature. The values re obtained by performing a seventh order
+   ! polyonymal fit to 30 extracted values of figure 3.11 of "Impact 
+   ! of geometry and shaping of the plasma facing components on hot spot
+   ! generation in tokamak devices", Alex GROSJEAN"
+   ! -----------------------------------------------------------------
+   subroutine get_convection_coeff(T, h)
+      ! Input and output variables
+      real(amrex_real), intent(in) :: T
+      real(amrex_real), intent(out) :: h
+
+      ! Local variables
+      real(amrex_real) :: T0, Tc
+      real(amrex_real) :: p1, p2, p3, p4, p5, p6, p7, p8
+
+      T0 = 273.15
+      p1 = 1.61185E-10
+      p2 = -1.5378146E-7
+      p3 = 5.927767E-5
+      p4 = -0.0118479
+      p5 = 1.311232
+      p6 = -79.753407
+      p7 = 2599.511
+      p8 = 3.45107679E4
+
+      Tc = T-T0
+      if (Tc.gt.294.0) then
+         write(*,*) 'Temperature near pipe requires extrapolation when computing the convection coefficient'
+         write(*,*) 'The convection coefficient will be arbitratly assumed constant for T > 567 K'
+         Tc = 294
+      end if
+
+      h = p1*Tc**7 + p2*Tc**6 + p3*Tc**5 + p4*Tc**4 + p5*Tc**3 + p6*Tc**2 + p7*Tc + p8
+   end subroutine get_convection_coeff
 
 end module heat_flux_module

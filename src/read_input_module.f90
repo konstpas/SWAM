@@ -66,7 +66,13 @@ module read_input_module
   public :: plasma_flux_type
   public :: plasma_flux_params
   public :: plasma_flux_input_file
+  public :: plasma_side_flux_type
+  public :: plasma_side_flux_params
+  public :: plasma_side_flux_input_file
   public :: material
+  public :: geometry_name
+  public :: cool_pipe_cntr
+  public :: cool_pipe_radius
   public :: max_grid_size_2d
   public :: max_step
   public :: meltvel
@@ -81,6 +87,7 @@ module read_input_module
   public :: stop_time
   public :: surfdist
   public :: surf_pos_init
+  public :: sample_edge
   public :: temp_fs
   public :: temp_init
   public :: thermionic_alpha
@@ -96,9 +103,12 @@ module read_input_module
   ! -----------------------------------------------------------------
   character(len=:), allocatable, save :: check_file
   character(len=:), allocatable, save :: material
+  character(len=:), allocatable, save :: geometry_name
   character(len=:), allocatable, save :: heat_solver
   character(len=:), allocatable, save :: plasma_flux_type
   character(len=:), allocatable, save :: plasma_flux_input_file
+  character(len=:), allocatable, save :: plasma_side_flux_type
+  character(len=:), allocatable, save :: plasma_side_flux_input_file
   character(len=:), allocatable, save :: phase_init
   character(len=:), allocatable, save :: plot_file
   character(len=:), allocatable, save :: restart
@@ -131,12 +141,16 @@ module read_input_module
   real(amrex_real), save :: phiT_table_max_T
   real(amrex_real), save :: stop_time
   real(amrex_real), save :: surf_pos_init
+  real(amrex_real), save :: sample_edge
+  real(amrex_real), allocatable, save :: cool_pipe_cntr(:)
+  real(amrex_real), save :: cool_pipe_radius
   real(amrex_real), save :: temp_fs
   real(amrex_real), save :: temp_init
   real(amrex_real), save :: thermionic_alpha
   real(amrex_real), allocatable, save :: cooling_debug(:)
   real(amrex_real), allocatable, save :: surfdist(:)
   real(amrex_real), allocatable, save :: plasma_flux_params(:)
+  real(amrex_real), allocatable, save :: plasma_side_flux_params(:)
   
 contains
 
@@ -182,13 +196,17 @@ contains
    
     ! Parameters for the heat solver
     call amrex_parmparse_build(pp, "heat")
-    call pp%query("surf_pos", surf_pos_init)   
+    call pp%query("surf_pos", surf_pos_init)
+    call pp%query("sample_edge", sample_edge)   
     call pp%query("meltvel", meltvel)  
     call pp%query("temp_init", temp_init)
     call pp%query("phase_init", phase_init)
     call pp%query("plasma_flux_type", plasma_flux_type) 
+    call pp%query("plasma_side_flux_type", plasma_side_flux_type) 
+    call pp%getarr("plasma_side_flux_params", plasma_side_flux_params)
     call pp%getarr("plasma_flux_params", plasma_flux_params)
     call pp%query("plasma_flux_input_file", plasma_flux_input_file)
+    call pp%query("plasma_side_flux_input_file", plasma_side_flux_input_file)
     call pp%query("temp_free_surface", temp_fs)
     call pp%query("cooling_thermionic",cooling_thermionic)
     call pp%query("cooling_vaporization",cooling_vaporization)
@@ -210,6 +228,13 @@ contains
     call pp%query("phiT_n_points", phiT_table_n_points)
     call amrex_parmparse_destroy(pp)
     
+    ! Parameters for the geometry
+    call amrex_parmparse_build(pp, "geometry")
+    call pp%query("geometry_name", geometry_name)
+    call pp%getarr("cool_pipe_cntr",cool_pipe_cntr)
+    call pp%query("cool_pipe_radius", cool_pipe_radius)
+    call amrex_parmparse_destroy(pp)
+
     ! Parameters for the numerics
     call amrex_parmparse_build(pp, "numerics")
     call pp%query("cfl", cfl)
@@ -241,14 +266,19 @@ contains
     allocate(character(len=3)::check_file)
     allocate(character(len=8)::heat_solver)
     allocate(character(len=8)::plasma_flux_type)
+    allocate(character(len=8)::plasma_side_flux_type)
     allocate(character(len=25)::plasma_flux_input_file)
+    allocate(character(len=25)::plasma_side_flux_input_file)
     allocate(character(len=8)::material)
+    allocate(character(len=4)::geometry_name)
+    allocate(cool_pipe_cntr(2))
     allocate(character(len=9)::phase_init)
     allocate(character(len=3)::plot_file)
     allocate(character(len=0)::restart)
     allocate(cooling_debug(5))
     allocate(surfdist(0:amrex_max_level))
     allocate(plasma_flux_params(100))
+    allocate(plasma_side_flux_params(100))
     
     cfl = 0.70
     check_file = "chk"
@@ -275,6 +305,10 @@ contains
     ls_consolidation = .true.
     ls_max_coarsening_level = 30
     material = "Tungsten"
+    geometry_name = "Slab"
+    cool_pipe_cntr(1) = 0.01
+    cool_pipe_cntr(2) = 0.005
+    cool_pipe_radius = 0_amrex_real
     max_grid_size_2d = 16
     max_step = 10000
     phase_init = "undefined"
@@ -287,8 +321,17 @@ contains
     plasma_flux_params(5) = 0.01
     plasma_flux_params(6) = 0.0
     plasma_flux_params(7) = 0.01
+    plasma_side_flux_params(1) = 0.0
+    plasma_side_flux_params(2) = 1.0
+    plasma_side_flux_params(3) = 300e6
+    plasma_side_flux_params(4) = 0.0
+    plasma_side_flux_params(5) = 0.01
+    plasma_flux_params(6) = 0.0
+    plasma_flux_params(7) = 0.01
     plasma_flux_type = "Gaussian"
+    plasma_side_flux_type = "Gaussian"
     plasma_flux_input_file = "plasma_flux.dat"
+    plasma_side_flux_input_file = "plasma_side_flux.dat"
     plot_file = "plt"
     plot_int = -1
     regrid_int = 2
@@ -298,6 +341,7 @@ contains
        surfdist(i) = 0.0_amrex_real
     end do
     surf_pos_init = 0.020
+    sample_edge = 0.020
     thermionic_alpha = 90.0
     temp_fs = -1
     verbose = 0
@@ -312,10 +356,13 @@ contains
     deallocate(check_file)
     deallocate(heat_solver)
     deallocate(material)
+    deallocate(geometry_name)
     deallocate(phase_init)
     deallocate(plasma_flux_params)
     deallocate(plasma_flux_type)
+    deallocate(plasma_side_flux_type)
     deallocate(plasma_flux_input_file)
+    deallocate(plasma_side_flux_input_file)
     deallocate(plot_file)
     deallocate(restart)
     deallocate(surfdist)

@@ -503,9 +503,9 @@ contains
     do i = lo(1), hi(1)+1
        do j = lo(2), hi(2)          
 
-          if (nint(idom(i-1,j)).eq.0 .or. nint(idom(i,j)).eq.0) then
+          if (nint(idom(i-1,j)).eq.0 .or. nint(idom(i,j)).eq.0 .or. nint(idom(i-1,j)).eq.-1 .or. nint(idom(i,j)).eq.-1) then
 
-             ! Suppress flux at the free surface
+             ! Suppress flux at the free surface and surface of cooling pipe
              flxx(i,j) = 0_amrex_real
 
           else
@@ -531,9 +531,9 @@ contains
     do i = lo(1), hi(1)
        do j = lo(2), hi(2)+1
 
-          if (nint(idom(i,j-1)).eq.0 .or. nint(idom(i,j)).eq.0) then
+          if (nint(idom(i,j-1)).eq.0 .or. nint(idom(i,j)).eq.0 .or. nint(idom(i,j-1)).eq.-1 .or. nint(idom(i,j)).eq.-1 ) then
 
-             ! Suppress flux at the free surface
+             ! Suppress flux at the free surface and the cooling pipe
              flxy(i,j) = 0_amrex_real
 
           else
@@ -1031,7 +1031,7 @@ contains
        call multigrid%set_bottom_solver(ls_bottom_solver)
        
        ! Solve the linear system
-       err = multigrid%solve(sol, rhs, 5.e-15_amrex_real, 0.0_amrex_real)
+       err = multigrid%solve(sol, rhs, 5.e-12_amrex_real, 0.0_amrex_real)
        
        ! Clean memory
        call amrex_abeclaplacian_destroy(abeclap)
@@ -1171,8 +1171,9 @@ contains
        do i = lo(1), hi(1)+1
           do j = lo(2), hi(2)
              
-             if (nint(idom(i-1,j)).eq.0 .or. nint(idom(i,j)).eq.0) then
-                 beta(i,j) = 0_amrex_real ! Suppress flux at the free surface
+             if(nint(idom(i-1,j)).eq.0 .or. nint(idom(i,j)).eq.0 .or. & 
+                nint(idom(i-1,j)).eq.-1 .or. nint(idom(i,j)).eq.-1) then
+                 beta(i,j) = 0_amrex_real ! Suppress flux at the free surface and cooling pipe surface
               else
                 temp_face = (temp(i,j) + temp(i-1,j))/2_amrex_real
                 call get_conductivity(temp_face, beta(i,j))
@@ -1185,8 +1186,9 @@ contains
        do i = lo(1), hi(1)
           do j = lo(2), hi(2)+1
              
-             if (nint(idom(i,j-1)).eq.0 .or. nint(idom(i,j)).eq.0) then
-                 beta(i,j) = 0_amrex_real ! Suppress flux at the free surface
+             if(nint(idom(i,j-1)).eq.0 .or. nint(idom(i,j)).eq.0 .or. &
+                nint(idom(i,j-1)).eq.-1 .or. nint(idom(i,j)).eq.-1) then
+                 beta(i,j) = 0_amrex_real ! Suppress flux at the free surface and cooling pipe surface
              else
                 temp_face = (temp(i,j) + temp(i,j-1))/2_amrex_real
                 call get_conductivity(temp_face, beta(i,j))

@@ -550,9 +550,10 @@ module heat_transfer_module
        do j = lo(2), hi(2)
           do k = lo(3), hi(3)
 
-             if (nint(idom(i-1,j,k)).eq.0 .or. nint(idom(i,j,k)).eq.0) then
+             if (nint(idom(i-1,j,k)).eq.0 .or. nint(idom(i,j,k)).eq.0 .or. &
+              nint(idom(i-1,j,k)).eq.-1 .or. nint(idom(i,j,k)).eq.-1) then
 
-                ! Suppress flux at the free surface
+                ! Suppress flux at the free surface and surface of cooling pipe
                 flxx(i,j,k) = 0_amrex_real
 
              else
@@ -580,9 +581,10 @@ module heat_transfer_module
        do j = lo(2), hi(2)+1
           do k = lo(3), hi(3)
 
-             if (nint(idom(i,j-1,k)).eq.0 .or. nint(idom(i,j,k)).eq.0) then
+             if (nint(idom(i,j-1,k)).eq.0 .or. nint(idom(i,j,k)).eq.0 .or. &
+              nint(idom(i,j-1,k)).eq.-1 .or. nint(idom(i,j,k)).eq.-1) then
 
-                ! Suppress flux at the free surface
+                ! Suppress flux at the free surface and surface of cooling pipe
                 flxy(i,j,k) = 0_amrex_real
 
              else
@@ -603,9 +605,10 @@ module heat_transfer_module
        do j = lo(2), hi(2)
           do k = lo(3), hi(3)+1
 
-             if (nint(idom(i,j,k-1)).eq.0 .or. nint(idom(i,j,k)).eq.0) then
+             if (nint(idom(i,j,k-1)).eq.0 .or. nint(idom(i,j,k)).eq.0 .or. &
+              nint(idom(i,j,k-1)).eq.-1 .or. nint(idom(i,j,k)).eq.-1) then
 
-                ! Suppress flux at the free surface
+                ! Suppress flux at the free surface and surface of cooling pipe
                 flxz(i,j,k) = 0_amrex_real
 
              else
@@ -1292,7 +1295,8 @@ module heat_transfer_module
            do j = lo(2), hi(2)
               do k = lo(3), hi(3)
               
-                 if (nint(idom(i-1,j,k)).eq.0 .or. nint(idom(i,j,k)).eq.0) then
+                 if (nint(idom(i-1,j,k)).eq.0 .or. nint(idom(i,j,k)).eq.0 .or. &
+                  nint(idom(i-1,j,k)).eq.-1 .or. nint(idom(i,j,k)).eq.-1) then
                        beta(i,j,k) = 0_amrex_real ! Suppress flux at the free surface
                  else
                     temp_face = (temp(i,j,k) + temp(i-1,j,k))/2_amrex_real
@@ -1308,8 +1312,9 @@ module heat_transfer_module
            do j = lo(2), hi(2)+1
               do k = lo(3), hi(3)
               
-                 if (nint(idom(i,j-1,k)).eq.0 .or. nint(idom(i,j,k)).eq.0) then
-                       beta(i,j,k) = 0_amrex_real ! Suppress flux at the free surface
+                 if (nint(idom(i,j-1,k)).eq.0 .or. nint(idom(i,j,k)).eq.0 .or. &
+                 nint(idom(i,j-1,k)).eq.-1 .or. nint(idom(i,j,k)).eq.-1) then
+                       beta(i,j,k) = 0_amrex_real ! Suppress flux at the free surface and surface of cooling pipe
                  else
                     temp_face = (temp(i,j,k) + temp(i,j-1,k))/2_amrex_real
                     call get_conductivity(temp_face, beta(i,j,k))
@@ -1325,8 +1330,9 @@ module heat_transfer_module
             do j = lo(2), hi(2)
                do k = lo(3), hi(3)+1
                
-                  if (nint(idom(i,j,k-1)).eq.0 .or. nint(idom(i,j,k)).eq.0) then
-                        beta(i,j,k) = 0_amrex_real ! Suppress flux at the free surface
+                  if (nint(idom(i,j,k-1)).eq.0 .or. nint(idom(i,j,k)).eq.0 .or. &
+                   nint(idom(i,j,k-1)).eq.-1 .or. nint(idom(i,j,k)).eq.-1) then
+                        beta(i,j,k) = 0_amrex_real ! Suppress flux at the free surface and surface of cooling pipe
                   else
                      temp_face = (temp(i,j,k) + temp(i,j,k-1))/2_amrex_real
                      call get_conductivity(temp_face, beta(i,j,k))

@@ -44,12 +44,13 @@ contains
   ! -----------------------------------------------------------------
   subroutine writeplotfile()
 
-    integer :: i,k
+    integer :: i, k, ilev
     integer :: nlevs
     character(len=127) :: name
     character(len=16)  :: current_step
     character(len=15)  :: dashfmt
     real(amrex_real) :: xpos, zpos
+    real(amrex_real) :: max_temp, max_temp_lev
     type(amrex_string) :: varname(1)
     
 
@@ -93,18 +94,30 @@ contains
                               t_new(0), stepno, &
                               amrex_ref_ratio)
 
+    max_temp = 0.0
+    max_temp_lev = 0.0
+    do ilev = 0, nlevs-1
+      max_temp_lev = temp(ilev)%max(1,0)
+      if (max_temp_lev.gt.max_temp) max_temp = max_temp_lev
+    end do
+
     ! Output melt thickness
     name = "melt_thickness_" //trim(current_step)//".dat"
     open(2, file = name, status = 'unknown', action = "write")
-    write(2, *) 'x-coordinate  z-coordinate   Free Surface     Melt Bottom     Melt top     Free Surface Temperature'
+    write(2, *) 'x-coordinate  z-coordinate   Free Surface     Melt Bottom     Melt top     Free Surface Temperature', &
+        '    Max temperat'
     dashfmt = '(6(es13.6, 4x))'
     do i=surf_ind(1,1), surf_ind(1,2)
         do k=surf_ind(2,1), surf_ind(2,2)
-           ! i starts from 0 so to output the x-coord at the center of the cell add 0.5
-           ! the same applies for k and the z-coord
-           xpos = (i+0.5)*surf_dx(1)
-           zpos = (k+0.5)*surf_dx(2)
-           write(2, dashfmt) xpos, zpos, surf_pos(i,k), melt_pos(i,k), melt_top(i,k), surf_temperature(i,k)
+            ! i starts from 0 so to output the x-coord at the center of the cell add 0.5
+            ! the same applies for k and the z-coord
+            xpos = (i+0.5)*surf_dx(1)
+            zpos = (k+0.5)*surf_dx(2)
+            if(i.eq.surf_ind(1,1) .and. k.eq.surf_ind(2,1)) then
+              write(2, '(7(es13.6, 4x))') xpos, zpos, surf_pos(i,k), melt_pos(i,k), melt_top(i,k), surf_temperature(i,k), max_temp
+            else
+             write(2, dashfmt) xpos, zpos, surf_pos(i,k), melt_pos(i,k), melt_top(i,k), surf_temperature(i,k)
+           end if
         end do
     end do
     close(2)
