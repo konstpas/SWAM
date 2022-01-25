@@ -119,6 +119,7 @@ module heat_flux_module
                   write(*,*) xpos, ypos
                   write(*,*) 'Where the surface temperature is '
                   write(*,*) temp(i,j)
+                  STOP
                end if
                
             end if

@@ -126,7 +126,7 @@ contains
 
     use amr_data_module, only : phi_new, temp, idomain
     use read_input_module, only : do_reflux, temp_fs
-    use domain_module, only : get_idomain, get_melt_pos
+    use domain_module, only : get_idomain, get_melt_pos, revaluate_heat_domain
     use material_properties_module, only : get_temp
     
     ! Input and output variables
@@ -193,8 +193,8 @@ contains
     call revaluate_heat_domain(bx%lo, bx%hi, &
                                pidin, lbound(pidin), ubound(pidin), &
                                pidout, lbound(pidout), ubound(pidout), &
-                               pin, lbound(pin), ubound(pin))
-    
+                               pin, lbound(pin), ubound(pin), &
+                               ptempin, lbound(ptempin), ubound(ptempin))
     
     ! Increment enthalpy at given box depending on the condition of the free surface
     if (temp_fs.gt.0) then
@@ -293,7 +293,7 @@ contains
 
                   
     ! Get enthalpy flux 
-    call create_face_flux(dx, lo, hi, &
+    call create_face_flux(dx, lo_phys, lo, hi, &
                           u_old, uo_lo, uo_hi, &
                           flxx, fx_lo, fx_hi, &
                           flxy, fy_lo, fy_hi, &
@@ -424,48 +424,12 @@ contains
   end subroutine get_enthalpy_explicit_fixT
 
 
-  ! -----------------------------------------------------------------
-  ! Subroutine used to re-evaluate the heat equation domain
-  ! -----------------------------------------------------------------  
-  subroutine revaluate_heat_domain(lo, hi, &
-                                   idom_old, ido_lo, ido_hi, &
-                                   idom_new, idn_lo, idn_hi, &
-                                   u_in, u_lo, u_hi)
-
-
-    ! Input and output variables
-    integer, intent(in) :: lo(2), hi(2) ! bounds of current tile box
-    integer, intent(in) :: u_lo(2), u_hi(2) ! bounds of input enthalpy box 
-    integer, intent(in) :: ido_lo(2), ido_hi(2) ! bounds of the input idomain box
-    integer, intent(in) :: idn_lo(2), idn_hi(2) ! bounds of the output idomain box
-    real(amrex_real), intent(inout) :: u_in(u_lo(1):u_hi(1),u_lo(2):u_hi(2)) ! Input enthalpy 
-    real(amrex_real), intent(in) :: idom_old(ido_lo(1):ido_hi(1),ido_lo(2):ido_hi(2))
-    real(amrex_real), intent(in) :: idom_new(idn_lo(1):idn_hi(1),idn_lo(2):idn_hi(2))
-    
-    !Local variables
-    integer :: i,j
-    
-    do i = lo(1)-1,hi(1)+1
-       do  j = lo(2)-1,hi(2)+1
-
-          ! Points added to the domain
-          if (nint(idom_old(i,j)).eq.0 .and. nint(idom_new(i,j)).ne.0) then
-             u_in(i,j) = u_in(i,j-1)
-          ! Points removed from the domain
-          else if (nint(idom_new(i,j)).eq.0) then
-             u_in(i,j) = 0_amrex_real
-          end if
-          
-       end do
-    end do
-    
-  end subroutine revaluate_heat_domain
   
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the enthalpy fluxes on the edges of
   ! the grid
   ! -----------------------------------------------------------------  
-  subroutine create_face_flux(dx, lo, hi, &
+  subroutine create_face_flux(dx, lo_phys, lo, hi, &
                               u_old, uo_lo, uo_hi, &
                               flxx, fx_lo, fx_hi, &
                               flxy, fy_lo, fy_hi, &
@@ -481,7 +445,8 @@ contains
     integer, intent(in) :: fx_lo(2), fx_hi(2)
     integer, intent(in) :: fy_lo(2), fy_hi(2)
     integer, intent(in) :: id_lo(2), id_hi(2)
-    real(amrex_real), intent(in) :: dx(2)    
+    real(amrex_real), intent(in) :: dx(2)
+    real(amrex_real), intent(in) :: lo_phys(2)
     real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))
     real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2)) 
     real(amrex_real), intent(out) :: flxx(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2))
@@ -495,9 +460,9 @@ contains
     real(amrex_real) :: vx(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2))
 
     ! Construct 3D melt velocity profile from the 2D shallow water solution
-    call get_face_velocity(lo, hi, &
+    call get_face_velocity(lo_phys, lo, hi, dx, &
                            vx, fx_lo, fx_hi, &
-                           temp, t_lo, t_hi)
+                           idom, id_lo, id_hi)
     
     ! Flux along the x direction
     do i = lo(1), hi(1)+1
@@ -511,16 +476,16 @@ contains
           else
              
              ! Advective component
-             if (nint(idom(i-1,j)).ge.2 .and. nint(idom(i,j)).ge.2) then
+             if (nint(idom(i-1,j)).gt.2 .and. nint(idom(i,j)).gt.2) then
                 
-                if (vx(i,j) > 0_amrex_real) then 
+                if (vx(i,j).gt.0) then 
                    flxx(i,j)  = u_old(i-1,j)*vx(i,j)
                 else
                    flxx(i,j)  = u_old(i,j)*vx(i,j)
                 end if
                 
              else
-                flxx(i,j) = 0_amrex_real
+               flxx(i,j) = 0_amrex_real
              end if
              
              ! Diffusive component
@@ -616,31 +581,49 @@ contains
   ! This subroutine translates to 3D the 2D velocity field obtained
   ! from the solution of the shallow water equations
   ! -----------------------------------------------------------------  
-  subroutine get_face_velocity(lo, hi, &
+  subroutine get_face_velocity(lo_phys, lo, hi, dx, &
                                vx, vx_lo, vx_hi, &
-                               temp, t_lo, t_hi)
+                               idom, id_lo, id_hi)
 
-    use material_properties_module, only : temp_melt
-    use amr_data_module, only : melt_vel
+    use amr_data_module, only : surf_dx, &
+                                surf_xlo, &
+                                surf_ind, &
+                                melt_vel
+                                
     
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)
-    integer, intent(in) :: t_lo(2), t_hi(2)
+    integer, intent(in) :: id_lo(2), id_hi(2)
     integer, intent(in) :: vx_lo(2), vx_hi(2)
-    real(amrex_real), intent(in)  :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2))
+    real(amrex_real), intent(in) :: dx(2)
+    real(amrex_real), intent(in) :: lo_phys(2)
+    real(amrex_real), intent(in)  :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2))
     real(amrex_real), intent(out) :: vx(vx_lo(1):vx_hi(1),vx_lo(2):vx_hi(2))
 
     ! Local variables
     integer :: i,j
+    integer :: xind
+    real(amrex_real) :: xpos
     
     ! Assign x-component of the velocity
     do i = lo(1), hi(1)+1
-       do j = lo(2), hi(2) 
-          if (temp(i,j).ge.temp_melt) then
-             vx(i,j) = melt_vel(i,1)
+       do j = lo(2), hi(2)
+          
+          if (nint(idom(i,j)).gt.2) then
+
+             ! Interpolation similar to the one used to find the free
+             ! surface position in the heat transfer domain. See
+             ! subroutine get_surf_pos in the domain module
+             xpos = lo_phys(1) + (0.5+i-lo(1))*dx(1)  
+             xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1))
+             if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
+             if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
+             vx(i,j) = melt_vel(xind,1)
+
           else
              vx(i,j) = 0_amrex_real
           end if
+          
        end do   
     end do
 
@@ -781,7 +764,7 @@ contains
 
     use read_input_module, only : temp_fs
     use amr_data_module, only : phi_new, temp, idomain
-    use domain_module, only : get_idomain
+    use domain_module, only : get_idomain, revaluate_heat_domain
     use material_properties_module, only : get_temp
     
     ! Input and output variables
@@ -851,15 +834,15 @@ contains
     call revaluate_heat_domain(bx%lo, bx%hi, &
                                pidin, lbound(pidin), ubound(pidin), &
                                pidout, lbound(pidout), ubound(pidout), &
-                               pin, lbound(pin), ubound(pin))
+                               pin, lbound(pin), ubound(pin), &
+                               ptempin, lbound(ptempin), ubound(ptempin))
     
-    ! Get temperature corresponding to the enthalpy (after deformation)
+    ! Additional call to update the temperature without the ghost points
+    ! the temperature with ghost points is already updated in the
+    ! subroutine revaluate_heat_domain
     call get_temp(lbound(ptemp), ubound(ptemp), &
                   pin, lbound(pin), ubound(pin), &
                   ptemp, lbound(ptemp), ubound(ptemp), .true.)
-    call get_temp(lbound(ptempin), ubound(ptempin), &
-                  pin, lbound(pin), ubound(pin), &
-                  ptempin, lbound(ptempin), ubound(ptempin), .true.)
     
     ! Get alpha matrix for the linear solver (first term on left hand side)
     call get_alpha(bx%lo, bx%hi, &

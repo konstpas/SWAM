@@ -19,7 +19,8 @@ module domain_module
   public :: get_surf_pos
   public :: integrate_surf
   public :: reset_melt_pos
-
+  public :: revaluate_heat_domain
+  
 contains
   
   
@@ -101,42 +102,6 @@ contains
   ! -----------------------------------------------------------------     
   subroutine get_surf_pos(xlo, dx, lo, hi, surf_pos_heat_domain)
 
-    ! use amr_data_module, only : surf_ind, &
-    !                             surf_pos, &
-    !                             surf_xlo, &
-    !                             surf_dx
-    
-    ! ! Input and output variables
-    ! integer, intent(in) :: lo(2), hi(2) 
-    ! real(amrex_real), intent(in) :: xlo(2)
-    ! real(amrex_real), intent(in) :: dx(2)
-    ! real(amrex_real), intent(out) :: surf_pos_heat_domain(lo(1):hi(1))
-
-    ! ! Local variables
-    ! integer :: i
-    ! integer :: xind
-    ! real(amrex_real) :: xpos
-    ! real(amrex_real) :: x_alpha
-    
-    ! do  i = lo(1),hi(1)
-   
-    !    xpos = xlo(1) + (0.5 + i-lo(1))*dx(1) 
-       
-    !    ! In what follows -surf_dx(1)/2  and ceiling are used since
-    !    ! the surface is staggered 'backwards' on the faces with
-    !    ! respect to the xlo and xpos values which are defined on the
-    !    ! centers. 
-    !    xind = ceiling((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
-    !    x_alpha = mod(xpos - surf_dx(1)/2 - surf_xlo(1), surf_dx(1))
-       
-    !    if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
-    !    if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
-       
-    !    ! Interpolation
-    !    surf_pos_heat_domain(i) = surf_pos(xind) + &
-    !         x_alpha * (surf_pos(xind+1)-surf_pos(xind))
-       
-    ! end do
     
     use amr_data_module, only : surf_ind, &
                                 surf_pos, &
@@ -177,7 +142,7 @@ contains
     end do
     
   end subroutine get_surf_pos
- 
+
  
   ! -----------------------------------------------------------------
   ! Subroutine used to reset the position of the bottom of the melt
@@ -249,6 +214,61 @@ contains
     
   end subroutine get_melt_pos
 
+  
+  ! -----------------------------------------------------------------
+  ! Subroutine used to re-evaluate the heat equation domain
+  ! -----------------------------------------------------------------  
+  subroutine revaluate_heat_domain(lo, hi, &
+                                   idom_old, ido_lo, ido_hi, &
+                                   idom_new, idn_lo, idn_hi, &
+                                   u_in, u_lo, u_hi, &
+                                   temp, t_lo, t_hi)
+
+    use material_properties_module, only : temp_melt
+    
+    ! Input and output variables
+    integer, intent(in) :: lo(2), hi(2) ! bounds of current tile box
+    integer, intent(in) :: u_lo(2), u_hi(2) ! bounds of input enthalpy box 
+    integer, intent(in) :: ido_lo(2), ido_hi(2) ! bounds of the input idomain box
+    integer, intent(in) :: idn_lo(2), idn_hi(2) ! bounds of the output idomain box
+    integer, intent(in) :: t_lo(2), t_hi(2) ! bounds of the temperature box
+    real(amrex_real), intent(inout) :: u_in(u_lo(1):u_hi(1),u_lo(2):u_hi(2)) ! Input enthalpy 
+    real(amrex_real), intent(in) :: idom_old(ido_lo(1):ido_hi(1),ido_lo(2):ido_hi(2))
+    real(amrex_real), intent(inout) :: idom_new(idn_lo(1):idn_hi(1),idn_lo(2):idn_hi(2))
+    real(amrex_real), intent(inout) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2))
+    
+    !Local variables
+    integer :: i,j
+    
+    do i = lo(1)-1,hi(1)+1
+       do  j = lo(2)-1,hi(2)+1
+
+          ! Points added to the domain
+          if (nint(idom_old(i,j)).eq.0 .and. nint(idom_new(i,j)).ne.0) then
+             ! Enthalpy
+             u_in(i,j) = u_in(i,j-1)
+             ! Temperature
+             temp(i,j) = temp(i,j-1)
+             ! Ensure that idomain and temperature and consistent
+             if (temp(i,j).gt.temp_melt) then
+                idom_new(i,j) = 3
+             else if (temp(i,j).eq.temp_melt) then
+                idom_new(i,j) = 2
+             else
+                idom_new(i,j) = 1
+             end if
+          ! Points removed from the domain
+          else if (nint(idom_new(i,j)).eq.0) then
+             u_in(i,j) = 0.0_amrex_real
+             temp(i,j) = 0.0_amrex_real
+          end if
+          
+       end do
+    end do
+    
+  end subroutine revaluate_heat_domain
+  
+  
   ! -----------------------------------------------------------------
   ! Subroutine used to get the total volume of molten material
   ! -----------------------------------------------------------------
