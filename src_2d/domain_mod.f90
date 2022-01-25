@@ -30,8 +30,6 @@ contains
   ! -----------------------------------------------------------------
   subroutine get_idomain(xlo, dx, lo, hi, &
                          idom, id_lo, id_hi)
-
-    use material_properties_module, only : temp_melt    
     
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)
@@ -80,48 +78,11 @@ contains
   ! -----------------------------------------------------------------     
   subroutine get_surf_pos(xlo, dx, lo, hi, surf_pos_heat_domain)
 
-    ! use amr_data_module, only : surf_ind, &
-    !                             surf_pos, &
-    !                             surf_xlo, &
-    !                             surf_dx
-    
-    ! ! Input and output variables
-    ! integer, intent(in) :: lo(2), hi(2) 
-    ! real(amrex_real), intent(in) :: xlo(2)
-    ! real(amrex_real), intent(in) :: dx(2)
-    ! real(amrex_real), intent(out) :: surf_pos_heat_domain(lo(1):hi(1))
-
-    ! ! Local variables
-    ! integer :: i
-    ! integer :: xind
-    ! real(amrex_real) :: xpos
-    ! real(amrex_real) :: x_alpha
-    
-    ! do  i = lo(1),hi(1)
-   
-    !    xpos = xlo(1) + (0.5 + i-lo(1))*dx(1) 
-       
-    !    ! In what follows -surf_dx(1)/2  and ceiling are used since
-    !    ! the surface is staggered 'backwards' on the faces with
-    !    ! respect to the xlo and xpos values which are defined on the
-    !    ! centers. 
-    !    xind = ceiling((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
-    !    x_alpha = mod(xpos - surf_dx(1)/2 - surf_xlo(1), surf_dx(1))
-       
-    !    if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
-    !    if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
-       
-    !    ! Interpolation
-    !    surf_pos_heat_domain(i) = surf_pos(xind) + &
-    !         x_alpha * (surf_pos(xind+1)-surf_pos(xind))
-       
-    ! end do
-    
     use amr_data_module, only : surf_ind, &
                                 surf_pos, &
                                 surf_xlo, &
-                                surf_dx  
-
+                                surf_dx
+    
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) 
     real(amrex_real), intent(in) :: xlo(2)
@@ -132,26 +93,25 @@ contains
     integer :: i
     integer :: xind
     real(amrex_real) :: xpos
+    real(amrex_real) :: x_alpha
     
     do  i = lo(1),hi(1)
    
-       ! In what follows -surf_dx(1)/2 is used since
+       xpos = xlo(1) + (0.5 + i-lo(1))*dx(1) 
+       
+       ! In what follows -surf_dx(1)/2  and ceiling are used since
        ! the surface is staggered 'backwards' on the faces with
        ! respect to the xlo and xpos values which are defined on the
        ! centers. 
-
-       xpos = xlo(1) + (0.5+i-lo(1))*dx(1)  
-
-       ! The nearest integer is taken to round of numerical
-       ! errors since we know that dx(1) is n*surf_dx(1) where
-       ! n is an integer which depends on the current level and
-       ! the refinment ratio between levels.
-       xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1))
-
+       xind = ceiling((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
+       x_alpha = mod(xpos - surf_dx(1)/2 - surf_xlo(1), surf_dx(1))
+       
        if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
        if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
-      
-       surf_pos_heat_domain(i) = surf_pos(xind)
+       
+       ! Interpolation
+       surf_pos_heat_domain(i) = surf_pos(xind) + &
+            x_alpha * (surf_pos(xind+1)-surf_pos(xind))
        
     end do
     
@@ -248,20 +208,16 @@ contains
   subroutine revaluate_heat_domain(lo, hi, &
                                    idom_old, ido_lo, ido_hi, &
                                    idom_new, idn_lo, idn_hi, &
-                                   u_in, u_lo, u_hi, &
-                                   temp, t_lo, t_hi)
-
+                                   u_in, u_lo, u_hi)
 
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) ! bounds of current tile box
     integer, intent(in) :: u_lo(2), u_hi(2) ! bounds of input enthalpy box 
     integer, intent(in) :: ido_lo(2), ido_hi(2) ! bounds of the input idomain box
     integer, intent(in) :: idn_lo(2), idn_hi(2) ! bounds of the output idomain box
-    integer, intent(in) :: t_lo(2), t_hi(2) ! bounds of the temperature box
     real(amrex_real), intent(inout) :: u_in(u_lo(1):u_hi(1),u_lo(2):u_hi(2)) ! Input enthalpy 
     real(amrex_real), intent(in) :: idom_old(ido_lo(1):ido_hi(1),ido_lo(2):ido_hi(2))
     real(amrex_real), intent(in) :: idom_new(idn_lo(1):idn_hi(1),idn_lo(2):idn_hi(2))
-    real(amrex_real), intent(inout) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2))
     
     !Local variables
     integer :: i,j
@@ -272,16 +228,14 @@ contains
           ! Points added to the domain
           if (nint(idom_old(i,j)).eq.0 .and. nint(idom_new(i,j)).ne.0) then
              u_in(i,j) = u_in(i,j-1)
-             temp(i,j) = temp(i,j-1)
           ! Points removed from the domain
           else if (nint(idom_new(i,j)).eq.0) then
              u_in(i,j) = 0.0_amrex_real
-             temp(i,j) = 0.0_amrex_real
           end if
           
        end do
     end do
-    
+
   end subroutine revaluate_heat_domain
   
   ! -----------------------------------------------------------------

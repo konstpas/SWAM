@@ -177,12 +177,6 @@ contains
     pfx => flux(1)%dataptr()
     pfy => flux(2)%dataptr()
     
-    
-    ! Get temperature corresponding to the enthalpy (with ghost points)
-    call get_temp(lbound(ptempin), ubound(ptempin), &
-         pin, lbound(pin), ubound(pin), &
-         ptempin, lbound(ptempin), ubound(ptempin),.true.)
-    
     ! Get configuration of the system after the deformation
     call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
                      bx%lo, bx%hi, &
@@ -192,8 +186,12 @@ contains
     call revaluate_heat_domain(bx%lo, bx%hi, &
                                pidin, lbound(pidin), ubound(pidin), &
                                pidout, lbound(pidout), ubound(pidout), &
-                               pin, lbound(pin), ubound(pin), &
-                               ptempin, lbound(ptempin), ubound(ptempin))
+                               pin, lbound(pin), ubound(pin))
+
+    ! Get temperature corresponding to the enthalpy after the deformation
+    call get_temp(lbound(ptempin), ubound(ptempin), &
+                  pin, lbound(pin), ubound(pin), &
+                  ptempin, lbound(ptempin), ubound(ptempin),.true.)
     
     
     ! Increment enthalpy at given box depending on the condition of the free surface
@@ -435,7 +433,7 @@ contains
                               temp, t_lo, t_hi, &
                               idom, id_lo, id_hi)
   				
-    use material_properties_module, only: get_conductivity
+    use material_properties_module, only: get_conductivity, temp_melt
 
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)  
@@ -474,7 +472,7 @@ contains
           else
              
              ! Advective component
-             if (nint(idom(i-1,j)).ge.2 .and. nint(idom(i,j)).ge.2) then
+             if (temp(i-1,j).gt.temp_melt .and. temp(i,j).gt.temp_melt) then
                 
                 if (vx(i,j) > 0_amrex_real) then 
                    flxx(i,j)  = u_old(i-1,j)*vx(i,j)
@@ -599,7 +597,7 @@ contains
     ! Assign x-component of the velocity
     do i = lo(1), hi(1)+1
        do j = lo(2), hi(2) 
-          if (temp(i,j).ge.temp_melt) then
+          if (temp(i,j).gt.temp_melt) then
              vx(i,j) = melt_vel(i,1)
           else
              vx(i,j) = 0_amrex_real
@@ -799,11 +797,6 @@ contains
     pfx => flux(1)%dataptr()
     pfy => flux(2)%dataptr()
     
-    ! Get temperature corresponding to the enthalpy (with ghost points)
-    call get_temp(lbound(ptempin), ubound(ptempin), &
-                  pin, lbound(pin), ubound(pin), &
-                  ptempin, lbound(ptempin), ubound(ptempin), .true.)
-    
     ! Get configuration of the system after the deformation
     call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
                      bx%lo, bx%hi, &
@@ -813,8 +806,7 @@ contains
     call revaluate_heat_domain(bx%lo, bx%hi, &
                                pidin, lbound(pidin), ubound(pidin), &
                                pidout, lbound(pidout), ubound(pidout), &
-                               pin, lbound(pin), ubound(pin), &
-                               ptempin, lbound(ptempin), ubound(ptempin))
+                               pin, lbound(pin), ubound(pin))
     
     ! Get temperature corresponding to the enthalpy (after deformation)
     call get_temp(lbound(ptemp), ubound(ptemp), &
