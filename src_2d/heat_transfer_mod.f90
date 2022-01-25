@@ -126,7 +126,7 @@ contains
 
     use amr_data_module, only : phi_new, temp, idomain
     use read_input_module, only : do_reflux, temp_fs
-    use domain_module, only : get_idomain, get_melt_pos, revaluate_heat_domain
+    use domain_module, only : get_idomain, get_melt_pos
     use material_properties_module, only : get_temp
     
     ! Input and output variables
@@ -177,21 +177,23 @@ contains
     pfx => flux(1)%dataptr()
     pfy => flux(2)%dataptr()
     
+    
+    ! Get temperature corresponding to the enthalpy (with ghost points)
+    call get_temp(lbound(ptempin), ubound(ptempin), &
+         pin, lbound(pin), ubound(pin), &
+         ptempin, lbound(ptempin), ubound(ptempin),.true.)
+    
     ! Get configuration of the system after the deformation
     call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
                      bx%lo, bx%hi, &
-                     pidout, lbound(pidout), ubound(pidout))
+                     pidout, lbound(pidout), ubound(pidout), &
+                     ptempin, lbound(ptempin), ubound(ptempin))
     
     ! Re-evaluate heat transfer domain after the deformation
     call revaluate_heat_domain(bx%lo, bx%hi, &
                                pidin, lbound(pidin), ubound(pidin), &
                                pidout, lbound(pidout), ubound(pidout), &
                                pin, lbound(pin), ubound(pin))
-
-    ! Get temperature corresponding to the enthalpy after the deformation
-    call get_temp(lbound(ptempin), ubound(ptempin), &
-                  pin, lbound(pin), ubound(pin), &
-                  ptempin, lbound(ptempin), ubound(ptempin),.true.)
     
     
     ! Increment enthalpy at given box depending on the condition of the free surface
@@ -239,7 +241,6 @@ contains
     if (lev.eq.amrex_max_level) then
        call get_melt_pos(bx%lo, bx%hi, &
                          pidout, lbound(pidout), ubound(pidout), &
-                         ptemp, lbound(ptemp), ubound(ptemp), &
                          geom)
     end if
     
@@ -421,6 +422,44 @@ contains
     end do
     
   end subroutine get_enthalpy_explicit_fixT
+
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to re-evaluate the heat equation domain
+  ! -----------------------------------------------------------------  
+  subroutine revaluate_heat_domain(lo, hi, &
+                                   idom_old, ido_lo, ido_hi, &
+                                   idom_new, idn_lo, idn_hi, &
+                                   u_in, u_lo, u_hi)
+
+
+    ! Input and output variables
+    integer, intent(in) :: lo(2), hi(2) ! bounds of current tile box
+    integer, intent(in) :: u_lo(2), u_hi(2) ! bounds of input enthalpy box 
+    integer, intent(in) :: ido_lo(2), ido_hi(2) ! bounds of the input idomain box
+    integer, intent(in) :: idn_lo(2), idn_hi(2) ! bounds of the output idomain box
+    real(amrex_real), intent(inout) :: u_in(u_lo(1):u_hi(1),u_lo(2):u_hi(2)) ! Input enthalpy 
+    real(amrex_real), intent(in) :: idom_old(ido_lo(1):ido_hi(1),ido_lo(2):ido_hi(2))
+    real(amrex_real), intent(in) :: idom_new(idn_lo(1):idn_hi(1),idn_lo(2):idn_hi(2))
+    
+    !Local variables
+    integer :: i,j
+    
+    do i = lo(1)-1,hi(1)+1
+       do  j = lo(2)-1,hi(2)+1
+
+          ! Points added to the domain
+          if (nint(idom_old(i,j)).eq.0 .and. nint(idom_new(i,j)).ne.0) then
+             u_in(i,j) = u_in(i,j-1)
+          ! Points removed from the domain
+          else if (nint(idom_new(i,j)).eq.0) then
+             u_in(i,j) = 0_amrex_real
+          end if
+          
+       end do
+    end do
+    
+  end subroutine revaluate_heat_domain
   
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the enthalpy fluxes on the edges of
@@ -433,7 +472,7 @@ contains
                               temp, t_lo, t_hi, &
                               idom, id_lo, id_hi)
   				
-    use material_properties_module, only: get_conductivity, temp_melt
+    use material_properties_module, only: get_conductivity
 
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)  
@@ -472,7 +511,7 @@ contains
           else
              
              ! Advective component
-             if (temp(i-1,j).gt.temp_melt .and. temp(i,j).gt.temp_melt) then
+             if (nint(idom(i-1,j)).ge.2 .and. nint(idom(i,j)).ge.2) then
                 
                 if (vx(i,j) > 0_amrex_real) then 
                    flxx(i,j)  = u_old(i-1,j)*vx(i,j)
@@ -597,7 +636,7 @@ contains
     ! Assign x-component of the velocity
     do i = lo(1), hi(1)+1
        do j = lo(2), hi(2) 
-          if (temp(i,j).gt.temp_melt) then
+          if (temp(i,j).ge.temp_melt) then
              vx(i,j) = melt_vel(i,1)
           else
              vx(i,j) = 0_amrex_real
@@ -742,7 +781,7 @@ contains
 
     use read_input_module, only : temp_fs
     use amr_data_module, only : phi_new, temp, idomain
-    use domain_module, only : get_idomain, revaluate_heat_domain
+    use domain_module, only : get_idomain
     use material_properties_module, only : get_temp
     
     ! Input and output variables
@@ -797,10 +836,16 @@ contains
     pfx => flux(1)%dataptr()
     pfy => flux(2)%dataptr()
     
+    ! Get temperature corresponding to the enthalpy (with ghost points)
+    call get_temp(lbound(ptempin), ubound(ptempin), &
+                  pin, lbound(pin), ubound(pin), &
+                  ptempin, lbound(ptempin), ubound(ptempin), .true.)
+    
     ! Get configuration of the system after the deformation
     call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
                      bx%lo, bx%hi, &
-                     pidout, lbound(pidout), ubound(pidout))
+                     pidout, lbound(pidout), ubound(pidout), &
+                     ptempin, lbound(ptempin), ubound(ptempin))
     
     ! Re-evaluate heat transfer domain after the deformation
     call revaluate_heat_domain(bx%lo, bx%hi, &
@@ -911,13 +956,13 @@ contains
     ! Update the idomain
     call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
                      bx%lo, bx%hi, &
-                     pid, lbound(pid), ubound(pid))
+                     pid, lbound(pid), ubound(pid), &
+                     ptempin, lbound(ptempin), ubound(ptempin))
 
     ! Update melt position
     if (lev.eq.amrex_max_level) then
        call get_melt_pos(bx%lo, bx%hi, &
                          pid, lbound(pid), ubound(pid), &
-                         ptempin, lbound(ptempin), ubound(ptempin), &
                          geom)
     end if
 
