@@ -126,7 +126,7 @@ contains
 
     use amr_data_module, only : phi_new, temp, idomain
     use read_input_module, only : do_reflux, temp_fs
-    use domain_module, only : get_idomain, get_melt_pos
+    use domain_module, only : get_idomain, get_melt_pos, revaluate_heat_domain
     use material_properties_module, only : get_temp
     
     ! Input and output variables
@@ -186,14 +186,14 @@ contains
     ! Get configuration of the system after the deformation
     call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
                      bx%lo, bx%hi, &
-                     pidout, lbound(pidout), ubound(pidout), &
-                     ptempin, lbound(ptempin), ubound(ptempin))
+                     pidout, lbound(pidout), ubound(pidout))
     
     ! Re-evaluate heat transfer domain after the deformation
     call revaluate_heat_domain(bx%lo, bx%hi, &
                                pidin, lbound(pidin), ubound(pidin), &
                                pidout, lbound(pidout), ubound(pidout), &
-                               pin, lbound(pin), ubound(pin))
+                               pin, lbound(pin), ubound(pin), &
+                               ptempin, lbound(ptempin), ubound(ptempin))
     
     
     ! Increment enthalpy at given box depending on the condition of the free surface
@@ -241,6 +241,7 @@ contains
     if (lev.eq.amrex_max_level) then
        call get_melt_pos(bx%lo, bx%hi, &
                          pidout, lbound(pidout), ubound(pidout), &
+                         ptemp, lbound(ptemp), ubound(ptemp), &
                          geom)
     end if
     
@@ -422,44 +423,6 @@ contains
     end do
     
   end subroutine get_enthalpy_explicit_fixT
-
-
-  ! -----------------------------------------------------------------
-  ! Subroutine used to re-evaluate the heat equation domain
-  ! -----------------------------------------------------------------  
-  subroutine revaluate_heat_domain(lo, hi, &
-                                   idom_old, ido_lo, ido_hi, &
-                                   idom_new, idn_lo, idn_hi, &
-                                   u_in, u_lo, u_hi)
-
-
-    ! Input and output variables
-    integer, intent(in) :: lo(2), hi(2) ! bounds of current tile box
-    integer, intent(in) :: u_lo(2), u_hi(2) ! bounds of input enthalpy box 
-    integer, intent(in) :: ido_lo(2), ido_hi(2) ! bounds of the input idomain box
-    integer, intent(in) :: idn_lo(2), idn_hi(2) ! bounds of the output idomain box
-    real(amrex_real), intent(inout) :: u_in(u_lo(1):u_hi(1),u_lo(2):u_hi(2)) ! Input enthalpy 
-    real(amrex_real), intent(in) :: idom_old(ido_lo(1):ido_hi(1),ido_lo(2):ido_hi(2))
-    real(amrex_real), intent(in) :: idom_new(idn_lo(1):idn_hi(1),idn_lo(2):idn_hi(2))
-    
-    !Local variables
-    integer :: i,j
-    
-    do i = lo(1)-1,hi(1)+1
-       do  j = lo(2)-1,hi(2)+1
-
-          ! Points added to the domain
-          if (nint(idom_old(i,j)).eq.0 .and. nint(idom_new(i,j)).ne.0) then
-             u_in(i,j) = u_in(i,j-1)
-          ! Points removed from the domain
-          else if (nint(idom_new(i,j)).eq.0) then
-             u_in(i,j) = 0_amrex_real
-          end if
-          
-       end do
-    end do
-    
-  end subroutine revaluate_heat_domain
   
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the enthalpy fluxes on the edges of
@@ -781,7 +744,7 @@ contains
 
     use read_input_module, only : temp_fs
     use amr_data_module, only : phi_new, temp, idomain
-    use domain_module, only : get_idomain
+    use domain_module, only : get_idomain, revaluate_heat_domain
     use material_properties_module, only : get_temp
     
     ! Input and output variables
@@ -844,14 +807,14 @@ contains
     ! Get configuration of the system after the deformation
     call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
                      bx%lo, bx%hi, &
-                     pidout, lbound(pidout), ubound(pidout), &
-                     ptempin, lbound(ptempin), ubound(ptempin))
+                     pidout, lbound(pidout), ubound(pidout))
     
     ! Re-evaluate heat transfer domain after the deformation
     call revaluate_heat_domain(bx%lo, bx%hi, &
                                pidin, lbound(pidin), ubound(pidin), &
                                pidout, lbound(pidout), ubound(pidout), &
-                               pin, lbound(pin), ubound(pin))
+                               pin, lbound(pin), ubound(pin), &
+                               ptempin, lbound(ptempin), ubound(ptempin))
     
     ! Get temperature corresponding to the enthalpy (after deformation)
     call get_temp(lbound(ptemp), ubound(ptemp), &
@@ -956,13 +919,13 @@ contains
     ! Update the idomain
     call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
                      bx%lo, bx%hi, &
-                     pid, lbound(pid), ubound(pid), &
-                     ptempin, lbound(ptempin), ubound(ptempin))
+                     pid, lbound(pid), ubound(pid))
 
     ! Update melt position
     if (lev.eq.amrex_max_level) then
        call get_melt_pos(bx%lo, bx%hi, &
                          pid, lbound(pid), ubound(pid), &
+                         ptempin, lbound(ptempin), ubound(ptempin), &
                          geom)
     end if
 
