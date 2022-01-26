@@ -229,9 +229,9 @@ module shallow_water_module
      do  i = surf_ind(1,1),surf_ind(1,2)
         do k = surf_ind(2,1),surf_ind(2,2)
            surf_pos(i,k) = surf_pos(i,k) & 
-                - dt/surf_dx(1) * (height_flux(i+1,k  ,1) - height_flux(i,k,1)) &
-                - dt/surf_dx(2) * (height_flux(i  ,k+1,2) - height_flux(i,k,2)) &
-                - dt*surf_evap_flux(i,k)
+                           - dt/surf_dx(1) * (height_flux(i+1,k,1) - height_flux(i,k,1)) &
+                           - dt/surf_dx(2) * (height_flux(i,k+1,2) - height_flux(i,k,2)) &
+                           - dt*surf_evap_flux(i,k)
         end do
      end do
      

@@ -124,6 +124,7 @@ contains
                   write(*,*) xpos, ypos, zpos
                   write(*,*) 'Where the surface temperature is '
                   write(*,*) temp(i,j,k)
+                  STOP
                end if
                 
              end if

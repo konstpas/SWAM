@@ -205,8 +205,11 @@ contains
             it(2) = j
             grid_pos = geom%get_physical_location(it)
             melt_top(i) = grid_pos(2)
-          !   if (nint(idom(i,j)).ne.0 .and. check_warning) write(*,*) &
-          !    'WARNING: Melt top not at free surface. Results from the shallow water solver should not be trusted.'
+            ! if (nint(idom(i,j)).ne.0 .and. check_warning) then
+            !    print *, 'WARNING: Melt top not at free surface. Results from the shallow water solver should not be trusted.'
+            !    check_warning = .false.
+            ! end if
+            
           end if
 
        end do   
