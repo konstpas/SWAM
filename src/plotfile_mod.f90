@@ -15,7 +15,9 @@ module plotfile_module
                               melt_top, &
                               surf_ind, &
                               surf_dx, &
-                              stepno
+                              stepno, &
+                              melt_vel, &
+                              qnew
   
   use read_input_module, only : plot_file
   
@@ -48,7 +50,7 @@ contains
     integer :: nlevs
     character(len=127) :: name
     character(len=16)  :: current_step
-    character(len=15)  :: dashfmt
+    character(len=16)  :: dashfmt
     real(amrex_real) :: xpos, zpos
     type(amrex_string) :: varname(1)
     
@@ -105,6 +107,25 @@ contains
            xpos = (i+0.5)*surf_dx(1)
            zpos = (k+0.5)*surf_dx(2)
            write(2, dashfmt) xpos, zpos, surf_pos(i,k), melt_pos(i,k), melt_top(i,k), surf_temperature(i,k)
+        end do
+    end do
+    close(2)
+
+    ! Output shallow water variables
+    name = "sw_" //trim(current_step)//".dat"
+    open(2, file = name, status = 'unknown', action = "write")
+    write(2, *) 'x-coordinate  z-coordinate   Free Surface     Melt Bottom     Melt top     '&
+                'Melt vx     Melt vz     qnew1     qnew2     qnew3'
+    dashfmt = '(11(es13.6, 4x))'
+    do i=surf_ind(1,1), surf_ind(1,2)
+        do k=surf_ind(2,1), surf_ind(2,2)
+           ! i starts from 0 so to output the x-coord at the center of the cell add 0.5
+           ! the same applies for k and the z-coord
+           xpos = (i+0.5)*surf_dx(1)
+           zpos = (k+0.5)*surf_dx(2)
+           write(2, dashfmt) xpos, zpos, surf_pos(i,k), melt_pos(i,k), melt_top(i,k), &
+                             melt_vel(i,k,1) ,melt_vel(i,k,2), qnew(1,i,k), qnew(2,i,k), &
+                             qnew(3,i,k), surf_temperature(i,k)
         end do
     end do
     close(2)

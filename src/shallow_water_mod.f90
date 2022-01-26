@@ -259,7 +259,7 @@ module shallow_water_module
                                    sw_gravity, &
                                    sw_drytol, &
                                    sw_jxb
-     
+
      ! Input and output variables
      real(amrex_real), intent(in) :: dt
      
@@ -283,20 +283,20 @@ module shallow_water_module
      
      ! Bathymetry
      aux(surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2)) = melt_pos
-     
+         
      ! Fill qnew with results from heat solver
      do j = surf_ind(2,1),surf_ind(2,2)
         do i = surf_ind(1,1),surf_ind(1,2)
-           if (qnew(1,i,j).gt.sw_drytol) then
-              qnew(2,i,j) = qnew(2,i,j)/qnew(1,i,j)*(surf_pos(i,j) - melt_pos(i,j))
-              qnew(3,i,j) = qnew(3,i,j)/qnew(1,i,j)*(surf_pos(i,j) - melt_pos(i,j))
-           else
-              qnew(2,i,j) = 0.0_amrex_real
-              qnew(3,i,j) = 0.0_amrex_real
-           end if
-           qnew(1,i,j) = surf_pos(i,j) - melt_pos(i,j)
-        end do
-     end do
+          qnew(1,i,j) = surf_pos(i,j) - melt_pos(i,j) 
+          if (qnew(1,i,j).gt.sw_drytol) then
+             qnew(2,i,j) = melt_vel(i,j,1)*qnew(1,i,j)
+             qnew(3,i,j) = melt_vel(i,j,2)*qnew(1,i,j)
+          else
+             qnew(2,i,j) = 0.0_amrex_real
+             qnew(3,i,j) = 0.0_amrex_real
+          end if
+       end do
+    end do
      
      ! Apply boundary conditions 
      ! solid wall (assumes 2'nd component is velocity or momentum in x): left
@@ -453,7 +453,7 @@ module shallow_water_module
            
            
            if ( (q1d(1,i-1) .lt. sw_drytol) .and. (q1d(1,i) .lt. sw_drytol) ) goto 30
-           
+
            hL = q1d(1,i-1)
            hR = q1d(1,i)
            huL = q1d(2,i-1)
@@ -880,32 +880,20 @@ module shallow_water_module
        end do
     end do
 
-    ! Update melt velocity along x (defined on the cell faces)
+    ! Update melt velocity along x
     do j=surf_ind(2,1),surf_ind(2,2)
-       do i=surf_ind(1,1)-1,surf_ind(1,2)+1
-          if (qnew(1,i,j).gt.sw_drytol .and. qnew(1,i-1,j).gt.sw_drytol) then
-             melt_vel(i,j,1) = 0.5*(qnew(2,i,j)/qnew(1,i,j) + qnew(2,i-1,j)/qnew(1,i-1,j))
-          else if (qnew(1,i,j).gt.sw_drytol .and. qnew(1,i-1,j).le.sw_drytol) then
-             melt_vel(i,j,1) = 0.5*qnew(2,i,j)/qnew(1,i,j)
-          else if (qnew(1,i,j).le.sw_drytol .and. qnew(1,i-1,j).gt.sw_drytol) then
-             melt_vel(i,j,1) = 0.5*qnew(2,i-1,j)/qnew(1,i-1,j)
-          else
-             melt_vel(i,j,1) = 0.0_amrex_real
+       do i=surf_ind(1,1),surf_ind(1,2)+1
+          if (qnew(1,i,j).gt.sw_drytol) then
+             melt_vel(i,j,1) = qnew(2,i,j)/qnew(1,i,j)
           end if
        end do
     end do
 
-    ! Update melt velocity along z (defined on the cell faces)
-    do j=surf_ind(2,1)-1,surf_ind(2,2)+1
+    ! Update melt velocity along z
+    do j=surf_ind(2,1),surf_ind(2,2)+1
        do i=surf_ind(1,1),surf_ind(1,2)
-          if (qnew(1,i,j).gt.sw_drytol .and. qnew(1,i,j-1).gt.sw_drytol) then
-             melt_vel(i,j,2) = 0.5*(qnew(3,i,j)/qnew(1,i,j) + qnew(3,i,j-1)/qnew(1,i,j-1))
-          else if (qnew(1,i,j).gt.sw_drytol .and. qnew(1,i,j-1).lt.sw_drytol) then
-             melt_vel(i,j,2) = 0.5*qnew(3,i,j)/qnew(1,i,j)
-          else if (qnew(1,i,j).lt.sw_drytol .and. qnew(1,i,j-1).gt.sw_drytol) then
-             melt_vel(i,j,2) = 0.5*qnew(3,i,j-1)/qnew(1,i,j-1)
-          else
-             melt_vel(i,j,2) = 0.0_amrex_real
+          if (qnew(1,i,j).gt.sw_drytol) then
+             melt_vel(i,j,2) = qnew(3,i,j)/qnew(1,i,j)
           end if
        end do
     end do
