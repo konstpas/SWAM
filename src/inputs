@@ -41,9 +41,9 @@ heat.heat_solver = explicit
 # SHALLOW WATER SOLVER
 sw.solve = 1                               # Flag to control if the melt motion is on (1 = on, 0 = off)
 sw.solve_momentum = 1 			   # Flag to control if the momentum equation in the SW equations is solved (1 = on, 0 = off)
-sw.geoclaw_drytol = 1e-6    		   # Minimum melt layer thickness for the geoclaw-based solver.
 sw.geoclaw_iter = 1000			   # Maximum number of iterations for the geoclaw-based solver
 sw.geoclaw_gravity = 1.0		   # Gravity acceleration constant for the geoclaw-based solver
+sw.drytol = 1e-6    		   	   # Minimum melt-layer thickness (melt-layers thinner than drytol are assumed to have 0 velocity)
 sw.jxb = 8e6 0.0  			   # jxb force (x,z)
 
 # MATERIAL

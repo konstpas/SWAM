@@ -214,7 +214,7 @@ contains
     call pp%query("solve_momentum", solve_sw_momentum)
     call pp%query("geoclaw_iter", sw_iter)
     call pp%query("geoclaw_gravity", sw_gravity)
-    call pp%query("geoclaw_drytol", sw_drytol)
+    call pp%query("drytol", sw_drytol)
     call pp%getarr("jxb", sw_jxb)
     call amrex_parmparse_destroy(pp)
     

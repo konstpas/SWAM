@@ -56,13 +56,51 @@ contains
 
     ! Advance shallow water equations in time
     if (solve_sw_momentum) then
-       STOP "Solver for the shallow water momentum equations is not implemented in the 2D version of the code"
+       call advance_SW_explicit(dt(amrex_max_level))
     else
        call advance_SW_fixed_velocity(dt(amrex_max_level))
     end if
     
   end subroutine advance_SW
   
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to advance the shallow water equations in time
+  ! without solving the momentum equation
+  ! -----------------------------------------------------------------
+  subroutine advance_SW_fixed_velocity(dt)
+
+    use amr_data_module, only : melt_vel
+    use read_input_module, only : fixed_melt_velocity
+    
+    ! Input and output variables
+    real(amrex_real), intent(in) :: dt
+
+    ! Advance the column height equation
+    call advance_SW_explicit_height(dt)
+
+    ! Momentum continuity equation (not solved for now, only prescribed) 
+    melt_vel = fixed_melt_velocity
+
+  end subroutine advance_SW_fixed_velocity
+
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to advance the shallow water equations in time
+  ! with the explicit solver
+  ! -----------------------------------------------------------------
+  subroutine advance_SW_explicit(dt)
+    
+    ! Input and output variables
+    real(amrex_real), intent(in) :: dt
+
+    ! Advance the column height equation
+    call advance_SW_explicit_height(dt)
+
+    ! Advance the momentum equation 
+    call advance_SW_explicit_momentum(dt)
+
+  end subroutine advance_SW_explicit
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the temperature dependent terms
@@ -137,13 +175,13 @@ contains
     evap_flux = pv*sqrt(m_A/(2*pi*kb*Ts))/rho_m
     
   end subroutine get_evaporation_flux
-
-
+  
+  
   ! -----------------------------------------------------------------
-  ! Subroutine used to advance the shallow water equations in time
-  ! without solving the momentum equation
+  ! Subroutine used to advance the shallow water equation for the
+  ! column height with an explicit upwind scheme
   ! -----------------------------------------------------------------
-  subroutine advance_SW_fixed_velocity(dt)
+  subroutine advance_SW_explicit_height(dt)
     
     use amr_data_module, only : surf_ind, &
                                 surf_dx, &
@@ -152,7 +190,6 @@ contains
                                 melt_pos, &
                                 melt_vel
     
-    use read_input_module, only : fixed_melt_velocity
     
     ! Input and output variables
     real(amrex_real), intent(in) :: dt
@@ -161,48 +198,141 @@ contains
     integer :: i
     real(amrex_real) :: melt_height(surf_ind(1,1):surf_ind(1,2))
     real(amrex_real) :: height_flux(surf_ind(1,1):surf_ind(1,2)+1,1)
-    
-    ! Momentum continuity equation (not solved for now, only prescribed) 
-    melt_vel = fixed_melt_velocity
-
-
-    ! Mass (column height) continuity equation 
+   
+    ! Initialize the height fluxes
     height_flux = 0. 
     
-    ! Find 'height flux' 
-    melt_height = surf_pos-melt_pos 
+    ! Compute old column height (input from heat solver)
+    melt_height = surf_pos - melt_pos 
     
-    
-    ! X flux 
+    ! Height fluxes along the x direction
     do  i = surf_ind(1,1),surf_ind(1,2)+1
-       
-       if (i.eq.surf_ind(1,1)) then ! low boundary             
-          if (melt_vel(i,1) > 0_amrex_real) then 
+
+       ! Boundary condition (low boundary)
+       if (i.eq.surf_ind(1,1)) then
+          
+          if (melt_vel(i,1).gt.0.0_amrex_real) then 
              height_flux(i,1) = 0 !no influx
           else 
              height_flux(i,1) = melt_height(i)*melt_vel(i,1)
           end if
-       elseif (i.eq.surf_ind(1,2)+1) then ! high boundary 
-          if (melt_vel(i,1) > 0_amrex_real) then 
+          
+       ! Boundary condition (high boundary)   
+       elseif (i.eq.surf_ind(1,2)+1) then
+          
+          if (melt_vel(i,1).gt.0.0_amrex_real) then 
              height_flux(i,1) = melt_height(i-1)*melt_vel(i,1)
           else 
              height_flux(i,1) = 0 !no influx
           end if
+          
+       ! Points inside the domain   
        else
-          if (melt_vel(i,1) > 0_amrex_real) then 
+          
+          if (melt_vel(i,1).gt.0.0_amrex_real) then 
              height_flux(i,1) = melt_height(i-1)*melt_vel(i,1)
           else 
              height_flux(i,1) = melt_height(i)*melt_vel(i,1)
           end if
+          
        end if
     end do
 
+    ! Update the column height equation
     do  i = surf_ind(1,1),surf_ind(1,2)
+       
        surf_pos(i) = surf_pos(i) & 
                      - dt/surf_dx(1) * (height_flux(i+1,1) - height_flux(i,1)) &
                      - dt*surf_evap_flux(i)
+       
     end do
     
-  end subroutine advance_SW_fixed_velocity
+  end subroutine advance_SW_explicit_height
+
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to advance the shallow water equation for the
+  ! momentum with an explicit scheme
+  ! -----------------------------------------------------------------
+  subroutine advance_SW_explicit_momentum(dt)
+    
+    use amr_data_module, only : surf_ind, &
+                                surf_dx, &
+                                surf_pos, &
+                                surf_temperature, &
+                                melt_pos, &
+                                melt_vel
+    
+    use read_input_module, only : sw_jxb, sw_drytol
+
+    use material_properties_module, only : get_mass_density, &
+                                           get_viscosity
+    
+    ! Input and output variables
+    real(amrex_real), intent(in) :: dt
+    
+    ! Local variables
+    integer :: i
+    real(amrex_real) :: melt_height(surf_ind(1,1):surf_ind(1,2))
+    real(amrex_real) :: adv_term(surf_ind(1,1):surf_ind(1,2))
+    real(amrex_real) :: src_term(surf_ind(1,1):surf_ind(1,2))
+    real(amrex_real) :: abs_vel
+    real(amrex_real) :: hh
+    real(amrex_real) :: visc
+    real(amrex_real) :: rho
+    
+    ! Initialize advective and source terms
+    adv_term = 0.0_amrex_real
+    src_term = 0.0_amrex_real
+    
+    ! Compute column height (defined on staggered grid)
+    melt_height = surf_pos - melt_pos 
+
+    ! Advective term
+    do i = surf_ind(1,1)+1,surf_ind(1,2)
+
+       abs_vel = abs(melt_vel(i,1))
+       adv_term(i) = (melt_vel(i,1) + abs_vel)/2.0_amrex_real * &
+                     (melt_vel(i,1) - melt_vel(i-1,1))/surf_dx(1) + &
+                     (melt_vel(i,1) - abs_vel)/2.0_amrex_real * &
+                     (melt_vel(i+1,1) - melt_vel(i,1))/surf_dx(1)
+       
+    end do
+
+    ! Source term
+    do i = surf_ind(1,1)+1,surf_ind(1,2)
+
+       ! Melt thickness
+       hh = (melt_height(i) + melt_height(i-1))/2.0_amrex_real
+
+       ! Compute source terms only for grid points with a finite melt thickness
+       if (hh.gt.sw_drytol) then
+
+          ! Material properties
+          call get_viscosity(surf_temperature(i),visc)
+          call get_mass_density(surf_temperature(i),rho)
+          
+          ! Update source term
+          src_term(i) = sw_jxb & ! Lorentz force
+                        - 3.0_amrex_real*visc*melt_vel(i,1)/(hh**2) ! Friction
+          
+          ! Fix dimensionality
+          src_term(i) = src_term(i)/rho
+
+       end if
+       
+    end do
+
+    ! Update momentum equation
+    do  i = surf_ind(1,1)+1,surf_ind(1,2)
+       melt_vel(i,1) = melt_vel(i,1) + dt * (src_term(i) - adv_term(i))
+    end do
+
+    ! Apply boundary conditions
+    melt_vel(surf_ind(1,1),1) = melt_vel(surf_ind(1,1)+1,1)
+    melt_vel(surf_ind(1,2)+1,1) = melt_vel(surf_ind(1,2),1)
+
+  end subroutine advance_SW_explicit_momentum
+  
   
 end module shallow_water_module

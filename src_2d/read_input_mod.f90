@@ -79,6 +79,8 @@ module read_input_module
   public :: restart
   public :: solve_sw
   public :: solve_sw_momentum
+  public :: sw_drytol
+  public :: sw_jxb
   public :: stop_time
   public :: surfdist
   public :: surf_pos_init
@@ -133,6 +135,8 @@ module read_input_module
   real(amrex_real), save :: phiT_table_max_T
   real(amrex_real), save :: stop_time
   real(amrex_real), save :: surf_pos_init
+  real(amrex_real), save :: sw_jxb
+  real(amrex_real), save :: sw_drytol
   real(amrex_real), save :: temp_fs
   real(amrex_real), save :: temp_init
   real(amrex_real), save :: thermionic_alpha
@@ -204,6 +208,8 @@ contains
     call amrex_parmparse_build(pp, "sw")
     call pp%query("solve", solve_sw)
     call pp%query("solve_momentum", solve_sw_momentum)
+    call pp%query("drytol", sw_drytol)
+    call pp%query("jxb", sw_jxb)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the material
@@ -297,6 +303,8 @@ contains
     regrid_int = 2
     solve_sw = .true.
     solve_sw_momentum = .true.
+    sw_drytol = 1.0e-6
+    sw_jxb = 0.0_amrex_real
     stop_time = 1.0
     do i = 0, amrex_max_level
        surfdist(i) = 0.0
