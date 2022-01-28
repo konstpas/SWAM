@@ -477,17 +477,21 @@ contains
              
              ! Advective component
              if (nint(idom(i-1,j)).gt.2 .and. nint(idom(i,j)).gt.2) then
-                
-                if (vx(i,j).gt.0) then 
+
+                if (vx(i,j).gt.0.0_amrex_real) then 
                    flxx(i,j)  = u_old(i-1,j)*vx(i,j)
                 else
                    flxx(i,j)  = u_old(i,j)*vx(i,j)
                 end if
-                
+
              else
-               flxx(i,j) = 0_amrex_real
+
+               flxx(i,j) = 0.0_amrex_real
+
              end if
-             
+
+
+ 
              ! Diffusive component
              temp_face = (temp(i,j) + temp(i-1,j))/2_amrex_real
              call get_conductivity(temp_face, ktherm)
@@ -619,7 +623,8 @@ contains
              if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
              if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
              vx(i,j) = melt_vel(xind,1)
-
+             
+             
           else
              vx(i,j) = 0_amrex_real
           end if
