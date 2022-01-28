@@ -44,12 +44,12 @@ contains
   ! -----------------------------------------------------------------
   subroutine writeplotfile()
 
-    integer :: i
+    integer :: i, ilev
     integer :: nlevs
     character(len=127) :: name
     character(len=16)  :: current_step
     character(len=15)  :: dashfmt
-    real(amrex_real) :: xpos
+    real(amrex_real) :: xpos, max_temp, max_temp_lev
     type(amrex_string) :: varname(1)    
 
     ! Time step output
@@ -92,18 +92,29 @@ contains
                               t_new(0), stepno, &
                               amrex_ref_ratio)
 
+    max_temp = 0.0
+    max_temp_lev = 0.0
+    do ilev = 0, nlevs-1
+      max_temp_lev = temp(ilev)%max(1,0)
+      if (max_temp_lev.gt.max_temp) max_temp = max_temp_lev
+    end do
+
     ! Output melt thickness
     name = "melt_thickness_" //trim(current_step)//".dat"
     open(2, file = name, status = 'unknown', action = "write")
-    write(2, *) 'x-coordinate     Free Surface     Melt Bottom     Melt top     Free Surface Temperature'
+    write(2, *) 'x-coordinate     Free Surface     Melt Bottom     Melt top     Free Surface Temperature', &
+        '    Max temperature'
     dashfmt = '(5(es13.6, 4x))'
     do i=surf_ind(1,1), surf_ind(1,2)
       ! i starts from 0 so to output the x-coord at the center of the cell add 0.5
       xpos = (i+0.5)*surf_dx(1)
-      write(2, dashfmt) xpos, surf_pos(i), melt_pos(i), melt_top(i), surf_temperature(i)
+      if (i.eq.surf_ind(1,1)) then
+         write(2, '(6(es13.6, 4x))') xpos, surf_pos(i), melt_pos(i), melt_top(i), surf_temperature(i), max_temp
+      else
+         write(2, dashfmt) xpos, surf_pos(i), melt_pos(i), melt_top(i), surf_temperature(i)
+      endif
     end do
     close(2)
-    
   end subroutine writeplotfile
 
   

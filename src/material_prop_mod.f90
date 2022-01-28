@@ -719,9 +719,9 @@ module material_properties_module
          do j = lo(2),hi(2)
             do k = lo(3),hi(3)
                
-               if(ui(i,j,k).ne.ui(i,j,k)) then
-                  write(*,*) 'Nan enthalpy'
-               end if
+               ! if(ui(i,j,k).ne.ui(i,j,k)) then
+               !    write(*,*) 'Nan enthalpy'
+               ! end if
                
                call bisection(enth_table, phiT_table_n_points+1, ui(i,j,k), idx)
                

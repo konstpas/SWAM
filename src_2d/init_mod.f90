@@ -29,7 +29,9 @@ contains
     use read_input_module, only : cooling_debug, &
                                   read_input_file, &
                                   plasma_flux_type, &
-                                  restart
+                                  restart, &
+                                  geometry_name, &
+                                  plasma_side_flux_type
     use read_heat_flux_module, only : construct_heat_flux_table
     use material_properties_module, only : init_mat_prop
     use heat_flux_module, only : debug_cooling_fluxes
@@ -54,7 +56,8 @@ contains
     if (nint(cooling_debug(1)) .eq. 1) call debug_cooling_fluxes
 
     ! Read in the heat flux file, if necessery
-    if (plasma_flux_type.eq.'Input_file') call construct_heat_flux_table
+    if (plasma_flux_type.eq.'Input_file') call construct_heat_flux_table(.false.)
+    if (geometry_name.eq.'West' .and. plasma_side_flux_type.eq.'Input_file') call construct_heat_flux_table(.true.)
     
     ! Initialize amrex data used in the simulation
     call amr_data_init
