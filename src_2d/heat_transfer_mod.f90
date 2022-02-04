@@ -489,8 +489,6 @@ contains
                flxx(i,j) = 0.0_amrex_real
 
              end if
-
-
  
              ! Diffusive component
              temp_face = (temp(i,j) + temp(i-1,j))/2_amrex_real

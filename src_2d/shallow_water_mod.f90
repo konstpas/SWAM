@@ -263,7 +263,7 @@ contains
                                 melt_pos, &
                                 melt_vel
     
-    use read_input_module, only : sw_jxb, sw_drytol
+    use read_input_module, only : sw_jxb
 
     use material_properties_module, only : get_mass_density, &
                                            get_viscosity
@@ -274,10 +274,11 @@ contains
     ! Local variables
     integer :: i
     real(amrex_real) :: melt_height(surf_ind(1,1):surf_ind(1,2))
-    real(amrex_real) :: adv_term(surf_ind(1,1):surf_ind(1,2))
-    real(amrex_real) :: src_term(surf_ind(1,1):surf_ind(1,2))
+    real(amrex_real) :: adv_term(surf_ind(1,1)+1:surf_ind(1,2))
+    real(amrex_real) :: src_term(surf_ind(1,1)+1:surf_ind(1,2))
     real(amrex_real) :: abs_vel
     real(amrex_real) :: hh
+    real(amrex_real) :: temp_face
     real(amrex_real) :: visc
     real(amrex_real) :: rho
     
@@ -304,17 +305,18 @@ contains
 
        ! Melt thickness
        hh = (melt_height(i) + melt_height(i-1))/2.0_amrex_real
-
+       temp_face = (surf_temperature(i) + surf_temperature(i-1))/2.0_amrex_real
+       
        ! Compute source terms only for grid points with a finite melt thickness
-       if (hh.gt.sw_drytol) then
+       if (hh.gt.0.0_amrex_real) then
 
           ! Material properties
-          call get_viscosity(surf_temperature(i),visc)
-          call get_mass_density(surf_temperature(i),rho)
+          call get_viscosity(temp_face,visc)
+          call get_mass_density(temp_face,rho)
           
           ! Update source term
           src_term(i) = sw_jxb & ! Lorentz force
-                        - 3.0_amrex_real*visc*melt_vel(i,1)/(hh**2) ! Friction
+                        - 3.0_amrex_real*visc*melt_vel(i,1)/(hh+1e-6)**2 ! Friction (capped)
           
           ! Fix dimensionality
           src_term(i) = src_term(i)/rho
