@@ -690,6 +690,7 @@ contains
              if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
              vx(i,j) = melt_vel(xind,1)
              
+            ! vx(i,j) = melt_vel(i,1)
              
           else
              vx(i,j) = 0_amrex_real
@@ -823,7 +824,7 @@ contains
          call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)
          do while(mfi%next())
             bx = mfi%validbox()
-            pidom  => idomain_tmp(ilev)%dataptr(mfi)
+            pidom  => idomain(ilev)%dataptr(mfi)
             ptemp   => temp(ilev)%dataptr(mfi)
             ptemp_tmp   => temp_tmp(ilev)%dataptr(mfi)
             pout    => phi_new(ilev)%dataptr(mfi)

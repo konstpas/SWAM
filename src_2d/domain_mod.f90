@@ -138,6 +138,7 @@ contains
        if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
       
        surf_pos_heat_domain(i) = surf_pos(xind)
+      !  surf_pos_heat_domain(i) = surf_pos(i)
        
     end do
     
@@ -233,7 +234,8 @@ contains
                                 surf_temperature, &
                                 surf_enthalpy, &
                                 surf_dx, &
-                                surf_xlo
+                                surf_xlo, &
+                                melt_vel
     
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) ! bounds of current tile box
@@ -285,8 +287,17 @@ contains
                 if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
                 if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
                 
-                ! Boundary condition
-                if (xind.gt.surf_ind(1,1)) xind = xind-1 
+                ! Figure out which column is upwind
+                if (melt_vel(xind,1).gt.0_amrex_real) then
+                  ! Boundary condition   
+                  if (xind.gt.surf_ind(1,1)) xind = xind-1 
+                elseif (melt_vel(xind+1,1).lt.0_amrex_real) then
+                  xind = xind+1
+                else
+                  write(*,*) 'Wind not blowing towards this column, cell shouldnt be added. Taking the column on the left as upwind'
+                  ! Boundary condition   
+                  if (xind.gt.surf_ind(1,1)) xind = xind-1 
+                end if 
 
                 ! Update properties
                 u_in(i,j) = surf_enthalpy(xind)

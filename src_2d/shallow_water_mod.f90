@@ -290,6 +290,7 @@ contains
     real(amrex_real) :: temp_face
     real(amrex_real) :: visc
     real(amrex_real) :: rho
+    real(amrex_real) :: max_vel
     
     ! Initialize advective and source terms
     adv_term = 0.0_amrex_real
@@ -334,16 +335,20 @@ contains
        
     end do
 
+    max_vel = 0.0
     ! Update momentum equation
     do  i = surf_ind(1,1)+1,surf_ind(1,2)
-       melt_vel(i,1) = melt_vel(i,1) + dt * (src_term(i) - adv_term(i))
-       if (melt_vel(i,1).lt.0.0_amrex_real) melt_vel(i,1) = 0.0_amrex_real ! The friction term could cause negative velocities (this must be removed at some point)
+       melt_vel(i,1) = melt_vel(i,1) + dt * (src_term(i) - adv_term(i))       
+       if (ABS(melt_vel(i,1)).gt.ABS(max_vel)) max_vel = melt_vel(i,1)
     end do
 
     ! Apply boundary conditions
     melt_vel(surf_ind(1,1),1) = melt_vel(surf_ind(1,1)+1,1)
     melt_vel(surf_ind(1,2)+1,1) = melt_vel(surf_ind(1,2),1)
 
+    if (max_vel*dt.ge.surf_dx(1)) then
+      write(*,*) 'CFL not satisfied'
+    end if
   end subroutine advance_SW_explicit_momentum
   
   
