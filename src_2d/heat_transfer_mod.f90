@@ -190,7 +190,8 @@ contains
                      ptempin, lbound(ptempin), ubound(ptempin))
     
     ! Re-evaluate heat transfer domain after the deformation
-    call revaluate_heat_domain(bx%lo, bx%hi, &
+    call revaluate_heat_domain(geom%get_physical_location(bx%lo), geom%dx, &
+                               bx%lo, bx%hi, &
                                pidin, lbound(pidin), ubound(pidin), &
                                pidout, lbound(pidout), ubound(pidout), &
                                pin, lbound(pin), ubound(pin), &
@@ -577,6 +578,73 @@ contains
     end do
  
   end subroutine create_face_flux_fixT
+
+
+  ! -----------------------------------------------------------------  
+  ! Subroutine used for an explicit update of the temperature
+  ! equation only with heat advection and no heat conduction.
+  ! -----------------------------------------------------------------  
+  subroutine solve_heat_advection_box(lo_phys, lo, hi, dt, dx, &
+                                      id_lo, id_hi, idom, &
+                                      u_new, un_lo, un_hi, &
+                                      to_lo, to_hi, temp_old, &
+                                      t_lo, t_hi, temp)
+
+    use material_properties_module, only : get_temp
+
+    ! Input and output variables
+    integer, intent(in) :: lo(2)
+    integer, intent(in) :: hi(2)
+    integer, intent(in) :: t_lo(2)
+    integer, intent(in) :: t_hi(2)
+    integer, intent(in) :: to_lo(2)
+    integer, intent(in) :: to_hi(2)
+    integer, intent(in) :: id_lo(2)
+    integer, intent(in) :: id_hi(2)
+    integer, intent(in) :: un_lo(2)
+    integer, intent(in) :: un_hi(2)
+    real(amrex_real), intent(in) :: lo_phys(2)
+    real(amrex_real), intent(in) :: dt
+    real(amrex_real), intent(in) :: dx(2)
+    real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2))
+    real(amrex_real), intent(inout) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2))
+    real(amrex_real), intent(in) :: temp_old(to_lo(1):to_hi(1),to_lo(2):to_hi(2))
+    real(amrex_real), intent(inout) :: u_new(un_lo(1):un_hi(1),un_lo(2):un_hi(2))
+    
+    ! Local variables
+    integer :: i,j
+    integer :: ux_lo(2), ux_hi(2)
+    real(amrex_real) :: ux(lo(1):hi(1)+1,lo(2):hi(2))
+    real(amrex_real) :: vx
+    
+    ux_lo = lo
+    ux_hi(1) = hi(1)+1
+    ux_hi(2) = hi(2)
+    
+    ! Construct 2D melt velocity profile from the 2D shallow water solution
+    call get_face_velocity(lo_phys, lo, hi, dx, &
+                           ux, ux_lo, ux_hi, &
+                           idom, id_lo, id_hi)
+
+    ! Update temperature profile
+    do i = lo(1), hi(1)
+       do j = lo(2), hi(2)
+          vx = ux(i,j)
+          if ((vx.gt.0 .and. nint(idom(i-1,j)).gt.2) .or. (vx.lt.0 .and. nint(idom(i+1,j)).gt.2)) then
+             temp(i,j) = temp_old(i,j) & 
+                         - dt/dx(1) * ( (vx+ABS(vx))*(temp_old(i,j)-temp_old(i-1,j)) &
+                         + (vx-ABS(vx))*(temp_old(i+1,j)-temp_old(i,j)) )/2  
+          end if
+       end do
+    end do
+    
+    ! Map enthalpy from the temperature
+    call get_temp(un_lo, un_hi, &
+                  u_new, un_lo, un_hi, &
+                  temp, t_lo, t_hi, .false.)
+    
+  end subroutine solve_heat_advection_box  
+
   
   ! -----------------------------------------------------------------
   ! Subroutine used to the velocity on the faces of each grid cell.
@@ -639,7 +707,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine advance_heat_solver_implicit(time, dt)
 
-    use amr_data_module, only : phi_new, phi_old, idomain
+    use amr_data_module, only : phi_new, phi_old, temp, idomain
     use regrid_module, only : fillpatch
 
     ! Input and output variables
@@ -663,7 +731,13 @@ contains
     type(amrex_fab) :: flux(amrex_spacedim)
     type(amrex_geometry) :: geom
     type(amrex_mfiter) :: mfi ! Multifab iterator
-        
+    type(amrex_box) :: bx
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidom
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp_tmp
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pout
+
+    
     ! Loop through all the levels
     do ilev = 0, amrex_max_level
 
@@ -737,7 +811,34 @@ contains
        call amrex_mfiter_destroy(mfi)
        
     end do
-        
+
+
+    ! Explicit update of the temperature due to heat advection
+     do ilev = 0, amrex_max_level
+ 
+         ! Geometry
+         geom = amrex_geom(ilev)
+         
+         ! Loop through all the boxes in the level
+         call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)
+         do while(mfi%next())
+            bx = mfi%validbox()
+            pidom  => idomain_tmp(ilev)%dataptr(mfi)
+            ptemp   => temp(ilev)%dataptr(mfi)
+            ptemp_tmp   => temp_tmp(ilev)%dataptr(mfi)
+            pout    => phi_new(ilev)%dataptr(mfi)
+            call solve_heat_advection_box(geom%get_physical_location(bx%lo), bx%lo, bx%hi, dt, geom%dx(1:3), &
+                                          lbound(pidom), ubound(pidom), pidom, &
+                                          pout, lbound(pout), ubound(pout), &
+                                          lbound(ptemp_tmp), ubound(ptemp_tmp), ptemp_tmp, &
+                                          lbound(ptemp), ubound(ptemp), ptemp)
+            
+         end do
+         call amrex_mfiter_destroy(mfi)
+      
+     end do    
+    
+    
     ! Clean memory
     do ilev = 0, amrex_max_level
        call amrex_multifab_destroy(phi_tmp(ilev))
@@ -834,7 +935,8 @@ contains
                      ptempin, lbound(ptempin), ubound(ptempin))
     
     ! Re-evaluate heat transfer domain after the deformation
-    call revaluate_heat_domain(bx%lo, bx%hi, &
+    call revaluate_heat_domain(geom%get_physical_location(bx%lo), geom%dx, &
+                               bx%lo, bx%hi, &
                                pidin, lbound(pidin), ubound(pidin), &
                                pidout, lbound(pidout), ubound(pidout), &
                                pin, lbound(pin), ubound(pin), &

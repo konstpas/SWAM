@@ -24,12 +24,13 @@ contains
   ! -----------------------------------------------------------------
   subroutine advance_SW()
 
-    use amr_data_module, only : idomain, temp, dt
+    use amr_data_module, only : idomain, temp, phi_new, dt
     use read_input_module, only : solve_sw_momentum
     
     ! Local variables
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pid
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: penth
     type(amrex_mfiter) :: mfi
     type(amrex_box) :: bx
 
@@ -44,12 +45,14 @@ contains
        
        ! Pointers
        ptemp => temp(amrex_max_level)%dataptr(mfi)
+       penth => phi_new(amrex_max_level)%dataptr(mfi)
        pid   => idomain(amrex_max_level)%dataptr(mfi)
        
        ! Terms that depend on the temperature
        call compute_SW_temperature_terms(bx%lo, bx%hi, &
                                          ptemp, lbound(ptemp), ubound(ptemp), &
-                                         pid, lbound(pid), ubound(pid))
+                                         pid, lbound(pid), ubound(pid), &
+                                         penth, lbound(penth), ubound(penth))
        
     end do
     call amrex_mfiter_destroy(mfi)    
@@ -108,16 +111,19 @@ contains
   ! -----------------------------------------------------------------
   subroutine compute_SW_temperature_terms(lo, hi, &
                                           temp, temp_lo, temp_hi, &
-                                          idom, id_lo, id_hi)
+                                          idom, id_lo, id_hi, &
+                                          enth, enth_lo, enth_hi)
     
-    use amr_data_module, only : surf_temperature, surf_evap_flux
+    use amr_data_module, only : surf_temperature, surf_evap_flux, surf_enthalpy
     use read_input_module, only : cooling_vaporization
     
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) ! Bounds of the current tile box
     integer, intent(in) :: temp_lo(2), temp_hi(2) ! Bounds of temperature box
     integer, intent(in) :: id_lo(2), id_hi(2) ! Bounds of the idomain box
+    integer, intent(in) :: enth_lo(2), enth_hi(2) ! Bounds of enthalpy box
     real(amrex_real), intent(in) :: temp(temp_lo(1):temp_hi(1),temp_lo(2):temp_hi(2))
+    real(amrex_real), intent(in) :: enth(enth_lo(1):enth_hi(1),enth_lo(2):enth_hi(2))
     real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2))
 
     ! Local variables
@@ -135,13 +141,16 @@ contains
              
              ! Surface temperature
              surf_temperature(i) = temp(i,j)
+
+             ! Surface enthalpy
+             surf_enthalpy(i) = enth(i,j)
              
           end if
        end do
     end do   
     
   end subroutine compute_SW_temperature_terms
-
+  
   
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the surface erosion due to evaporation
@@ -315,8 +324,8 @@ contains
           call get_mass_density(temp_face,rho)
           
           ! Update source term
-          src_term(i) = sw_jxb & ! Lorentz force
-                        - 3.0_amrex_real*visc*melt_vel(i,1)/(hh+1e-6)**2 ! Friction (capped)
+          src_term(i) = sw_jxb ! Lorentz force
+                        !- 3.0_amrex_real*visc*melt_vel(i,1)/(hh+1e-6)**2 ! Friction (capped)
           
           ! Fix dimensionality
           src_term(i) = src_term(i)/rho
@@ -328,6 +337,7 @@ contains
     ! Update momentum equation
     do  i = surf_ind(1,1)+1,surf_ind(1,2)
        melt_vel(i,1) = melt_vel(i,1) + dt * (src_term(i) - adv_term(i))
+       if (melt_vel(i,1).lt.0.0_amrex_real) melt_vel(i,1) = 0.0_amrex_real ! The friction term could cause negative velocities (this must be removed at some point)
     end do
 
     ! Apply boundary conditions

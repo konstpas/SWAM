@@ -222,13 +222,18 @@ contains
   ! -----------------------------------------------------------------
   ! Subroutine used to re-evaluate the heat equation domain
   ! -----------------------------------------------------------------  
-  subroutine revaluate_heat_domain(lo, hi, &
+  subroutine revaluate_heat_domain(xlo, dx, lo, hi, &
                                    idom_old, ido_lo, ido_hi, &
                                    idom_new, idn_lo, idn_hi, &
                                    u_in, u_lo, u_hi, &
                                    temp, t_lo, t_hi)
 
     use material_properties_module, only : temp_melt
+    use amr_data_module, only : surf_ind, &
+                                surf_temperature, &
+                                surf_enthalpy, &
+                                surf_dx, &
+                                surf_xlo
     
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) ! bounds of current tile box
@@ -236,6 +241,8 @@ contains
     integer, intent(in) :: ido_lo(2), ido_hi(2) ! bounds of the input idomain box
     integer, intent(in) :: idn_lo(2), idn_hi(2) ! bounds of the output idomain box
     integer, intent(in) :: t_lo(2), t_hi(2) ! bounds of the temperature box
+    real(amrex_real), intent(in) :: xlo(2)
+    real(amrex_real), intent(in) :: dx(2)
     real(amrex_real), intent(inout) :: u_in(u_lo(1):u_hi(1),u_lo(2):u_hi(2)) ! Input enthalpy 
     real(amrex_real), intent(in) :: idom_old(ido_lo(1):ido_hi(1),ido_lo(2):ido_hi(2))
     real(amrex_real), intent(inout) :: idom_new(idn_lo(1):idn_hi(1),idn_lo(2):idn_hi(2))
@@ -243,24 +250,57 @@ contains
     
     !Local variables
     integer :: i,j
+    integer :: xind
+    real(amrex_real) :: xpos
+    
+    ! NOTE: as it is now, the domain revaluation is correct only if the velocity is positive
+    ! i.e. if the velocity goes in the direction of positive x
     
     do i = lo(1)-1,hi(1)+1
        do  j = lo(2)-1,hi(2)+1
 
           ! Points added to the domain
           if (nint(idom_old(i,j)).eq.0 .and. nint(idom_new(i,j)).ne.0) then
-             ! Enthalpy
-             u_in(i,j) = u_in(i,j-1)
-             ! Temperature
-             temp(i,j) = temp(i,j-1)
-             ! Ensure that idomain and temperature and consistent
-             if (temp(i,j).gt.temp_melt) then
-                idom_new(i,j) = 3
-             else if (temp(i,j).eq.temp_melt) then
-                idom_new(i,j) = 2
+
+             ! Points added on top of melt
+             if (temp(i,j-1).gt.temp_melt) then
+
+                ! Update properties
+                u_in(i,j) = u_in(i,j-1)
+                temp(i,j) = temp(i,j-1)
+                if (temp(i,j).gt.temp_melt) then
+                   idom_new(i,j) = 3
+                else if (temp(i,j).eq.temp_melt) then
+                   idom_new(i,j) = 2
+                else
+                   idom_new(i,j) = 1
+                end if
+
+             ! Points added on top of solid (take upwind temperature)   
              else
-                idom_new(i,j) = 1
+
+                ! Index for the surface properties (temperature and enthalpy)
+                xpos = xlo(1)-dx(1) + (0.5 + i-lo(1))*dx(1)  
+                xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
+                if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
+                if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
+                
+                ! Boundary condition
+                if (xind.gt.surf_ind(1,1)) xind = xind-1 
+
+                ! Update properties
+                u_in(i,j) = surf_enthalpy(xind)
+                temp(i,j) = surf_temperature(xind)
+                if (temp(i,j).gt.temp_melt) then
+                   idom_new(i,j) = 3
+                else if (temp(i,j).eq.temp_melt) then
+                   idom_new(i,j) = 2
+                else
+                   idom_new(i,j) = 1
+                end if
+                
              end if
+             
           ! Points removed from the domain
           else if (nint(idom_new(i,j)).eq.0) then
              u_in(i,j) = 0.0_amrex_real
