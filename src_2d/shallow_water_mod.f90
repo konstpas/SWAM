@@ -270,9 +270,10 @@ contains
                                 surf_pos, &
                                 surf_temperature, &
                                 melt_pos, &
-                                melt_vel
+                                melt_vel, &
+                                J_th
     
-    use read_input_module, only : sw_jxb
+    use read_input_module, only : sw_magnetic
 
     use material_properties_module, only : get_mass_density, &
                                            get_viscosity
@@ -285,12 +286,16 @@ contains
     real(amrex_real) :: melt_height(surf_ind(1,1):surf_ind(1,2))
     real(amrex_real) :: adv_term(surf_ind(1,1)+1:surf_ind(1,2))
     real(amrex_real) :: src_term(surf_ind(1,1)+1:surf_ind(1,2))
+    real(amrex_real) :: abs_vel_l, abs_vel_r
+    real(amrex_real) :: abs_vel_l_half, abs_vel_r_half
+    real(amrex_real) :: vel_l_half, vel_r_half
     real(amrex_real) :: abs_vel
     real(amrex_real) :: hh
     real(amrex_real) :: temp_face
     real(amrex_real) :: visc
     real(amrex_real) :: rho
     real(amrex_real) :: max_vel
+    real(amrex_real) :: J_face
     
     ! Initialize advective and source terms
     adv_term = 0.0_amrex_real
@@ -302,11 +307,22 @@ contains
     ! Advective term
     do i = surf_ind(1,1)+1,surf_ind(1,2)
 
-       abs_vel = abs(melt_vel(i,1))
-       adv_term(i) = (melt_vel(i,1) + abs_vel)/2.0_amrex_real * &
+      !  abs_vel_l = abs(melt_vel(i-1,1))
+      !  abs_vel_r = abs(melt_vel(i+1,1))
+       vel_l_half = melt_vel(i-1,1)+melt_vel(i,1)
+       vel_r_half = melt_vel(i+1,1)+melt_vel(i,1)
+       abs_vel_l_half = ABS(vel_l_half)
+       abs_vel_r_half = ABS(vel_r_half)
+       adv_term(i) = (vel_l_half + abs_vel_l_half)/2.0_amrex_real * &
                      (melt_vel(i,1) - melt_vel(i-1,1))/surf_dx(1) + &
-                     (melt_vel(i,1) - abs_vel)/2.0_amrex_real * &
+                     (vel_r_half - abs_vel_r_half)/2.0_amrex_real * &
                      (melt_vel(i+1,1) - melt_vel(i,1))/surf_dx(1)
+
+      !  abs_vel = abs(melt_vel(i,1))
+      !  adv_term(i) = (melt_vel(i,1) + abs_vel)/2.0_amrex_real * &
+      !                (melt_vel(i,1) - melt_vel(i-1,1))/surf_dx(1) + &
+      !                (melt_vel(i,1) - abs_vel)/2.0_amrex_real * &
+      !                (melt_vel(i+1,1) - melt_vel(i,1))/surf_dx(1)
        
     end do
 
@@ -324,9 +340,12 @@ contains
           call get_viscosity(temp_face,visc)
           call get_mass_density(temp_face,rho)
           
+          J_face = (J_th(i-1)+J_th(i))/2
+         !  J_face = J_face*surf_dx(1)**2 ! Dimension correction
           ! Update source term
-          src_term(i) = sw_jxb ! Lorentz force
-                        !- 3.0_amrex_real*visc*melt_vel(i,1)/(hh+1e-6)**2 ! Friction (capped)
+          src_term(i) =  sw_magnetic*J_face/4 ! Lorentz force
+                        !  - 3.0_amrex_real*visc*melt_vel(i,1)/(hh+1e-5)**2 ! & ! Friction (capped)
+                        !   + visc * (melt_vel(i+1,1)-2*melt_vel(i,1)+melt_vel(i-1,1))/surf_dx(1)**2
           
           ! Fix dimensionality
           src_term(i) = src_term(i)/rho
@@ -338,8 +357,18 @@ contains
     max_vel = 0.0
     ! Update momentum equation
     do  i = surf_ind(1,1)+1,surf_ind(1,2)
-       melt_vel(i,1) = melt_vel(i,1) + dt * (src_term(i) - adv_term(i))       
-       if (ABS(melt_vel(i,1)).gt.ABS(max_vel)) max_vel = melt_vel(i,1)
+      hh = (melt_height(i) + melt_height(i-1))/2.0_amrex_real
+      temp_face = (surf_temperature(i) + surf_temperature(i-1))/2.0_amrex_real
+      call get_viscosity(temp_face,visc)
+      call get_mass_density(temp_face,rho)
+      if (hh.gt.0.0_amrex_real) then
+          melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))/(1+3*visc*dt/(rho*hh**2))
+      else
+          melt_vel(i,1) = 0
+      endif
+       if (ABS(melt_vel(i,1)).gt.ABS(max_vel)) then
+         max_vel = melt_vel(i,1)
+       end if
     end do
 
     ! Apply boundary conditions

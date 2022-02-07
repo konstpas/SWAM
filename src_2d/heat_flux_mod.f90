@@ -38,12 +38,14 @@ module heat_flux_module
    subroutine get_boundary_heat_flux(time, xlo, &
                                      dx, lo, hi, &
                                      idom, id_lo, id_hi, &
-                                     temp, t_lo, t_hi, qb) 
+                                     temp, t_lo, t_hi, lev, qb) 
  
       use read_input_module, only : plasma_flux_type, &
                                     cooling_thermionic, &
                                     cooling_vaporization, &
                                     cooling_radiation
+
+      use amr_data_module, only : J_th
       
 
       ! Input and output variables
@@ -55,6 +57,7 @@ module heat_flux_module
       real(amrex_real), intent(in) :: dx(2)
       real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2))
       real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2))
+      integer, intent(in) :: lev
       real(amrex_real), intent(out) :: qb(lo(1):hi(1),lo(2):hi(2))
 
       ! Local variables
@@ -91,7 +94,11 @@ module heat_flux_module
 
                ! Thermionic cooling flux
                if (cooling_thermionic) then
-                  call thermionic_cooling(temp(i,j), q_plasma, q_therm)
+                  if(lev.eq.amrex_max_level) then
+                     call thermionic_cooling(temp(i,j), q_plasma, q_therm, J_th(i))
+                  else
+                     call thermionic_cooling(temp(i,j), q_plasma, q_therm)
+                  end if
                end if
 
                ! Vaporization cooling flux
@@ -274,7 +281,7 @@ module heat_flux_module
    ! thermionic emission given the surface temperature temperature
    ! see E. Thorén et al. Plasma Phys. Control. Fusion 63 035021 (2021)
    ! -----------------------------------------------------------------   
-   subroutine thermionic_cooling(Ts, q_plasma, q_therm)
+   subroutine thermionic_cooling(Ts, q_plasma, q_therm, Jth)
  
      use material_properties_module, only : get_work_function, &
                                             get_Richardson
@@ -285,12 +292,13 @@ module heat_flux_module
      real(amrex_real), intent(in) :: Ts        ! Temperature at the center of cells adjacent to the free surface [K]
      real(amrex_real), intent(in) :: q_plasma  ! Plasma heat flux [K]
      real(amrex_real), intent(out) :: q_therm  ! Flux of energy due to thermionic emission [W/m^2]
+     real(amrex_real), intent(out), optional :: Jth
      
      ! Local variables
      real(amrex_real) :: kb = 1.38064852E-23 ! Boltzmann constant [m^2*kg/(s^2*K)]
      real(amrex_real) :: Jth_nom
      real(amrex_real) :: Jth_lim
-     real(amrex_real) :: Jth
+     real(amrex_real) :: J
      real(amrex_real) :: Aeff
      real(amrex_real) :: Wf
      real(amrex_real) :: e = 1.60217662E-19
@@ -306,10 +314,13 @@ module heat_flux_module
      Jth_lim = 1.51e4 * q_plasma**(1.0/3.0) * (SIN(thermionic_alpha/180*pi))**2
 
      ! Minimum between nominal and space-charge limited
-     Jth = MIN(Jth_lim, Jth_nom)
+     J = MIN(Jth_lim, Jth_nom)
 
      ! Heat flux
-     q_therm = Jth/e*(Wf+2*kb*Ts)
+     q_therm = J/e*(Wf+2*kb*Ts)
+
+     ! Thermionic current
+     if (present(Jth)) Jth = J
      
    end subroutine thermionic_cooling
  

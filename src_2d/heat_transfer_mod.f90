@@ -215,7 +215,7 @@ contains
                                   pfx, lbound(pfx), ubound(pfx), &
                                   pfy, lbound(pfy), ubound(pfy), &
                                   pidout, lbound(pidout), ubound(pidout), &
-                                  geom, dt)
+                                  geom, dt, lev)
     end if
 
     ! Get temperature corresponding to the new enthalpy
@@ -258,7 +258,7 @@ contains
                                    flxx, fx_lo, fx_hi, &
                                    flxy, fy_lo, fy_hi, &
                                    idom, id_lo, id_hi, &
-                                   geom, dt)
+                                   geom, dt, lev)
 
     use heat_flux_module, only: get_boundary_heat_flux
  
@@ -279,6 +279,7 @@ contains
     real(amrex_real), intent(out) :: flxy(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2)) ! flux along the y direction
     real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2)) ! idomain
     type(amrex_geometry), intent(in) :: geom ! geometry
+    integer, intent(in) :: lev
     
     ! Local variables
     integer :: i,j
@@ -305,7 +306,7 @@ contains
     call get_boundary_heat_flux(time, lo_phys, &
                                 dx, lo, hi, &
                                 idom, id_lo, id_hi, &
-                                temp, t_lo, t_hi, qbound)
+                                temp, t_lo, t_hi, lev, qbound)
 
     ! Compute enthalpy at the new timestep
     do i = lo(1),hi(1)
@@ -615,7 +616,7 @@ contains
     integer :: i,j
     integer :: ux_lo(2), ux_hi(2)
     real(amrex_real) :: ux(lo(1):hi(1)+1,lo(2):hi(2))
-    real(amrex_real) :: vx
+    real(amrex_real) :: vx_l, vx_r
     
     ux_lo = lo
     ux_hi(1) = hi(1)+1
@@ -629,11 +630,12 @@ contains
     ! Update temperature profile
     do i = lo(1), hi(1)
        do j = lo(2), hi(2)
-          vx = ux(i,j)
-          if ((vx.gt.0 .and. nint(idom(i-1,j)).gt.2) .or. (vx.lt.0 .and. nint(idom(i+1,j)).gt.2)) then
+          vx_l = ux(i,j)
+          vx_r = ux(i+1,j)
+          if ((vx_l.gt.0 .and. nint(idom(i-1,j)).gt.2) .or. (vx_r.lt.0 .and. nint(idom(i+1,j)).gt.2)) then
              temp(i,j) = temp_old(i,j) & 
-                         - dt/dx(1) * ( (vx+ABS(vx))*(temp_old(i,j)-temp_old(i-1,j)) &
-                         + (vx-ABS(vx))*(temp_old(i+1,j)-temp_old(i,j)) )/2  
+                         - dt/dx(1) * ( (vx_l+ABS(vx_l))*(temp_old(i,j)-temp_old(i-1,j)) &
+                         + (vx_r-ABS(vx_r))*(temp_old(i+1,j)-temp_old(i,j)) )/2  
           end if
        end do
     end do
@@ -978,7 +980,7 @@ contains
                     pidout, lbound(pidout), ubound(pidout), &
                     ptempin, lbound(ptempin), ubound(ptempin), &
                     pac, lbound(pac), ubound(pac), &                      
-                    prhs, lbound(prhs), ubound(prhs))
+                    prhs, lbound(prhs), ubound(prhs), lev)
     end if
     
   end subroutine predict_heat_solver_implicit_box
@@ -1126,7 +1128,7 @@ contains
        call multigrid%set_bottom_solver(ls_bottom_solver)
        
        ! Solve the linear system
-       err = multigrid%solve(sol, rhs, 5.e-15_amrex_real, 0.0_amrex_real)
+       err = multigrid%solve(sol, rhs, 5.e-12_amrex_real, 0.0_amrex_real)
        
        ! Clean memory
        call amrex_abeclaplacian_destroy(abeclap)
@@ -1303,7 +1305,7 @@ contains
                      idom, id_lo, id_hi, &
                      temp, t_lo, t_hi, &
                      alpha, a_lo, a_hi, &
-                     rhs, r_lo, r_hi)
+                     rhs, r_lo, r_hi, lev)
 
     use heat_flux_module, only: get_boundary_heat_flux
     
@@ -1321,6 +1323,7 @@ contains
     real(amrex_real), intent(in) :: dx(2)
     real(amrex_real), intent(in) :: time
     real(amrex_real), intent(in) :: dt
+    integer, intent(in) :: lev
     
     ! Local variables
     integer :: i,j
@@ -1329,7 +1332,7 @@ contains
     call get_boundary_heat_flux(time, lo_phys, &
                                 dx, lo, hi, &
                                 idom, id_lo, id_hi, &
-                                temp, t_lo, t_hi, rhs)
+                                temp, t_lo, t_hi, lev, rhs)
     
     ! Fill rhs of linear problem
     do i = lo(1), hi(1)

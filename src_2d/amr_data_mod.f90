@@ -41,6 +41,7 @@ module amr_data_module
   public :: surf_temperature ! Free surface temperature
   public :: surf_enthalpy ! Free surface enthalpy
   public :: surf_evap_flux ! Free surface evaporation flux 
+  public :: J_th ! Variable to store the thermionic current
   ! Temperature
   public :: temp
   ! Time
@@ -77,6 +78,7 @@ module amr_data_module
   real(amrex_real), allocatable, save :: surf_enthalpy(:)
   real(amrex_real), allocatable, save :: surf_evap_flux(:)
   real(amrex_real), allocatable, save :: surf_pos(:)
+  real(amrex_real), allocatable, save :: J_th(:)
   real(amrex_real), allocatable, save :: surf_temperature(:)
   real(amrex_real), save :: surf_xlo(1)
   real(amrex_real), save :: surf_dx(1)
@@ -121,6 +123,7 @@ contains
     allocate(surf_enthalpy(lo_x:hi_x))
     allocate(surf_evap_flux(lo_x:hi_x))
     allocate(surf_pos(lo_x:hi_x))
+    allocate(J_th(lo_x:hi_x))
     allocate(surf_temperature(lo_x:hi_x))
     allocate(temp(0:amrex_max_level))
     allocate(t_new(0:amrex_max_level))
@@ -147,6 +150,7 @@ contains
     surf_evap_flux = 0.0_amrex_real
     surf_pos = surf_pos_init
     surf_temperature = 0.0_amrex_real
+    J_th = 0.0_amrex_real
     surf_xlo(1) = amrex_problo(1) 
     t_new = 0.0_amrex_real
     t_old = -1.0_amrex_real
@@ -177,6 +181,7 @@ contains
     deallocate(surf_evap_flux)
     deallocate(surf_pos)
     deallocate(surf_temperature)
+    deallocate(J_th)
     deallocate(t_new)
     deallocate(t_old)
     deallocate(stepno)
