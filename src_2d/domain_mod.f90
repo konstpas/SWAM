@@ -270,13 +270,7 @@ contains
                 ! Update properties
                 u_in(i,j) = u_in(i,j-1)
                 temp(i,j) = temp(i,j-1)
-                if (temp(i,j).gt.temp_melt) then
-                   idom_new(i,j) = 3
-                else if (temp(i,j).eq.temp_melt) then
-                   idom_new(i,j) = 2
-                else
-                   idom_new(i,j) = 1
-                end if
+                idom_new(i,j) = 3
 
              ! Points added on top of solid (take upwind temperature)   
              else

@@ -2,13 +2,13 @@
 COMP_NAME = gfortran
 
 # Compiler options
-COMP_OPT = -Wall -g
+COMP_OPT = -Wall -O2
 
 # Linker
 LINK_NAME = g++
 
 # Amrex
-AMREX_LIBRARY_HOME ?= /home/konstantinos/amrex_local_2d
+AMREX_LIBRARY_HOME ?= /home/flc/nobackup/amrex_2D
 LIBDIR := $(AMREX_LIBRARY_HOME)/lib
 INCDIR := $(AMREX_LIBRARY_HOME)/include
 COMP_FLAGS := -I$(INCDIR) -fopenmp

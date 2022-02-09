@@ -218,6 +218,14 @@ contains
                                   geom, dt, lev)
     end if
 
+
+    ! ! ################################################################################################
+    ! ! Advection 
+    ! call solve_heat_advection_explicit(geom%get_physical_location(bx%lo), bx%lo, bx%hi, dt, geom%dx, &
+    !                                    lbound(pidout), ubound(pidout), pidout, &
+    !                                    lbound(pout), ubound(pout), pout)
+    ! ! ################################################################################################
+    
     ! Get temperature corresponding to the new enthalpy
     call get_temp(bx%lo, bx%hi, &
                   pout, lbound(pout), ubound(pout), &
@@ -237,7 +245,7 @@ contains
        end do
        
     end if
-       
+
     ! Find melt interface y position 
     if (lev.eq.amrex_max_level) then
        call get_melt_pos(bx%lo, bx%hi, &
@@ -246,6 +254,63 @@ contains
     end if
     
   end subroutine advance_heat_solver_explicit_box
+
+
+  ! -----------------------------------------------------------------  
+  ! Subroutine used for an explicit update of the temperature
+  ! equation only with heat advection and no heat conduction.
+  ! FOR THE EXPLICIT SOLVER!
+  ! -----------------------------------------------------------------  
+  subroutine solve_heat_advection_explicit(lo_phys, lo, hi, dt, dx, &
+                                           id_lo, id_hi, idom, &
+                                           un_lo, un_hi, u_new)
+
+    use material_properties_module, only : get_temp
+
+    ! Input and output variables
+    integer, intent(in) :: lo(2)
+    integer, intent(in) :: hi(2) 
+    integer, intent(in) :: id_lo(2)
+    integer, intent(in) :: id_hi(2)
+    integer, intent(in) :: un_lo(2)
+    integer, intent(in) :: un_hi(2)
+    real(amrex_real), intent(in) :: lo_phys(2)
+    real(amrex_real), intent(in) :: dt
+    real(amrex_real), intent(in) :: dx(2)
+    real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2))
+    real(amrex_real), intent(inout) :: u_new(un_lo(1):un_hi(1),un_lo(2):un_hi(2))
+    
+    ! Local variables
+    integer :: i,j
+    integer :: ux_lo(2), ux_hi(2)
+    real(amrex_real) :: ux(lo(1):hi(1)+1,lo(2):hi(2))
+    real(amrex_real) :: vx_l, vx_r
+    
+    ux_lo = lo
+    ux_hi(1) = hi(1)+1
+    ux_hi(2) = hi(2)
+    
+    ! Construct 2D melt velocity profile from the 2D shallow water solution
+    call get_face_velocity(lo_phys, lo, hi, dx, &
+                           ux, ux_lo, ux_hi, &
+                           idom, id_lo, id_hi)
+
+    ! Update enthalpy
+    do i = lo(1), hi(1)
+       do j = lo(2), hi(2)
+          vx_l = ux(i,j)
+          vx_r = ux(i+1,j)
+          if ((vx_l.gt.0 .and. nint(idom(i-1,j)).gt.2) .or. (vx_r.lt.0 .and. nint(idom(i+1,j)).gt.2)) then
+             u_new(i,j) = u_new(i,j) & 
+                         - dt/dx(1) * ( (vx_l+ABS(vx_l))*(u_new(i,j)-u_new(i-1,j)) &
+                         + (vx_r-ABS(vx_r))*(u_new(i+1,j)-u_new(i,j)) )/2.0_amrex_real
+          end if
+       end do
+    end do
+    
+  end subroutine solve_heat_advection_explicit
+
+
   
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the enthalpy at a new time step for
@@ -478,7 +543,7 @@ contains
           else
              
              ! Advective component
-             if (nint(idom(i-1,j)).gt.2 .and. nint(idom(i,j)).gt.2) then
+             !if (nint(idom(i-1,j)).gt.2 .and. nint(idom(i,j)).gt.2) then
 
                 if (vx(i,j).gt.0.0_amrex_real) then 
                    flxx(i,j)  = u_old(i-1,j)*vx(i,j)
@@ -486,12 +551,14 @@ contains
                    flxx(i,j)  = u_old(i,j)*vx(i,j)
                 end if
 
-             else
+             !else
 
-               flxx(i,j) = 0.0_amrex_real
+               !flxx(i,j) = 0.0_amrex_real
 
-             end if
- 
+             !end if
+            
+
+             
              ! Diffusive component
              temp_face = (temp(i,j) + temp(i-1,j))/2_amrex_real
              call get_conductivity(temp_face, ktherm)
@@ -616,7 +683,7 @@ contains
     integer :: i,j
     integer :: ux_lo(2), ux_hi(2)
     real(amrex_real) :: ux(lo(1):hi(1)+1,lo(2):hi(2))
-    real(amrex_real) :: vx_l, vx_r
+    real(amrex_real) :: vx_l, vx_r, vx_c
     
     ux_lo = lo
     ux_hi(1) = hi(1)+1
@@ -632,11 +699,17 @@ contains
        do j = lo(2), hi(2)
           vx_l = ux(i,j)
           vx_r = ux(i+1,j)
+          vx_c = (vx_l + vx_r)/2.0
           if ((vx_l.gt.0 .and. nint(idom(i-1,j)).gt.2) .or. (vx_r.lt.0 .and. nint(idom(i+1,j)).gt.2)) then
              temp(i,j) = temp_old(i,j) & 
                          - dt/dx(1) * ( (vx_l+ABS(vx_l))*(temp_old(i,j)-temp_old(i-1,j)) &
-                         + (vx_r-ABS(vx_r))*(temp_old(i+1,j)-temp_old(i,j)) )/2  
+                         + (vx_r-ABS(vx_r))*(temp_old(i+1,j)-temp_old(i,j)) )/2.0_amrex_real
+          else
+            temp(i,j) = temp_old(i,j)
           end if
+          ! temp(i,j) = temp_old(i,j) & 
+          !             - dt/dx(1) * ( (vx_c+ABS(vx_c))*(temp_old(i,j)-temp_old(i-1,j)) &
+          !             + (vx_c-ABS(vx_c))*(temp_old(i+1,j)-temp_old(i,j)) )/2.0_amrex_real
        end do
     end do
     
@@ -680,25 +753,30 @@ contains
     ! Assign x-component of the velocity
     do i = lo(1), hi(1)+1
        do j = lo(2), hi(2)
-          
-          if (nint(idom(i,j)).gt.2) then
+
+          if (nint(idom(i,j)).gt.2 .and. nint(idom(i-1,j)).gt.2) then
 
              ! Interpolation similar to the one used to find the free
              ! surface position in the heat transfer domain. See
              ! subroutine get_surf_pos in the domain module
-             xpos = lo_phys(1) + (0.5+i-lo(1))*dx(1)  
-             xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1))
-             if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
-             if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
-             vx(i,j) = melt_vel(xind,1)
+             ! xpos = lo_phys(1) + (0.5+i-lo(1))*dx(1)  
+             ! xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1))
+             ! if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
+             ! if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
+             ! vx(i,j) = melt_vel(xind,1)
              
-            ! vx(i,j) = melt_vel(i,1)
+             vx(i,j) = melt_vel(i,1)
              
           else
-             vx(i,j) = 0_amrex_real
+
+             if  (nint(idom(i,j)).gt.0 .and. nint(idom(i,j+1)).le.0) then
+                melt_vel(i,1) = 0.0_amrex_real
+             end if
+             vx(i,j) = 0.0_amrex_real
+             
           end if
           
-       end do   
+       end do
     end do
 
     

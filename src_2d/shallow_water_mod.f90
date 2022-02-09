@@ -287,7 +287,6 @@ contains
     real(amrex_real) :: adv_term(surf_ind(1,1)+1:surf_ind(1,2))
     real(amrex_real) :: src_term(surf_ind(1,1)+1:surf_ind(1,2))
     real(amrex_real) :: abs_vel_l, abs_vel_r
-    real(amrex_real) :: abs_vel_l_half, abs_vel_r_half
     real(amrex_real) :: vel_l_half, vel_r_half
     real(amrex_real) :: abs_vel
     real(amrex_real) :: hh
@@ -307,22 +306,18 @@ contains
     ! Advective term
     do i = surf_ind(1,1)+1,surf_ind(1,2)
 
-      !  abs_vel_l = abs(melt_vel(i-1,1))
-      !  abs_vel_r = abs(melt_vel(i+1,1))
-       vel_l_half = melt_vel(i-1,1)+melt_vel(i,1)
-       vel_r_half = melt_vel(i+1,1)+melt_vel(i,1)
-       abs_vel_l_half = ABS(vel_l_half)
-       abs_vel_r_half = ABS(vel_r_half)
-       adv_term(i) = (vel_l_half + abs_vel_l_half)/2.0_amrex_real * &
-                     (melt_vel(i,1) - melt_vel(i-1,1))/surf_dx(1) + &
-                     (vel_r_half - abs_vel_r_half)/2.0_amrex_real * &
-                     (melt_vel(i+1,1) - melt_vel(i,1))/surf_dx(1)
+       ! vel_l_half = (melt_vel(i-1,1)+melt_vel(i,1))/2.0
+       ! vel_r_half = (melt_vel(i+1,1)+melt_vel(i,1))/2.0
+       ! adv_term(i) = (vel_l_half + ABS(vel_l_half))/2.0_amrex_real * &
+       !               (melt_vel(i,1) - melt_vel(i-1,1))/surf_dx(1) + &
+       !               (vel_r_half - ABS(vel_r_half))/2.0_amrex_real * &
+       !               (melt_vel(i+1,1) - melt_vel(i,1))/surf_dx(1)
 
-      !  abs_vel = abs(melt_vel(i,1))
-      !  adv_term(i) = (melt_vel(i,1) + abs_vel)/2.0_amrex_real * &
-      !                (melt_vel(i,1) - melt_vel(i-1,1))/surf_dx(1) + &
-      !                (melt_vel(i,1) - abs_vel)/2.0_amrex_real * &
-      !                (melt_vel(i+1,1) - melt_vel(i,1))/surf_dx(1)
+       abs_vel = abs(melt_vel(i,1))
+       adv_term(i) = (melt_vel(i,1) + abs_vel)/2.0_amrex_real * &
+                     (melt_vel(i,1) - melt_vel(i-1,1))/surf_dx(1) + &
+                     (melt_vel(i,1) - abs_vel)/2.0_amrex_real * &
+                     (melt_vel(i+1,1) - melt_vel(i,1))/surf_dx(1)
        
     end do
 
@@ -341,11 +336,10 @@ contains
           call get_mass_density(temp_face,rho)
           
           J_face = (J_th(i-1)+J_th(i))/2
-         !  J_face = J_face*surf_dx(1)**2 ! Dimension correction
+          !  J_face = J_face*surf_dx(1)**2 ! Dimension correction
           ! Update source term
-          src_term(i) =  sw_magnetic*J_face/4 ! Lorentz force
-                        !  - 3.0_amrex_real*visc*melt_vel(i,1)/(hh+1e-5)**2 ! & ! Friction (capped)
-                        !   + visc * (melt_vel(i+1,1)-2*melt_vel(i,1)+melt_vel(i-1,1))/surf_dx(1)**2
+          src_term(i) =  sw_magnetic*J_face/4 & ! Lorentz force
+                         + visc * (melt_vel(i+1,1)-2*melt_vel(i,1)+melt_vel(i-1,1))/surf_dx(1)**2
           
           ! Fix dimensionality
           src_term(i) = src_term(i)/rho
@@ -362,9 +356,10 @@ contains
       call get_viscosity(temp_face,visc)
       call get_mass_density(temp_face,rho)
       if (hh.gt.0.0_amrex_real) then
-          melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))/(1+3*visc*dt/(rho*hh**2))
+         !melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))/(1+3*visc*dt/(rho*hh**2))
+         melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))
       else
-          melt_vel(i,1) = 0
+          melt_vel(i,1) = 0.0_amrex_real
       endif
        if (ABS(melt_vel(i,1)).gt.ABS(max_vel)) then
          max_vel = melt_vel(i,1)
