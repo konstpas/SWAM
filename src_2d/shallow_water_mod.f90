@@ -205,6 +205,7 @@ contains
     
     ! Local variables
     integer :: i
+    real(amrex_real) :: melt_height_old(surf_ind(1,1):surf_ind(1,2))
     real(amrex_real) :: melt_height(surf_ind(1,1):surf_ind(1,2))
     real(amrex_real) :: height_flux(surf_ind(1,1):surf_ind(1,2)+1,1)
    
@@ -212,8 +213,8 @@ contains
     height_flux = 0. 
     
     ! Compute old column height (input from heat solver)
-    melt_height = surf_pos - melt_pos 
-    
+    melt_height_old = surf_pos - melt_pos 
+
     ! Height fluxes along the x direction
     do  i = surf_ind(1,1),surf_ind(1,2)+1
 
@@ -223,25 +224,32 @@ contains
           if (melt_vel(i,1).gt.0.0_amrex_real) then 
              height_flux(i,1) = 0 !no influx
           else 
-             height_flux(i,1) = melt_height(i)*melt_vel(i,1)
+             height_flux(i,1) = melt_height_old(i)*melt_vel(i,1)
           end if
           
        ! Boundary condition (high boundary)   
        elseif (i.eq.surf_ind(1,2)+1) then
           
           if (melt_vel(i,1).gt.0.0_amrex_real) then 
-             height_flux(i,1) = melt_height(i-1)*melt_vel(i,1)
+             height_flux(i,1) = melt_height_old(i-1)*melt_vel(i,1)
           else 
              height_flux(i,1) = 0 !no influx
           end if
           
        ! Points inside the domain   
        else
-          
+
+          ! No outflow from solid points
+          if (melt_height_old(i).eq.0) then
+             if (melt_vel(i,1).lt.0) melt_vel(i,1) = 0.0_amrex_real
+             if (melt_vel(i+1,1).gt.0) melt_vel(i+1,1) = 0.0_amrex_real
+          end if
+
+          ! Compute height fluxes
           if (melt_vel(i,1).gt.0.0_amrex_real) then 
-             height_flux(i,1) = melt_height(i-1)*melt_vel(i,1)
+             height_flux(i,1) = melt_height_old(i-1)*melt_vel(i,1)
           else 
-             height_flux(i,1) = melt_height(i)*melt_vel(i,1)
+             height_flux(i,1) = melt_height_old(i)*melt_vel(i,1)
           end if
           
        end if
@@ -253,6 +261,24 @@ contains
        surf_pos(i) = surf_pos(i) & 
                      - dt/surf_dx(1) * (height_flux(i+1,1) - height_flux(i,1)) &
                      - dt*surf_evap_flux(i)
+       
+    end do
+    melt_height = surf_pos - melt_pos
+
+    ! Update the velocity of newly molten surface elements 
+    do  i = surf_ind(1,1),surf_ind(1,2)
+       
+       if (melt_height_old(i).eq.0.0_amrex_real .and. melt_height(i).gt.0.0_amrex_real) then
+
+          ! It is still possible that both conditions are satisfied, in this case it could
+          ! become problematic
+          if (melt_vel(i,1).gt.0.0_amrex_real) then
+             melt_vel(i+1,1)  = melt_vel(i,1)
+          else if (melt_vel(i+1,1).lt.0.0_amrex_real) then
+             melt_vel(i,1) = melt_vel(i+1,1)
+          end if
+          
+       end if
        
     end do
     
@@ -286,8 +312,6 @@ contains
     real(amrex_real) :: melt_height(surf_ind(1,1):surf_ind(1,2))
     real(amrex_real) :: adv_term(surf_ind(1,1)+1:surf_ind(1,2))
     real(amrex_real) :: src_term(surf_ind(1,1)+1:surf_ind(1,2))
-    real(amrex_real) :: abs_vel_l, abs_vel_r
-    real(amrex_real) :: vel_l_half, vel_r_half
     real(amrex_real) :: abs_vel
     real(amrex_real) :: hh
     real(amrex_real) :: temp_face
@@ -305,13 +329,6 @@ contains
 
     ! Advective term
     do i = surf_ind(1,1)+1,surf_ind(1,2)
-
-       ! vel_l_half = (melt_vel(i-1,1)+melt_vel(i,1))/2.0
-       ! vel_r_half = (melt_vel(i+1,1)+melt_vel(i,1))/2.0
-       ! adv_term(i) = (vel_l_half + ABS(vel_l_half))/2.0_amrex_real * &
-       !               (melt_vel(i,1) - melt_vel(i-1,1))/surf_dx(1) + &
-       !               (vel_r_half - ABS(vel_r_half))/2.0_amrex_real * &
-       !               (melt_vel(i+1,1) - melt_vel(i,1))/surf_dx(1)
 
        abs_vel = abs(melt_vel(i,1))
        adv_term(i) = (melt_vel(i,1) + abs_vel)/2.0_amrex_real * &
@@ -336,7 +353,7 @@ contains
           call get_mass_density(temp_face,rho)
           
           J_face = (J_th(i-1)+J_th(i))/2
-          !  J_face = J_face*surf_dx(1)**2 ! Dimension correction
+          
           ! Update source term
           src_term(i) =  sw_magnetic*J_face/4 & ! Lorentz force
                          + visc * (melt_vel(i+1,1)-2*melt_vel(i,1)+melt_vel(i-1,1))/surf_dx(1)**2
@@ -351,19 +368,25 @@ contains
     max_vel = 0.0
     ! Update momentum equation
     do  i = surf_ind(1,1)+1,surf_ind(1,2)
+       
       hh = (melt_height(i) + melt_height(i-1))/2.0_amrex_real
       temp_face = (surf_temperature(i) + surf_temperature(i-1))/2.0_amrex_real
+      
       call get_viscosity(temp_face,visc)
       call get_mass_density(temp_face,rho)
+      
       if (hh.gt.0.0_amrex_real) then
          !melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))/(1+3*visc*dt/(rho*hh**2))
-         melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))
+         melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))/(1+3*visc*dt/(rho*(hh + 3e-5)**2))
+         !melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))
       else
           melt_vel(i,1) = 0.0_amrex_real
       endif
-       if (ABS(melt_vel(i,1)).gt.ABS(max_vel)) then
+     
+      if (ABS(melt_vel(i,1)).gt.ABS(max_vel)) then
          max_vel = melt_vel(i,1)
-       end if
+      end if
+      
     end do
 
     ! Apply boundary conditions
@@ -373,6 +396,7 @@ contains
     if (max_vel*dt.ge.surf_dx(1)) then
       write(*,*) 'CFL not satisfied'
     end if
+   
   end subroutine advance_SW_explicit_momentum
   
   

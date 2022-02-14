@@ -337,16 +337,14 @@ contains
     real(amrex_real), intent(in) :: temp   ! Temperature [K]
     real(amrex_real), intent(out) :: eps_t ! Emissivity [dimensionless]
     
-   !  if (temp.lt.300) then
-   !     eps_t = 1.85076E-2 
-   !  else if(temp.lt.3695) then
-   !     eps_t = 1.85076E-2 + 1.6048E-4*(temp-300) - 1.762608E-8*(temp-300)**2
-   !  else
-   !     eps_t = 0.38
-   !  endif
+    if (temp.lt.300) then
+       eps_t = 1.85076E-2 
+    else if(temp.lt.3695) then
+       eps_t = 1.85076E-2 + 1.6048E-4*(temp-300) - 1.762608E-8*(temp-300)**2
+    else
+       eps_t = 0.38
+    endif
 
-    eps_t = 1.0
-   
  end subroutine get_emissivity_tungsten
 
 
