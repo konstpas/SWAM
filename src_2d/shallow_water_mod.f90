@@ -197,7 +197,9 @@ contains
                                 surf_evap_flux, &
                                 surf_pos, &
                                 melt_pos, &
-                                melt_vel
+                              !   melt_top, &
+                                melt_vel!, &
+                              !   surf_pos_grid
     
     
     ! Input and output variables
@@ -214,6 +216,7 @@ contains
     
     ! Compute old column height (input from heat solver)
     melt_height_old = surf_pos - melt_pos 
+   !  melt_height_old = surf_pos_grid - melt_pos 
 
     ! Height fluxes along the x direction
     do  i = surf_ind(1,1),surf_ind(1,2)+1
@@ -269,6 +272,7 @@ contains
     do  i = surf_ind(1,1),surf_ind(1,2)
        
        if (melt_height_old(i).eq.0.0_amrex_real .and. melt_height(i).gt.0.0_amrex_real) then
+      ! if (surf_pos_grid(i).lt.surf_pos(i) .and. melt_pos(i).eq.melt_top(i)) then
 
           ! It is still possible that both conditions are satisfied, in this case it could
           ! become problematic
@@ -294,6 +298,7 @@ contains
     use amr_data_module, only : surf_ind, &
                                 surf_dx, &
                                 surf_pos, &
+                              !   surf_pos_grid, &
                                 surf_temperature, &
                                 melt_pos, &
                                 melt_vel, &
@@ -326,6 +331,7 @@ contains
     
     ! Compute column height (defined on staggered grid)
     melt_height = surf_pos - melt_pos 
+   !  melt_height = surf_pos_grid - melt_pos 
 
     ! Advective term
     do i = surf_ind(1,1)+1,surf_ind(1,2)
@@ -376,9 +382,10 @@ contains
       call get_mass_density(temp_face,rho)
       
       if (hh.gt.0.0_amrex_real) then
-         !melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))/(1+3*visc*dt/(rho*hh**2))
+         ! if (hh.lt.3e-5) hh = 3e-5
+         ! melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))/(1+3*visc*dt/(rho*hh**2))
          melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))/(1+3*visc*dt/(rho*(hh + 3e-5)**2))
-         !melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))
+         ! melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))
       else
           melt_vel(i,1) = 0.0_amrex_real
       endif
@@ -388,12 +395,13 @@ contains
       end if
       
     end do
+   !  write(*,*) max_vel
 
     ! Apply boundary conditions
     melt_vel(surf_ind(1,1),1) = melt_vel(surf_ind(1,1)+1,1)
     melt_vel(surf_ind(1,2)+1,1) = melt_vel(surf_ind(1,2),1)
 
-    if (max_vel*dt.ge.surf_dx(1)) then
+    if (abs(max_vel)*dt.ge.surf_dx(1)) then
       write(*,*) 'CFL not satisfied'
     end if
    

@@ -48,6 +48,8 @@ contains
     integer :: i,j
     integer :: surf_ind_heat_domain
     real(amrex_real) :: surf_pos_heat_domain(id_lo(1):id_hi(1))
+    real(amrex_real) :: xpos_face, ypos_face
+    logical :: inside_domain
 
     ! Get location of the free surface
     call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
@@ -66,10 +68,20 @@ contains
        surf_ind_heat_domain = id_lo(2) + &
                               floor((surf_pos_heat_domain(i) - &
                               xlo(2)+dx(2))/dx(2))
+       xpos_face = xlo(1) + (i-lo(1))*dx(1)
        
        do j = lo(2)-1, hi(2)+1
 
-          if (j .le. surf_ind_heat_domain) then
+          ypos_face = xlo(2) + (j-lo(2))*dx(2)
+
+          ! Initialization
+          inside_domain = .true.
+          if (xpos_face.lt.amrex_problo(1) .or. xpos_face.gt.amrex_probhi(1) .or. &
+              ypos_face.lt.amrex_problo(2) .or. ypos_face.gt.amrex_probhi(2)) then
+               inside_domain = .false.
+          end if
+
+          if (j .le. surf_ind_heat_domain .and. inside_domain) then
 
              if (find_liquid) then
                 if (temp(i,j).gt.temp_melt) then
@@ -175,7 +187,8 @@ contains
        
     use amr_data_module, only : melt_pos, &
                                 melt_top, &
-                                surf_pos
+                                surf_pos, &
+                                surf_pos_grid
        
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) 
@@ -213,11 +226,17 @@ contains
             
           end if
 
+          if (nint(idom(i,j)).eq.0 .and. nint(idom(i,j-1)).gt.0) then
+             
+            it(1) = i
+            it(2) = j
+            grid_pos = geom%get_physical_location(it)
+            surf_pos_grid(i) = grid_pos(2) 
+          end if
        end do   
     end do
     
   end subroutine get_melt_pos
-
   
   ! -----------------------------------------------------------------
   ! Subroutine used to re-evaluate the heat equation domain
@@ -270,6 +289,14 @@ contains
                 u_in(i,j) = u_in(i,j-1)
                 temp(i,j) = temp(i,j-1)
                 idom_new(i,j) = 3
+
+            ! ! Points added on top of melting
+            !  elseif (temp(i,j-1).eq.temp_melt) then
+
+            !    ! Update properties
+            !    u_in(i,j) = u_in(i,j-1)
+            !    temp(i,j) = temp(i,j-1)
+            !    idom_new(i,j) = 2
 
              ! Points added on top of solid (take upwind temperature)   
              else

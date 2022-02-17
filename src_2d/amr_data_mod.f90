@@ -37,6 +37,7 @@ module amr_data_module
   public :: surf_dx ! Grid resolution 
   public :: surf_ind ! Grid index 
   public :: surf_pos ! Free surface position
+  public :: surf_pos_grid ! Free surface position on the grid
   public :: surf_xlo ! Free surface lowest corner
   public :: surf_temperature ! Free surface temperature
   public :: surf_enthalpy ! Free surface enthalpy
@@ -78,6 +79,7 @@ module amr_data_module
   real(amrex_real), allocatable, save :: surf_enthalpy(:)
   real(amrex_real), allocatable, save :: surf_evap_flux(:)
   real(amrex_real), allocatable, save :: surf_pos(:)
+  real(amrex_real), allocatable, save :: surf_pos_grid(:)
   real(amrex_real), allocatable, save :: J_th(:)
   real(amrex_real), allocatable, save :: surf_temperature(:)
   real(amrex_real), save :: surf_xlo(1)
@@ -123,6 +125,7 @@ contains
     allocate(surf_enthalpy(lo_x:hi_x))
     allocate(surf_evap_flux(lo_x:hi_x))
     allocate(surf_pos(lo_x:hi_x))
+    allocate(surf_pos_grid(lo_x:hi_x))
     allocate(J_th(lo_x:hi_x))
     allocate(surf_temperature(lo_x:hi_x))
     allocate(temp(0:amrex_max_level))
@@ -149,6 +152,7 @@ contains
     surf_enthalpy = 0.0_amrex_real
     surf_evap_flux = 0.0_amrex_real
     surf_pos = surf_pos_init
+    surf_pos_grid = surf_pos_init
     surf_temperature = 0.0_amrex_real
     J_th = 0.0_amrex_real
     surf_xlo(1) = amrex_problo(1) 
@@ -180,6 +184,7 @@ contains
     deallocate(surf_enthalpy)
     deallocate(surf_evap_flux)
     deallocate(surf_pos)
+    deallocate(surf_pos_grid)
     deallocate(surf_temperature)
     deallocate(J_th)
     deallocate(t_new)

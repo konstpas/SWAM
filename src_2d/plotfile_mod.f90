@@ -15,7 +15,8 @@ module plotfile_module
                               melt_top, &
                               surf_ind, &
                               surf_dx, &
-                              stepno
+                              stepno, &
+                              melt_vel
   
   use read_input_module, only : plot_file
   
@@ -50,7 +51,7 @@ contains
     character(len=16)  :: current_step
     character(len=15)  :: dashfmt
     real(amrex_real) :: xpos
-    type(amrex_string) :: varname(1)    
+    type(amrex_string) :: varname(1)
 
     ! Time step output
     if      (stepno(0) .lt. 1000000) then
@@ -95,12 +96,12 @@ contains
     ! Output melt thickness
     name = "melt_thickness_" //trim(current_step)//".dat"
     open(2, file = name, status = 'unknown', action = "write")
-    write(2, *) 'x-coordinate     Free Surface     Melt Bottom     Melt top     Free Surface Temperature'
-    dashfmt = '(5(es13.6, 4x))'
+    write(2, *) 'x-coordinate     Free Surface     Melt Bottom     Melt top     Free Surface Temperature    Velocity'
+    dashfmt = '(6(es13.6, 4x))'
     do i=surf_ind(1,1), surf_ind(1,2)
       ! i starts from 0 so to output the x-coord at the center of the cell add 0.5
       xpos = (i+0.5)*surf_dx(1)
-      write(2, dashfmt) xpos, surf_pos(i), melt_pos(i), melt_top(i), surf_temperature(i)
+      write(2, dashfmt) xpos, surf_pos(i), melt_pos(i), melt_top(i), surf_temperature(i), melt_vel(i,1)
     end do
     close(2)
     
