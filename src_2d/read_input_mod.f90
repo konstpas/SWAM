@@ -78,6 +78,7 @@ module read_input_module
   public :: regrid_int
   public :: restart
   public :: solve_sw
+  public :: solve_heat
   public :: solve_sw_momentum
   public :: sw_magnetic
   public :: stop_time
@@ -126,6 +127,7 @@ module read_input_module
   logical, save :: ls_agglomeration
   logical, save :: ls_consolidation
   logical, save :: solve_sw
+  logical, save :: solve_heat
   logical, save :: solve_sw_momentum
   real(amrex_real), save :: cfl
   real(amrex_real), save :: dt_change_max
@@ -186,7 +188,8 @@ contains
    
     ! Parameters for the heat solver
     call amrex_parmparse_build(pp, "heat")
-    call pp%query("surf_pos", surf_pos_init)   
+    call pp%query("surf_pos", surf_pos_init) 
+    call pp%query("solve", solve_heat)  
     call pp%query("fixed_melt_velocity", fixed_melt_velocity)  
     call pp%query("temp_init", temp_init)
     call pp%query("phase_init", phase_init)
@@ -298,6 +301,7 @@ contains
     plot_file = "plt"
     plot_int = -1
     regrid_int = 2
+    solve_heat = .false.
     solve_sw = .true.
     solve_sw_momentum = .true.
     sw_magnetic = 0.0_amrex_real

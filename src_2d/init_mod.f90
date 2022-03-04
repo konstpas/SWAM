@@ -29,10 +29,12 @@ contains
     use read_input_module, only : cooling_debug, &
                                   read_input_file, &
                                   plasma_flux_type, &
-                                  restart
+                                  restart, &
+                                  solve_heat
     use read_heat_flux_module, only : construct_heat_flux_table
     use material_properties_module, only : init_mat_prop
     use heat_flux_module, only : debug_cooling_fluxes
+    use shallow_water_module, only : init_melt_pos
     use regrid_module, only : averagedown, &
                               my_make_new_level_from_scratch, &
                               my_make_new_level_from_coarse, &
@@ -58,6 +60,9 @@ contains
     
     ! Initialize amrex data used in the simulation
     call amr_data_init
+
+    ! Initialize melt pool if thermal response is not simulated
+    if (.not.solve_heat) call init_melt_pos
 
     ! Initialize amrex functions to generate grid
     call amrex_init_virtual_functions(my_make_new_level_from_scratch, &

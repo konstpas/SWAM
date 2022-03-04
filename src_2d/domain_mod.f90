@@ -130,7 +130,10 @@ contains
     integer :: i
     integer :: xind
     real(amrex_real) :: xpos
+   !  real(amrex_real) :: frac_part
+   !  real(amrex_real) :: num_tol
     
+   !  num_tol = 1e-5
     do  i = lo(1),hi(1)
    
        ! In what follows -surf_dx(1)/2 is used since
@@ -149,8 +152,15 @@ contains
        if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
        if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
       
+       ! Check if you fall inbetween two grid points of the heighest level
+      !  frac_part = (xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1) - xind
+      !  if (frac_part.gt.0.5-num_tol .and. frac_part.lt.0.5+num_tol ) then
+      !    surf_pos_heat_domain(i) = (surf_pos(xind)+surf_pos(xind+1))/2
+      !  else
+         ! surf_pos_heat_domain(i) = surf_pos(xind)
+      !  end if
+
        surf_pos_heat_domain(i) = surf_pos(xind)
-      !  surf_pos_heat_domain(i) = surf_pos(i)
        
     end do
     
@@ -187,7 +197,7 @@ contains
        
     use amr_data_module, only : melt_pos, &
                                 melt_top, &
-                                surf_pos, &
+                              !   surf_pos, &
                                 surf_pos_grid
        
     ! Input and output variables
@@ -204,25 +214,25 @@ contains
     do i = lo(1), hi(1)  ! x-direction
        do j = lo(2), hi(2) 
              
-          if (nint(idom(i,j)).gt.2 .and. nint(idom(i,j-1)).le.2) then
+          if (nint(idom(i,j)).ge.2 .and. nint(idom(i,j-1)).lt.2) then
              
              it(1) = i
              it(2) = j
              grid_pos = geom%get_physical_location(it)
              melt_pos(i) = grid_pos(2) 
              
-          elseif(nint(idom(i,j)).le.2 .and. nint(idom(i,j-1)).gt.2) then
+          elseif(nint(idom(i,j)).lt.2 .and. nint(idom(i,j-1)).ge.2) then
 
             
              it(1) = i
              it(2) = j
              grid_pos = geom%get_physical_location(it)
              melt_top(i) = grid_pos(2)
-             ! If the free surface is not molten, reset the melt bottom to the free surface (this corresponds to set to zero
-             ! the melt thickness)
-             if (nint(idom(i,j)).ne.0) then
-                melt_pos(i) = surf_pos(i)
-             end if
+            !  ! If the free surface is not molten, reset the melt bottom to the free surface (this corresponds to set to zero
+            !  ! the melt thickness)
+            !  if (nint(idom(i,j)).ne.0) then
+            !     melt_pos(i) = surf_pos(i)
+            !  end if
             
           end if
 
@@ -245,7 +255,9 @@ contains
                                    idom_old, ido_lo, ido_hi, &
                                    idom_new, idn_lo, idn_hi, &
                                    u_in, u_lo, u_hi, &
-                                   temp, t_lo, t_hi)
+                                   temp, t_lo, t_hi, &
+                                   u_in2, u2_lo, u2_hi, &
+                                   temp2, t2_lo, t2_hi)
 
     use material_properties_module, only : temp_melt
     use amr_data_module, only : surf_ind, &
@@ -258,21 +270,25 @@ contains
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) ! bounds of current tile box
     integer, intent(in) :: u_lo(2), u_hi(2) ! bounds of input enthalpy box 
+    integer, intent(in) :: u2_lo(2), u2_hi(2) ! bounds of input enthalpy box with 2 ghost points
     integer, intent(in) :: ido_lo(2), ido_hi(2) ! bounds of the input idomain box
     integer, intent(in) :: idn_lo(2), idn_hi(2) ! bounds of the output idomain box
     integer, intent(in) :: t_lo(2), t_hi(2) ! bounds of the temperature box
+    integer, intent(in) :: t2_lo(2), t2_hi(2) ! bounds of the temperature box with 2 ghost points
     real(amrex_real), intent(in) :: xlo(2)
     real(amrex_real), intent(in) :: dx(2)
     real(amrex_real), intent(inout) :: u_in(u_lo(1):u_hi(1),u_lo(2):u_hi(2)) ! Input enthalpy 
     real(amrex_real), intent(in) :: idom_old(ido_lo(1):ido_hi(1),ido_lo(2):ido_hi(2))
     real(amrex_real), intent(inout) :: idom_new(idn_lo(1):idn_hi(1),idn_lo(2):idn_hi(2))
     real(amrex_real), intent(inout) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2))
-    
+    real(amrex_real), intent(in) :: u_in2(u2_lo(1):u2_hi(1),u2_lo(2):u2_hi(2))
+    real(amrex_real), intent(in) :: temp2(t2_lo(1):t2_hi(1),t2_lo(2):t2_hi(2))
+     
     !Local variables
     integer :: i,j
     integer :: xind
     real(amrex_real) :: xpos
-    
+
     ! NOTE: as it is now, the domain revaluation is correct only if the velocity is positive
     ! i.e. if the velocity goes in the direction of positive x
     
@@ -283,20 +299,20 @@ contains
           if (nint(idom_old(i,j)).eq.0 .and. nint(idom_new(i,j)).ne.0) then
 
              ! Points added on top of melt
-             if (temp(i,j-1).gt.temp_melt) then
+             if (temp2(i,j-1).gt.temp_melt) then
 
                 ! Update properties
-                u_in(i,j) = u_in(i,j-1)
-                temp(i,j) = temp(i,j-1)
+                u_in(i,j) = u_in2(i,j-1)
+                temp(i,j) = temp2(i,j-1)
                 idom_new(i,j) = 3
 
-            ! ! Points added on top of melting
-            !  elseif (temp(i,j-1).eq.temp_melt) then
+            ! ! Points added on top of mushy
+             elseif (temp2(i,j-1).eq.temp_melt) then
 
-            !    ! Update properties
-            !    u_in(i,j) = u_in(i,j-1)
-            !    temp(i,j) = temp(i,j-1)
-            !    idom_new(i,j) = 2
+               ! Update properties
+               u_in(i,j) = u_in2(i,j-1)
+               temp(i,j) = temp2(i,j-1)
+               idom_new(i,j) = 2
 
              ! Points added on top of solid (take upwind temperature)   
              else

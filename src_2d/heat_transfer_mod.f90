@@ -26,7 +26,7 @@ contains
   subroutine advance_heat_solver_explicit_level(lev, time, dt, substep)
 
     use read_input_module, only : do_reflux
-    use amr_data_module, only : phi_new, phi_old, idomain, flux_reg
+    use amr_data_module, only : phi_new, phi_old, temp, idomain, flux_reg
     use regrid_module, only : fillpatch
     
     ! Input and output variables 
@@ -37,11 +37,13 @@ contains
     
     ! Local variables
     integer, parameter :: nghost = 1 ! number of ghost points in each spatial direction 
-    integer :: ncomp
+    integer :: ncomp, srccmp, dstcmp
     integer :: idim
     logical :: nodal(2) ! logical for flux multifabs 
     type(amrex_multifab) :: phi_tmp ! Enthalpy multifab with ghost points
     type(amrex_multifab) :: temp_tmp ! Temperature multifab with ghost points
+    type(amrex_multifab) :: phi_tmp2 ! Enthalpy multifab with 2 ghost points
+    type(amrex_multifab) :: temp_tmp2 ! Temperature multifab with 2 ghost points
     type(amrex_multifab) :: idomain_tmp ! Idomain multifab to distinguish material and background
     type(amrex_fab) :: flux(amrex_spacedim)
     type(amrex_multifab) :: fluxes(amrex_spacedim)
@@ -60,11 +62,21 @@ contains
     ! Build enthalpy and temperature multifabs with ghost points
     call amrex_multifab_build(phi_tmp, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost) 
     call amrex_multifab_build(temp_tmp, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost)
+    call amrex_multifab_build(phi_tmp2, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost+1) 
+    call amrex_multifab_build(temp_tmp2, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost+1)
     call fillpatch(lev, time, phi_tmp)
 
     ! Build temporary idomain multifab to store the domain configuration before SW deformation
     call amrex_multifab_build(idomain_tmp, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost)
     call amrex_multifab_swap(idomain_tmp, idomain(lev))
+
+
+    srccmp = 1
+    dstcmp = 1
+    call temp_tmp2%copy(temp(lev), srccmp, dstcmp, ncomp, nghost+1)
+    call temp_tmp2%fill_boundary(geom)
+    call phi_tmp2%copy(phi_old(lev), srccmp, dstcmp, ncomp, nghost+1)
+    call phi_tmp2%fill_boundary(geom)
 
     ! Initialize fluxes  
     if (do_reflux) then
@@ -83,7 +95,7 @@ contains
     do while(mfi%next())
        call advance_heat_solver_explicit_box(lev, time, dt, substep, mfi, &
                                              geom, ncomp, phi_tmp, temp_tmp, &
-                                             idomain_tmp, flux, fluxes)
+                                             idomain_tmp, flux, fluxes, phi_tmp2, temp_tmp2)
     end do
     call amrex_mfiter_destroy(mfi)
     
@@ -111,6 +123,8 @@ contains
     end do
     call amrex_multifab_destroy(phi_tmp)
     call amrex_multifab_destroy(temp_tmp)
+    call amrex_multifab_destroy(phi_tmp2)
+    call amrex_multifab_destroy(temp_tmp2)
     call amrex_multifab_destroy(idomain_tmp)
     
   end subroutine advance_heat_solver_explicit_level
@@ -122,7 +136,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine advance_heat_solver_explicit_box(lev, time, dt, substep, mfi, &
                                               geom, ncomp, phi_tmp, temp_tmp, &
-                                              idomain_tmp, flux, fluxes)
+                                              idomain_tmp, flux, fluxes, phi_tmp2, temp_tmp2)
 
     use amr_data_module, only : phi_new, temp, idomain
     use read_input_module, only : do_reflux, temp_fs
@@ -139,6 +153,8 @@ contains
     type(amrex_geometry), intent(in) :: geom
     type(amrex_multifab), intent(inout) :: phi_tmp
     type(amrex_multifab), intent(inout) :: temp_tmp
+    type(amrex_multifab), intent(in) :: phi_tmp2
+    type(amrex_multifab), intent(in) :: temp_tmp2
     type(amrex_multifab), intent(inout) :: idomain_tmp
     type(amrex_fab), intent(inout) :: flux(amrex_spacedim)
     type(amrex_multifab), intent(inout) :: fluxes(amrex_spacedim)
@@ -146,8 +162,10 @@ contains
     ! Local variables
     integer :: idim
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin2
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pout
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptempin
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptempin2
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pfx
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pfy
@@ -163,8 +181,10 @@ contains
     
     ! Pointers
     pin     => phi_tmp%dataptr(mfi)
+    pin2     => phi_tmp2%dataptr(mfi)
     pout    => phi_new(lev)%dataptr(mfi)
     ptempin => temp_tmp%dataptr(mfi)
+    ptempin2 => temp_tmp2%dataptr(mfi)
     ptemp   => temp(lev)%dataptr(mfi)
     pidin   => idomain_tmp%dataptr(mfi)
     pidout  => idomain(lev)%dataptr(mfi)   
@@ -188,14 +208,20 @@ contains
                      bx%lo, bx%hi, &
                      pidout, lbound(pidout), ubound(pidout), &
                      ptempin, lbound(ptempin), ubound(ptempin))
-    
+
+    ! ##################################################################################
+    ! This part has not been tested. Added to comply with the changes made to the
+    ! revaluate_heat_domain based on ghost point issues found in the implicit solver
+    ! ##################################################################################    
     ! Re-evaluate heat transfer domain after the deformation
-    call revaluate_heat_domain(geom%get_physical_location(bx%lo), geom%dx, &
-                               bx%lo, bx%hi, &
-                               pidin, lbound(pidin), ubound(pidin), &
-                               pidout, lbound(pidout), ubound(pidout), &
-                               pin, lbound(pin), ubound(pin), &
-                               ptempin, lbound(ptempin), ubound(ptempin))
+     call revaluate_heat_domain(geom%get_physical_location(bx%lo), geom%dx, &
+                                bx%lo, bx%hi, &
+                                pidin, lbound(pidin), ubound(pidin), &
+                                pidout, lbound(pidout), ubound(pidout), &
+                                pin, lbound(pin), ubound(pin), &
+                                ptempin, lbound(ptempin), ubound(ptempin), &
+                                pin2, lbound(pin2), ubound(pin2), &
+                                ptempin2, lbound(ptempin2), ubound(ptempin2))
     
     ! Increment enthalpy at given box depending on the condition of the free surface
     if (temp_fs.gt.0) then
@@ -542,7 +568,7 @@ contains
           else
              
              ! Advective component
-             if (vx(i,j).gt.0.0_amrex_real) then 
+             if (vx(i,j).gt.0.0_amrex_real) then
                 flxx(i,j)  = u_old(i-1,j)*vx(i,j)
              else
                 flxx(i,j)  = u_old(i,j)*vx(i,j)
@@ -670,7 +696,7 @@ contains
     do i = lo(1), hi(1)+1
        do j = lo(2), hi(2)
 
-          if (nint(idom(i,j)).gt.2 .and. nint(idom(i-1,j)).gt.2) then
+          if (nint(idom(i,j)).ge.2 .and. nint(idom(i-1,j)).ge.2) then
 
              ! Interpolation similar to the one used to find the free
              ! surface position in the heat transfer domain. See
@@ -710,11 +736,13 @@ contains
     ! Local variables
     logical :: nodal(2)
     integer, parameter :: nghost = 1 ! number of ghost points in each spatial direction 
-    integer :: ncomp
+    integer :: ncomp, srccmp, dstcmp
     integer :: idim
     integer :: ilev
     type(amrex_multifab) :: phi_tmp(0:amrex_max_level) ! Enthalpy multifab with ghost points
     type(amrex_multifab) :: temp_tmp(0:amrex_max_level) ! Temperature multifab with ghost points
+    type(amrex_multifab) :: phi_tmp2(0:amrex_max_level) ! Enthalpy multifab with two ghost points
+    type(amrex_multifab) :: temp_tmp2(0:amrex_max_level) ! Temperature multifab with two ghost points
     type(amrex_multifab) :: temp_tmp_old(0:amrex_max_level) ! Temperature multifab with ghost points, stores the value before the predictor step
     type(amrex_multifab) :: phi_tmp_old(0:amrex_max_level) ! Enthalpy multifab with ghost points, stores the value after the predictor step and before the correction
     type(amrex_multifab) :: idomain_tmp(0:amrex_max_level) ! Idomain multifab to distinguish material and background
@@ -754,8 +782,18 @@ contains
        call amrex_multifab_build(temp_tmp(ilev), ba(ilev), dm(ilev), ncomp, nghost)
        call amrex_multifab_build(temp_tmp_old(ilev), ba(ilev), dm(ilev), ncomp, nghost)
        call amrex_multifab_build(phi_tmp_old(ilev), ba(ilev), dm(ilev), ncomp, nghost)
+       call amrex_multifab_build(phi_tmp2(ilev), ba(ilev), dm(ilev), ncomp, nghost+1) 
+       call amrex_multifab_build(temp_tmp2(ilev), ba(ilev), dm(ilev), ncomp, nghost+1)
        call fillpatch(ilev, time, phi_tmp(ilev))
-       
+
+       ! Fill in the temperature and enthalpy ultifabs with 2 ghost points from previous solution   
+       srccmp = 1
+       dstcmp = 1
+       call temp_tmp2(ilev)%copy(temp(ilev), srccmp, dstcmp, ncomp, nghost+1)
+       call temp_tmp2(ilev)%fill_boundary(geom)
+       call phi_tmp2(ilev)%copy(phi_old(ilev), srccmp, dstcmp, ncomp, nghost+1)
+       call phi_tmp2(ilev)%fill_boundary(geom)
+
        ! Build temporary idomain multifab to store the domain configuration before SW deformation
        call amrex_multifab_build(idomain_tmp(ilev), ba(ilev), dm(ilev), ncomp, nghost)
        call amrex_multifab_swap(idomain_tmp(ilev), idomain(ilev))
@@ -780,7 +818,7 @@ contains
           call predict_heat_solver_implicit_box(ilev, time, dt, mfi, &
                                                 geom, ncomp, phi_tmp(ilev), temp_tmp(ilev), &
                                                 idomain_tmp(ilev), flux, alpha(ilev), beta(:,ilev), &
-                                                rhs(ilev))
+                                                rhs(ilev), phi_tmp2(ilev), temp_tmp2(ilev))
 
        end do
        call amrex_mfiter_destroy(mfi)
@@ -890,6 +928,10 @@ contains
     do ilev = 0, amrex_max_level
        call amrex_multifab_destroy(phi_tmp(ilev))
        call amrex_multifab_destroy(temp_tmp(ilev))
+       call amrex_multifab_destroy(phi_tmp2(ilev))
+       call amrex_multifab_destroy(temp_tmp2(ilev))
+       call amrex_multifab_destroy(phi_tmp_old(ilev))
+       call amrex_multifab_destroy(temp_tmp_old(ilev))
        call amrex_multifab_destroy(idomain_tmp(ilev))
        call amrex_multifab_destroy(rhs(ilev))
        call amrex_multifab_destroy(alpha(ilev))
@@ -911,7 +953,7 @@ contains
   subroutine predict_heat_solver_implicit_box(lev, time, dt, mfi, &
                                               geom, ncomp, phi_tmp, temp_tmp, &
                                               idomain_tmp, flux, alpha, beta, &
-                                              rhs)
+                                              rhs, phi_tmp2, temp_tmp2)
 
     use read_input_module, only : temp_fs
     use amr_data_module, only : phi_new, temp, idomain
@@ -932,12 +974,16 @@ contains
     type(amrex_multifab), intent(inout) :: beta(amrex_spacedim)
     type(amrex_multifab), intent(inout) :: rhs
     type(amrex_fab), intent(inout) :: flux(amrex_spacedim)
+    type(amrex_multifab), intent(in) :: phi_tmp2
+    type(amrex_multifab), intent(in) :: temp_tmp2
 
     ! Local variables
     integer :: idim
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin2
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pout
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptempin
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptempin2
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pfx
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pfy
@@ -954,9 +1000,11 @@ contains
           
     ! Pointers
     pin     => phi_tmp%dataptr(mfi)
+    pin2     => phi_tmp2%dataptr(mfi)
     pout    => phi_new(lev)%dataptr(mfi)
     ptemp   => temp(lev)%dataptr(mfi)
     ptempin => temp_tmp%dataptr(mfi)
+    ptempin2 => temp_tmp2%dataptr(mfi)
     pidin   => idomain_tmp%dataptr(mfi)
     pidout  => idomain(lev)%dataptr(mfi)
     pac     => alpha%dataptr(mfi)
@@ -987,7 +1035,9 @@ contains
                                pidin, lbound(pidin), ubound(pidin), &
                                pidout, lbound(pidout), ubound(pidout), &
                                pin, lbound(pin), ubound(pin), &
-                               ptempin, lbound(ptempin), ubound(ptempin))
+                               ptempin, lbound(ptempin), ubound(ptempin), &
+                               pin2, lbound(pin2), ubound(pin2), &
+                               ptempin2, lbound(ptempin2), ubound(ptempin2))
     
     ! Additional call to update the temperature without the ghost points
     ! the temperature with ghost points is already updated in the
@@ -1691,15 +1741,16 @@ contains
           vx_l = ux(i,j)
           vx_r = ux(i+1,j)
           vx_c = (vx_l + vx_r)/2.0
-          if ((vx_l.gt.0 .and. nint(idom(i-1,j)).gt.2) .or. (vx_r.lt.0 .and. nint(idom(i+1,j)).gt.2)) then
+          ! Change here as well for melting as liquid
+          if ((vx_l.gt.0 .and. nint(idom(i-1,j)).ge.2) .or. (vx_r.lt.0 .and. nint(idom(i+1,j)).ge.2)) then
          !  if (nint(idom(i,j)).ge.2 .and. &
          !   ((vx_l.gt.0 .and. nint(idom(i-1,j)).ge.2) .or. (vx_r.lt.0 .and. nint(idom(i+1,j)).ge.2))) then
              temp(i,j) = temp_old(i,j) & 
                          - dt/dx(1) * ( (vx_l+ABS(vx_l))*(temp_old(i,j)-temp_old(i-1,j)) &
                          + (vx_r-ABS(vx_r))*(temp_old(i+1,j)-temp_old(i,j)) )/2.0_amrex_real
-            !  if(temp(i,j).ne.temp_old(i,j)) then
-            call get_enthalpy(temp(i,j),u_new(i,j))
-            !  end if
+             if(temp(i,j).ne.temp_old(i,j)) then
+                call get_enthalpy(temp(i,j),u_new(i,j))
+             end if
           end if
           ! temp(i,j) = temp_old(i,j) & 
           !             - dt/dx(1) * ( (vx_c+ABS(vx_c))*(temp_old(i,j)-temp_old(i-1,j)) &

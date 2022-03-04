@@ -15,6 +15,7 @@ module shallow_water_module
   ! Public subroutines
   ! -----------------------------------------------------------------
   public :: advance_SW
+  public :: init_melt_pos
   
 contains 
 
@@ -25,7 +26,7 @@ contains
   subroutine advance_SW()
 
     use amr_data_module, only : idomain, temp, phi_new, dt
-    use read_input_module, only : solve_sw_momentum
+    use read_input_module, only : solve_sw_momentum, solve_heat
     
     ! Local variables
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pid
@@ -34,28 +35,32 @@ contains
     type(amrex_mfiter) :: mfi
     type(amrex_box) :: bx
 
-    ! Compute terms that depend on the temperature. Since the temperature
-    ! is a multifab, it must be accessed in blocks according to the rules
-    ! defined by amrex
-    call amrex_mfiter_build(mfi, idomain(amrex_max_level), tiling=.false.)
-    do while(mfi%next())
+    if(solve_heat) then
+      ! Compute terms that depend on the temperature. Since the temperature
+      ! is a multifab, it must be accessed in blocks according to the rules
+      ! defined by amrex
+      call amrex_mfiter_build(mfi, idomain(amrex_max_level), tiling=.false.)
+      do while(mfi%next())
 
-       ! Box
-       bx = mfi%validbox()   
-       
-       ! Pointers
-       ptemp => temp(amrex_max_level)%dataptr(mfi)
-       penth => phi_new(amrex_max_level)%dataptr(mfi)
-       pid   => idomain(amrex_max_level)%dataptr(mfi)
-       
-       ! Terms that depend on the temperature
-       call compute_SW_temperature_terms(bx%lo, bx%hi, &
-                                         ptemp, lbound(ptemp), ubound(ptemp), &
-                                         pid, lbound(pid), ubound(pid), &
-                                         penth, lbound(penth), ubound(penth))
-       
-    end do
-    call amrex_mfiter_destroy(mfi)    
+         ! Box
+         bx = mfi%validbox()   
+         
+         ! Pointers
+         ptemp => temp(amrex_max_level)%dataptr(mfi)
+         penth => phi_new(amrex_max_level)%dataptr(mfi)
+         pid   => idomain(amrex_max_level)%dataptr(mfi)
+         
+         ! Terms that depend on the temperature
+         call compute_SW_temperature_terms(bx%lo, bx%hi, &
+                                          ptemp, lbound(ptemp), ubound(ptemp), &
+                                          pid, lbound(pid), ubound(pid), &
+                                          penth, lbound(penth), ubound(penth))
+         
+      end do
+      call amrex_mfiter_destroy(mfi)   
+   else
+      call compute_SW_temperature_terms_decoupled
+   end if 
 
     ! Advance shallow water equations in time
     if (solve_sw_momentum) then
@@ -150,6 +155,28 @@ contains
     end do   
     
   end subroutine compute_SW_temperature_terms
+
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to compute the temperature dependent terms
+  ! in the shallow water equations
+  ! -----------------------------------------------------------------
+  subroutine compute_SW_temperature_terms_decoupled()
+    
+      use amr_data_module, only : surf_temperature, surf_evap_flux, surf_enthalpy, J_th
+      use material_properties_module, only : get_enthalpy
+      
+      ! Local variables
+      real(amrex_real) :: enth, temp
+
+      temp = 4000.0
+      surf_evap_flux = 0.0
+      surf_temperature = temp
+      call get_enthalpy(temp, enth)
+      surf_enthalpy = enth
+      j_th = 2e6;
+    
+  end subroutine compute_SW_temperature_terms_decoupled
   
   
   ! -----------------------------------------------------------------
@@ -324,6 +351,8 @@ contains
     real(amrex_real) :: rho
     real(amrex_real) :: max_vel
     real(amrex_real) :: J_face
+    real(amrex_real) :: laplacian_term
+    integer :: adv_flag1, adv_flag2
     
     ! Initialize advective and source terms
     adv_term = 0.0_amrex_real
@@ -331,15 +360,18 @@ contains
     
     ! Compute column height (defined on staggered grid)
     melt_height = surf_pos - melt_pos 
-   !  melt_height = surf_pos_grid - melt_pos 
 
     ! Advective term
     do i = surf_ind(1,1)+1,surf_ind(1,2)
 
        abs_vel = abs(melt_vel(i,1))
-       adv_term(i) = (melt_vel(i,1) + abs_vel)/2.0_amrex_real * &
+       adv_flag1 = 0
+       adv_flag2 = 0
+       if (melt_vel(i-1,1).ne.0) adv_flag1 = 1
+       if (melt_vel(i+1,1).ne.0) adv_flag2 = 1
+       adv_term(i) = adv_flag1*(melt_vel(i,1) + abs_vel)/2.0_amrex_real * &
                      (melt_vel(i,1) - melt_vel(i-1,1))/surf_dx(1) + &
-                     (melt_vel(i,1) - abs_vel)/2.0_amrex_real * &
+                     adv_flag2*(melt_vel(i,1) - abs_vel)/2.0_amrex_real * &
                      (melt_vel(i+1,1) - melt_vel(i,1))/surf_dx(1)
        
     end do
@@ -360,9 +392,15 @@ contains
           
           J_face = (J_th(i-1)+J_th(i))/2
           
+          ! Calculate the laplacian term only in points inside the melt pool - not on its edges
+          if (melt_vel(i-1, 1).ne.0.0 .and. melt_vel(i+1, 1).ne.0.0) then
+            laplacian_term = visc * (melt_vel(i+1,1)-2*melt_vel(i,1)+melt_vel(i-1,1))/surf_dx(1)**2
+          else
+            laplacian_term = 0.0
+          end if
           ! Update source term
           src_term(i) =  sw_magnetic*J_face/4 & ! Lorentz force
-                         + visc * (melt_vel(i+1,1)-2*melt_vel(i,1)+melt_vel(i-1,1))/surf_dx(1)**2
+                         + laplacian_term
           
           ! Fix dimensionality
           src_term(i) = src_term(i)/rho
@@ -382,9 +420,9 @@ contains
       call get_mass_density(temp_face,rho)
       
       if (hh.gt.0.0_amrex_real) then
-         ! if (hh.lt.3e-5) hh = 3e-5
-         ! melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))/(1+3*visc*dt/(rho*hh**2))
-         melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))/(1+3*visc*dt/(rho*(hh + 3e-5)**2))
+         if (hh.lt.6e-5) hh = 6e-5
+         melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))/(1+3*visc*dt/(rho*hh**2))
+         ! melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))/(1+3*visc*dt/(rho*(hh + 6e-5)**2))
          ! melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))
       else
           melt_vel(i,1) = 0.0_amrex_real
@@ -406,6 +444,31 @@ contains
     end if
    
   end subroutine advance_SW_explicit_momentum
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to prescribe a melt pool when the heat response
+  ! in not calculated.
+  ! -----------------------------------------------------------------
+  subroutine init_melt_pos()
+    use amr_data_module, only : melt_pos, &
+                                surf_pos, &
+                                surf_dx, &
+                                surf_ind
+
+      ! Local variables
+      real(amrex_real) :: x_phys
+      integer :: i
+
+      do i = surf_ind(1,1), surf_ind(1,2)
+         x_phys = (i+0.5)*surf_dx(1)
+         melt_pos(i) = surf_pos(i) - 200e-6 * EXP(-((x_phys-2e-2)**2)/(0.005**2))
+         if (surf_pos(i)-melt_pos(i).lt.3e-6) then
+            melt_pos(i) = surf_pos(i)
+         end if
+      end do
+
+  end subroutine init_melt_pos
+
   
   
 end module shallow_water_module
