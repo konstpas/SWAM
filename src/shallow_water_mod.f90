@@ -24,12 +24,13 @@ module shallow_water_module
    ! -----------------------------------------------------------------
    subroutine advance_SW()
  
-     use amr_data_module, only : idomain, temp, dt
-     use read_input_module, only : solve_sw_momentum
+     use amr_data_module, only : idomain, temp, phi_new, dt
+     use read_input_module, only : solve_sw_momentum, sw_solver
      
      ! Local variables
      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pid
      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
+     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: penth
      type(amrex_mfiter) :: mfi
      type(amrex_box) :: bx
 
@@ -44,19 +45,29 @@ module shallow_water_module
         
         ! Pointers
         ptemp => temp(amrex_max_level)%dataptr(mfi)
+        penth => phi_new(amrex_max_level)%dataptr(mfi)
         pid   => idomain(amrex_max_level)%dataptr(mfi)
         
         ! Terms that depend on the temperature
         call compute_SW_temperature_terms(bx%lo, bx%hi, &
                                           ptemp, lbound(ptemp), ubound(ptemp), &
-                                          pid, lbound(pid), ubound(pid))
+                                          pid, lbound(pid), ubound(pid), &
+                                          penth, lbound(penth), ubound(penth))
         
      end do
      call amrex_mfiter_destroy(mfi)    
 
      ! Advance shallow water equations in time
      if (solve_sw_momentum) then
-        call advance_SW_geoclaw(dt(amrex_max_level))
+         if (sw_solver.eq.'geoclaw') then
+            call advance_SW_geoclaw(dt(amrex_max_level))
+         else if (sw_solver.eq.'explicit') then
+            call advance_SW_explicit_height(dt(amrex_max_level))
+            call advance_SW_explicit_momentum(dt(amrex_max_level))
+         else
+            STOP 'Unknown shallow water solver'
+         end if
+
      else
         call advance_SW_fixed_velocity(dt(amrex_max_level))
      end if
@@ -70,16 +81,19 @@ module shallow_water_module
    ! -----------------------------------------------------------------
    subroutine compute_SW_temperature_terms(lo, hi, &
                                            temp, temp_lo, temp_hi, &
-                                           idom, id_lo, id_hi)
+                                           idom, id_lo, id_hi, &
+                                           enth, enth_lo, enth_hi)
      
-     use amr_data_module, only : surf_temperature, surf_evap_flux
+     use amr_data_module, only : surf_temperature, surf_evap_flux, surf_enthalpy
      use read_input_module, only : cooling_vaporization
      
      ! Input and output variables
      integer, intent(in) :: lo(3), hi(3) ! Bounds of the current tile box
      integer, intent(in) :: temp_lo(3), temp_hi(3) ! Bounds of temperature box
+     integer, intent(in) :: enth_lo(3), enth_hi(3) ! Bounds of enthalpy box
      integer, intent(in) :: id_lo(3), id_hi(3) ! Bounds of the idomain box
      real(amrex_real), intent(in) :: temp(temp_lo(1):temp_hi(1),temp_lo(2):temp_hi(2),temp_lo(3):temp_hi(3))
+     real(amrex_real), intent(in) :: enth(enth_lo(1):enth_hi(1),enth_lo(2):enth_hi(2),enth_lo(3):enth_hi(3))
      real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2),id_lo(3):id_hi(3))
  
      ! Local variables
@@ -98,7 +112,7 @@ module shallow_water_module
 
                  ! Surface temperature
                  surf_temperature(i,k) = temp(i,j,k)
-                 
+                 surf_enthalpy(i,k) = enth(i,j,k)
               end if
            end do
         end do 
@@ -236,7 +250,411 @@ module shallow_water_module
      end do
      
    end subroutine advance_SW_fixed_velocity
+  ! -----------------------------------------------------------------
+  ! Subroutine used to advance the shallow water equation for the
+  ! momentum with an explicit scheme
+  ! -----------------------------------------------------------------
+   subroutine advance_SW_explicit_momentum(dt)
+    
+      use amr_data_module, only : surf_ind, &
+                                  surf_dx, &
+                                  surf_pos, &
+                                  surf_temperature, &
+                                  melt_pos, &
+                                  melt_vel, &
+                                  J_th
+      
+      use read_input_module, only : sw_Bx, sw_Bz
+  
+      use material_properties_module, only : get_mass_density, &
+                                             get_viscosity
+      
+      ! Input and output variables
+      real(amrex_real), intent(in) :: dt
+      
+      ! Local variables
+      integer :: i, j
+      real(amrex_real) :: melt_height(surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2))
+      real(amrex_real) :: adv_term_x(surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2))
+      real(amrex_real) :: adv_term_z(surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2))
+      real(amrex_real) :: src_term_x(surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2))
+      real(amrex_real) :: src_term_z(surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2))
+      real(amrex_real) :: abs_vel_x, abs_vel_z
+      real(amrex_real) :: hh
+      real(amrex_real) :: temp_face
+      real(amrex_real) :: visc
+      real(amrex_real) :: rho
+      real(amrex_real) :: max_vel_x, max_vel_z
+      real(amrex_real) :: J_face
+      real(amrex_real) :: laplacian_term
+      real(amrex_real) :: h_cap
+      
+      ! Initialize advective and source terms
+      adv_term_x = 0.0_amrex_real
+      adv_term_z = 0.0_amrex_real
+      src_term_x = 0.0_amrex_real
+      src_term_z = 0.0_amrex_real
+      
+      ! Compute column height (defined on staggered grid)
+      melt_height = surf_pos - melt_pos 
+  
+      ! X component of advective acceleration
+      do i = surf_ind(1,1)+1,surf_ind(1,2)
+         do j = surf_ind(2,1),surf_ind(2,2)
+  
+            abs_vel_x = abs(melt_vel(i,j,1))
+            abs_vel_z = abs(melt_vel(i,j,2)) 
 
+            if (melt_vel(i-1,j,1).ne.0) then
+               adv_term_x(i,j) = (melt_vel(i,j,1) + abs_vel_x)/2.0_amrex_real * &
+                                 (melt_vel(i,j,1) - melt_vel(i-1,j,1))/surf_dx(1)
+            end if
+            if (melt_vel(i+1,j,1).ne.0) then
+               adv_term_x(i,j) = adv_term_x(i,j) + (melt_vel(i,j,1) - abs_vel_x)/2.0_amrex_real * &
+                                 (melt_vel(i+1,j,1) - melt_vel(i,j,1))/surf_dx(1) 
+            end if
+            if (melt_vel(i,j-1,1).ne.0 .and. j.gt.surf_ind(2,1)) then
+               adv_term_x(i,j) = adv_term_x(i,j) + (melt_vel(i,j,2) + abs_vel_z)/2.0_amrex_real * &
+                                 (melt_vel(i,j,1) - melt_vel(i,j-1,1))/surf_dx(2)
+            end if
+            if (melt_vel(i,j+1,1).ne.0 .and. j.lt.surf_ind(2,2)) then
+               adv_term_x(i,j) = adv_term_x(i,j) + (melt_vel(i,j,2) - abs_vel_z)/2.0_amrex_real * &
+                                 (melt_vel(i,j+1,1) - melt_vel(i,j,1))/surf_dx(2)
+            end if   
+         end do
+      end do
+
+      ! Z component of advective acceleration
+      do i = surf_ind(1,1),surf_ind(1,2)
+         do j = surf_ind(2,1)+1,surf_ind(2,2)
+            
+            abs_vel_x = abs(melt_vel(i,j,1))
+            abs_vel_z = abs(melt_vel(i,j,2))
+
+            if (melt_vel(i-1,j,2).ne.0 .and. i.gt.surf_ind(1,1)) then
+               adv_term_z(i,j) = (melt_vel(i,j,1) + abs_vel_x)/2.0_amrex_real * &
+                                 (melt_vel(i,j,2) - melt_vel(i-1,j,2))/surf_dx(1)
+            end if
+            if (melt_vel(i+1,j,2).ne.0 .and. i.lt.surf_ind(1,2)) then
+               adv_term_z(i,j) = adv_term_z(i,j) + (melt_vel(i,j,1) - abs_vel_x)/2.0_amrex_real * &
+                                 (melt_vel(i+1,j,2) - melt_vel(i,j,2))/surf_dx(1)
+            end if
+            if (melt_vel(i,j-1,2).ne.0) then
+               adv_term_z(i,j) = adv_term_z(i,j) + (melt_vel(i,j,2) + abs_vel_z)/2.0_amrex_real * &
+                                 (melt_vel(i,j,2) - melt_vel(i,j-1,2))/surf_dx(2)
+            end if
+            if (melt_vel(i,j+1,2).ne.0) then 
+               adv_term_z(i,j) = adv_term_z(i,j) + (melt_vel(i,j,2) - abs_vel_z)/2.0_amrex_real * &
+                                 (melt_vel(i,j+1,2) - melt_vel(i,j,2))/surf_dx(2) 
+            end if
+         end do
+      end do
+  
+      ! Source term in the x direction
+      do i = surf_ind(1,1)+1, surf_ind(1,2)
+         do j = surf_ind(2,1), surf_ind(2,2)
+  
+            ! Melt thickness - interpolation in x direction
+            hh = (melt_height(i,j) + melt_height(i-1,j))/2.0_amrex_real
+            temp_face = (surf_temperature(i,j) + surf_temperature(i-1,j))/2.0_amrex_real
+            
+            ! Compute source terms only for grid points with a finite melt thickness
+            if (hh.gt.0.0_amrex_real) then
+   
+               ! Material properties
+               call get_viscosity(temp_face,visc) ! Should you use different viscosity for direvatives in the z direction
+               call get_mass_density(temp_face,rho)
+               
+               J_face = (J_th(i-1,j)+J_th(i,j))/2
+               
+               ! Calculate the laplacian term only in points inside the melt pool - not on its edges
+               ! Partial update from second derivative in direction of x
+               laplacian_term = 0.0
+               if (melt_vel(i-1, j, 1).ne.0.0 .and. melt_vel(i+1, j, 1).ne.0.0) then
+                  laplacian_term = visc * (melt_vel(i+1,j,1)-2*melt_vel(i,j,1)+melt_vel(i-1,j,1)/surf_dx(1)**2)
+               end if
+               ! Partial update from second derivative in direction of z
+               if (j.gt.surf_ind(2,1) .and. j.lt.surf_ind(2,2) .and. melt_vel(i,j-1,1).ne.0.0 .and. melt_vel(i,j+1,1).ne.0.0) then
+                  laplacian_term  = laplacian_term + visc*(melt_vel(i,j+1,1)-2*melt_vel(i,j,1)+melt_vel(i,j-1,1)/surf_dx(2)**2)
+               end if
+               ! Update source term for accelerationin the x direction
+               src_term_x(i,j) =  sw_Bz*J_face/4 & ! Lorentz force
+                                 + laplacian_term
+               ! Fix dimensionality
+               src_term_x(i,j) = src_term_x(i,j)/rho
+            end if
+         end do
+      end do
+
+      ! Source term in the z direction (it assumed that jxb is allways alligned with the x axis)
+      do i = surf_ind(1,1),surf_ind(1,2)
+         do j = surf_ind(2,1)+1,surf_ind(2,2)
+            ! Melt thickness - interpolation in z direction
+            hh = (melt_height(i,j) + melt_height(i,j-1))/2.0_amrex_real
+            temp_face = (surf_temperature(i,j) + surf_temperature(i,j-1))/2.0_amrex_real
+            
+            ! Compute source terms only for grid points with a finite melt thickness
+            if (hh.gt.0.0_amrex_real) then
+   
+               ! Material properties
+               call get_viscosity(temp_face,visc)
+               call get_mass_density(temp_face,rho)
+               
+               J_face = (J_th(i-1,j)+J_th(i,j))/2
+               
+               ! Calculate the laplacian term only in points inside the melt pool - not on its edges
+               ! Partial update from second derivative in direction of x
+               laplacian_term = 0.0
+               if (melt_vel(i-1,j,2).ne.0.0 .and. melt_vel(i+1,j,2).ne.0.0 .and. i.gt.surf_ind(1,1) .and. i.lt.surf_ind(1,2)) then
+                  laplacian_term = visc * (melt_vel(i+1,j,2)-2*melt_vel(i,j,2)+melt_vel(i-1,j,2)/surf_dx(1)**2)
+               end if
+               ! Partial update from second derivative in direction of z
+               if (melt_vel(i,j-1,1).ne.0.0 .and. melt_vel(i,j+1,1).ne.0.0) then
+                  laplacian_term  = laplacian_term + visc*(melt_vel(i,j+1,2)-2*melt_vel(i,j,2)+melt_vel(i,j-1,2)/surf_dx(2)**2)
+               end if
+               ! Update source term for accelerationin the z direction
+               src_term_z(i,j) =  -sw_Bx*J_face/4 & ! Lorentz force
+                                 + laplacian_term
+               
+               ! Fix dimensionality
+               src_term_z(i,j) = src_term_z(i,j)/rho
+   
+            end if
+         
+         end do
+      end do
+  
+      max_vel_x = 0.0
+      max_vel_z = 0.0
+      h_cap = 1.5e-5
+      ! Update momentum equation
+      do  i = surf_ind(1,1),surf_ind(1,2)
+         do  j = surf_ind(2,1),surf_ind(2,2)
+         
+            ! Update of x component of velocity
+            if (i.gt.surf_ind(1,1)) then
+               hh = (melt_height(i,j) + melt_height(i-1,j))/2.0_amrex_real
+               temp_face = (surf_temperature(i,j) + surf_temperature(i-1,j))/2.0_amrex_real
+               
+               call get_viscosity(temp_face,visc)
+               call get_mass_density(temp_face,rho)
+               
+               if (hh.gt.0.0_amrex_real) then
+                  if (hh.lt.h_cap) hh = h_cap
+                  melt_vel(i,j,1) = (melt_vel(i,j,1) + dt * (src_term_x(i,j) - adv_term_x(i,j)))/(1+3*visc*dt/(rho*hh**2))
+               else
+                  melt_vel(i,j,1) = 0.0_amrex_real
+               endif
+
+               if (ABS(melt_vel(i,j,1)).gt.ABS(max_vel_x)) then
+                  max_vel_x = melt_vel(i,j,1)
+               end if
+            ! No penetration boundary condition
+            else
+               melt_vel(i,j,1) = 0
+            end if
+
+            ! Update of z component of velocity
+            if (j.gt.surf_ind(2,1)) then
+               hh = (melt_height(i,j) + melt_height(i,j-1))/2.0_amrex_real
+               temp_face = (surf_temperature(i,j) + surf_temperature(i,j-1))/2.0_amrex_real
+               
+               call get_viscosity(temp_face,visc)
+               call get_mass_density(temp_face,rho)
+               
+               if (hh.gt.0.0_amrex_real) then
+                  if (hh.lt.h_cap) hh = h_cap
+                  melt_vel(i,j,2) = (melt_vel(i,j,2) + dt * (src_term_z(i,j) - adv_term_z(i,j)))/(1+3*visc*dt/(rho*hh**2))
+               else
+                  melt_vel(i,j,1) = 0.0_amrex_real
+               endif
+               
+               if (ABS(melt_vel(i,j,2)).gt.ABS(max_vel_z)) then
+                  max_vel_z = melt_vel(i,j,2)
+               end if
+            ! No penetration boundary condition
+            else
+               melt_vel(i,j,2) = 0
+            end if
+         
+         end do
+      end do
+   !  write(*,*) max_vel_x
+   !  write(*,*) max_vel_z
+
+      ! Apply boundary conditions - no penetration at the edge
+      do j = surf_ind(2,1), surf_ind(2,2)
+         melt_vel(surf_ind(1,2)+1,j,1) = 0
+      end do
+      do i = surf_ind(1,1), surf_ind(1,2)
+         melt_vel(i,surf_ind(2,2)+1,2) = 0
+      end do
+
+      if (abs(max_vel_x)*dt.ge.surf_dx(1)) then
+         STOP 'CFL not satisfied in x direction'
+      end if
+      if (abs(max_vel_z)*dt.ge.surf_dx(2)) then
+         STOP 'CFL not satisfied in z direction'
+      end if
+    end subroutine advance_SW_explicit_momentum
+
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to advance the shallow water equation for the
+  ! column height with an explicit upwind scheme
+  ! -----------------------------------------------------------------
+    subroutine advance_SW_explicit_height(dt)
+    
+      use amr_data_module, only : surf_ind, &
+                                  surf_dx, &
+                                  surf_evap_flux, &
+                                  surf_pos, &
+                                  melt_pos, &
+                                  melt_vel
+      
+      
+      ! Input and output variables
+      real(amrex_real), intent(in) :: dt
+      
+      ! Local variables
+      integer :: i, j
+      real(amrex_real) :: melt_height_old(surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2))
+      real(amrex_real) :: melt_height(surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2))
+      real(amrex_real) :: height_flux(surf_ind(1,1):surf_ind(1,2)+1,surf_ind(2,1):surf_ind(2,2)+1,2)
+     
+      ! Initialize the height fluxes
+      height_flux = 0. 
+      
+      ! Compute old column height (input from heat solver)
+      melt_height_old = surf_pos - melt_pos 
+  
+      ! Height fluxes along the x direction
+      do  i = surf_ind(1,1),surf_ind(1,2)+1
+         do j = surf_ind(2,1),surf_ind(2,2)
+  
+            ! Boundary condition (low boundary)
+            if (i.eq.surf_ind(1,1)) then
+               
+               if (melt_vel(i,j,1).gt.0.0_amrex_real) then 
+                  height_flux(i,j,1) = 0 !no influx
+               else 
+                  height_flux(i,j,1) = melt_height_old(i,j)*melt_vel(i,j,1)
+               end if
+               
+            ! Boundary condition (high boundary)   
+            elseif (i.eq.surf_ind(1,2)+1) then
+               
+               if (melt_vel(i,j,1).gt.0.0_amrex_real) then 
+                  height_flux(i,j,1) = melt_height_old(i-1,j)*melt_vel(i,j,1)
+               else 
+                  height_flux(i,j,1) = 0 !no influx
+               end if
+               
+            ! Points inside the domain   
+            else
+   
+               ! No outflow from solid points
+               if (melt_height_old(i,j).eq.0) then
+                  if (melt_vel(i,j,1).lt.0) melt_vel(i,j,1) = 0.0_amrex_real
+                  if (melt_vel(i+1,j,1).gt.0) melt_vel(i+1,j,1) = 0.0_amrex_real
+               end if
+   
+               ! Compute height fluxes
+               if (melt_vel(i,j,1).gt.0.0_amrex_real) then 
+                  height_flux(i,j,1) = melt_height_old(i-1,j)*melt_vel(i,j,1)
+               else 
+                  height_flux(i,j,1) = melt_height_old(i,j)*melt_vel(i,j,1)
+               end if
+               
+            end if
+         end do
+      end do
+
+      ! Height fluxes along the z direction
+      do  i = surf_ind(1,1),surf_ind(1,2)
+         do j = surf_ind(2,1),surf_ind(2,2)+1
+  
+            ! Boundary condition (low boundary)
+            if (j.eq.surf_ind(2,1)) then
+               
+               if (melt_vel(i,j,2).gt.0.0_amrex_real) then 
+                  height_flux(i,j,2) = 0 !no influx
+               else 
+                  height_flux(i,j,2) = melt_height_old(i,j)*melt_vel(i,j,2)
+               end if
+               
+            ! Boundary condition (high boundary)   
+            elseif (j.eq.surf_ind(2,2)+1) then
+               
+               if (melt_vel(i,j,2).gt.0.0_amrex_real) then 
+                  height_flux(i,j,2) = melt_height_old(i,j-1)*melt_vel(i,j,2)
+               else 
+                  height_flux(i,j,2) = 0 !no influx
+               end if
+               
+            ! Points inside the domain   
+            else
+   
+               ! No outflow from solid points
+               if (melt_height_old(i,j).eq.0) then
+                  if (melt_vel(i,j,2).lt.0) melt_vel(i,j,2) = 0.0_amrex_real
+                  if (melt_vel(i,j+1,2).gt.0) melt_vel(i,j+1,2) = 0.0_amrex_real
+               end if
+   
+               ! Compute height fluxes
+               if (melt_vel(i,j,2).gt.0.0_amrex_real) then 
+                  height_flux(i,j,2) = melt_height_old(i,j-1)*melt_vel(i,j,2)
+               else 
+                  height_flux(i,j,2) = melt_height_old(i,j)*melt_vel(i,j,2)
+               end if
+               
+            end if
+         end do
+      end do
+  
+      ! Update the column height equation
+      do  i = surf_ind(1,1),surf_ind(1,2)
+         do j = surf_ind(2,1), surf_ind(2,2)
+         
+            surf_pos(i,j) = surf_pos(i,j) & 
+                        - dt/surf_dx(1) * (height_flux(i+1,j,1) - height_flux(i,j,1)) &
+                        - dt/surf_dx(2) * (height_flux(i,j+1,2) - height_flux(i,j,2)) &
+                        - dt*surf_evap_flux(i,j)
+
+         end do         
+      end do
+      melt_height = surf_pos - melt_pos
+  
+      ! Update the velocity of newly molten surface elements 
+      do  i = surf_ind(1,1),surf_ind(1,2)
+         do  j = surf_ind(2,1),surf_ind(2,2)
+         
+            ! Fluid parcles upwind in the x-direction will be used to initiliaze x-component of
+            ! velocity, while upwind parcels in the z-direction are used to initialize the z component.
+            ! If a newly added column has no upwind fluid in the x or z direction the corresponding velocity
+            ! is initialized to zero.
+            if (melt_height_old(i,j).eq.0.0_amrex_real .and. melt_height(i,j).gt.0.0_amrex_real) then 
+
+               ! It is still possible that both conditions are satisfied, in this case it could
+               ! become problematic.
+               ! x component of velocity
+               if (melt_vel(i,j,1).gt.0.0_amrex_real) then
+                  melt_vel(i+1,j,1)  = melt_vel(i,j,1)
+               else if (melt_vel(i+1,j,1).lt.0.0_amrex_real) then
+                  melt_vel(i,j,1) = melt_vel(i+1,j,1)
+               end if
+               ! z component of velocity
+               if (melt_vel(i,j,2).gt.0.0_amrex_real) then
+                  melt_vel(i,j+1,2)  = melt_vel(i,j,2)
+               else if (melt_vel(i,j+1,2).lt.0.0_amrex_real) then
+                  melt_vel(i,j,2) = melt_vel(i,j+1,2)
+               end if
+
+            end if
+         end do
+      end do
+      
+    end subroutine advance_SW_explicit_height
 
    ! -----------------------------------------------------------------
    ! Subroutine used to advance the shallow water equations adapted

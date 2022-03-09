@@ -433,7 +433,7 @@ contains
       end if
       
     end do
-   !  write(*,*) max_vel
+    write(*,*) max_vel
 
     ! Apply boundary conditions
     melt_vel(surf_ind(1,1),1) = melt_vel(surf_ind(1,1)+1,1)

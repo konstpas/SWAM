@@ -39,8 +39,10 @@ module amr_data_module
   public :: surf_pos ! Free surface position
   public :: surf_xlo ! Free surface lowest corner
   public :: surf_temperature ! Free surface temperature
+  public :: surf_enthalpy ! Free surface enthalpy
   public :: surf_evap_flux ! Free surface evaporation flux
   public :: qnew ! Variable to store the solution
+  public :: J_th ! Variable to store the thermionic current
   ! Temperature
   public :: temp
   ! Time
@@ -78,8 +80,10 @@ module amr_data_module
   real(amrex_real), allocatable, save :: surf_evap_flux(:,:)
   real(amrex_real), allocatable, save :: surf_pos(:,:)
   real(amrex_real), allocatable, save :: surf_temperature(:,:)
+  real(amrex_real), allocatable, save :: surf_enthalpy(:,:)
   real(amrex_real), save :: surf_xlo(2)
   real(amrex_real), save :: surf_dx(2)
+  real(amrex_real), allocatable, save :: J_th(:,:)
   type(amrex_fluxregister), allocatable, save :: flux_reg(:)
   type(amrex_multifab), allocatable, save :: idomain(:)
   type(amrex_multifab), allocatable, save :: phi_new(:)
@@ -127,11 +131,13 @@ contains
     allocate(surf_evap_flux(lo_x:hi_x,lo_z:hi_z))
     allocate(surf_pos(lo_x:hi_x,lo_z:hi_z))
     allocate(surf_temperature(lo_x:hi_x,lo_z:hi_z))
+    allocate(surf_enthalpy(lo_x:hi_x,lo_z:hi_z))
     allocate(temp(0:amrex_max_level))
     allocate(t_new(0:amrex_max_level))
     allocate(t_old(0:amrex_max_level))
     allocate(stepno(0:amrex_max_level))
     allocate(nsubsteps(0:amrex_max_level))
+    allocate(J_th(lo_x:hi_x, lo_z:hi_z))
 
     ! Initialize
     dt = 1.0_amrex_real
@@ -157,6 +163,7 @@ contains
     surf_evap_flux = 0.0_amrex_real
     surf_pos = surf_pos_init
     surf_temperature = 0.0_amrex_real
+    surf_enthalpy = 0.0_amrex_real
     surf_xlo(1) = amrex_problo(1) 
     surf_xlo(2) = amrex_problo(3)
     t_new = 0.0_amrex_real
@@ -166,6 +173,7 @@ contains
     do lev = 1, amrex_max_level
        nsubsteps(lev) = amrex_ref_ratio(lev-1)
     end do
+    J_th = 0.0_amrex_real
     
   end subroutine amr_data_init
 
@@ -188,10 +196,12 @@ contains
     deallocate(surf_evap_flux)
     deallocate(surf_pos)
     deallocate(surf_temperature)
+    deallocate(surf_enthalpy)
     deallocate(t_new)
     deallocate(t_old)
     deallocate(stepno)
     deallocate(nsubsteps)
+    deallocate(J_th)
     
     do lev = 0, amrex_max_level
 

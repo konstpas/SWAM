@@ -275,8 +275,8 @@ contains
     integer, intent(in) :: idn_lo(2), idn_hi(2) ! bounds of the output idomain box
     integer, intent(in) :: t_lo(2), t_hi(2) ! bounds of the temperature box
     integer, intent(in) :: t2_lo(2), t2_hi(2) ! bounds of the temperature box with 2 ghost points
-    real(amrex_real), intent(in) :: xlo(2)
-    real(amrex_real), intent(in) :: dx(2)
+    real(amrex_real), intent(in) :: xlo(2) ! Physical location of box boundaries
+    real(amrex_real), intent(in) :: dx(2) ! Grid size
     real(amrex_real), intent(inout) :: u_in(u_lo(1):u_hi(1),u_lo(2):u_hi(2)) ! Input enthalpy 
     real(amrex_real), intent(in) :: idom_old(ido_lo(1):ido_hi(1),ido_lo(2):ido_hi(2))
     real(amrex_real), intent(inout) :: idom_new(idn_lo(1):idn_hi(1),idn_lo(2):idn_hi(2))
