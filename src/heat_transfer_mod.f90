@@ -1737,9 +1737,7 @@ module heat_transfer_module
     ux_hi(1) = hi(1)+1
     uz_lo = lo
     uz_hi = hi
-    uz_hi(3) = uz_hi(3)+1
-    partial_x = 0.0_amrex_real
-    partial_z = 0.0_amrex_real
+    uz_hi(3) = hi(3)+1
     
     ! Construct 2D melt velocity profile from the 2D shallow water solution
     call get_face_velocity(lo_phys, lo, hi, dx, &
@@ -1756,21 +1754,25 @@ module heat_transfer_module
             vz_l = uz(i,j,k)
             vz_r = uz(i,j,k+1)
 
-            ! Partial update based on motion in the x direction
-            if ((vx_l.gt.0 .and. nint(idom(i-1,j,k)).ge.2)) then
-               partial_x = - dt/dx(1) * (vx_l+ABS(vx_l))*(temp_old(i,j,k)-temp_old(i-1,j,k))/2.0_amrex_real
+            if (nint(idom(i,j,k)).ge.2) then
+               partial_x = 0.0_amrex_real
+               partial_z = 0.0_amrex_real
+               ! Partial update based on motion in the x direction
+               if (vx_l.gt.0 .and. nint(idom(i-1,j,k)).ge.2) then
+                  partial_x = - dt/dx(1) * (vx_l+ABS(vx_l))*(temp_old(i,j,k)-temp_old(i-1,j,k))/2.0_amrex_real
+               end if
+               if (vx_r.lt.0 .and. nint(idom(i+1,j,k)).ge.2) then
+                  partial_x = partial_x - dt/dx(1) * (vx_r-ABS(vx_r))*(temp_old(i+1,j,k)-temp_old(i,j,k))/2.0_amrex_real
+               end if
+               ! Partial update based on motion in the z direction
+               if ((vz_l.gt.0 .and. nint(idom(i,j,k-1)).ge.2)) then
+                  partial_z =  - dt/dx(3) * (vz_l+ABS(vz_l))*(temp_old(i,j,k)-temp_old(i,j,k-1))/2.0_amrex_real
+               end if
+               if (vz_r.lt.0 .and. nint(idom(i,j,k+1)).ge.2) then
+                  partial_z = partial_z - dt/dx(3) * (vz_r-ABS(vz_r))*(temp_old(i,j,k+1)-temp_old(i,j,k))/2.0_amrex_real
+               end if
+               temp(i,j,k) = temp_old(i,j,k) + partial_x + partial_z
             end if
-            if (vx_r.lt.0 .and. nint(idom(i+1,j,k)).ge.2) then
-               partial_x = partial_x - dt/dx(1) * (vx_r-ABS(vx_r))*(temp_old(i+1,j,k)-temp_old(i,j,k))/2.0_amrex_real
-            end if
-            ! Partial update based on motion in the z direction
-            if ((vz_l.gt.0 .and. nint(idom(i,j,k-1)).ge.2)) then
-               partial_z =  - dt/dx(3) * (vz_l+ABS(vz_l))*(temp_old(i,j,k)-temp_old(i,j,k-1))/2.0_amrex_real
-            end if
-            if (vz_r.lt.0 .and. nint(idom(i,j,k+1)).ge.2) then
-               partial_z = partial_z - dt/dx(3) * (vz_r-ABS(vz_r))*(temp_old(i,j,k+1)-temp_old(i,j,k))/2.0_amrex_real
-            end if
-            temp(i,j,k) = temp_old(i,j,k) + partial_x + partial_z
             if(temp(i,j,k).ne.temp_old(i,j,k)) then
                call get_enthalpy(temp(i,j,k),u_new(i,j,k))
             end if

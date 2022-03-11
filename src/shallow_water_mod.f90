@@ -264,7 +264,7 @@ module shallow_water_module
                                   melt_vel, &
                                   J_th
       
-      use read_input_module, only : sw_Bx, sw_Bz
+      use read_input_module, only : sw_Bx, sw_Bz, sw_h_cap
   
       use material_properties_module, only : get_mass_density, &
                                              get_viscosity
@@ -287,7 +287,6 @@ module shallow_water_module
       real(amrex_real) :: max_vel_x, max_vel_z
       real(amrex_real) :: J_face
       real(amrex_real) :: laplacian_term
-      real(amrex_real) :: h_cap
       
       ! Initialize advective and source terms
       adv_term_x = 0.0_amrex_real
@@ -400,17 +399,17 @@ module shallow_water_module
                call get_viscosity(temp_face,visc)
                call get_mass_density(temp_face,rho)
                
-               J_face = (J_th(i-1,j)+J_th(i,j))/2
+               J_face = (J_th(i,j)+J_th(i,j-1))/2
                
                ! Calculate the laplacian term only in points inside the melt pool - not on its edges
                ! Partial update from second derivative in direction of x
                laplacian_term = 0.0
                if (melt_vel(i-1,j,2).ne.0.0 .and. melt_vel(i+1,j,2).ne.0.0 .and. i.gt.surf_ind(1,1) .and. i.lt.surf_ind(1,2)) then
-                  laplacian_term = visc * (melt_vel(i+1,j,2)-2*melt_vel(i,j,2)+melt_vel(i-1,j,2)/surf_dx(1)**2)
+                  laplacian_term = visc * (melt_vel(i+1,j,2)-2*melt_vel(i,j,2)+melt_vel(i-1,j,2))/surf_dx(1)**2
                end if
                ! Partial update from second derivative in direction of z
-               if (melt_vel(i,j-1,1).ne.0.0 .and. melt_vel(i,j+1,1).ne.0.0) then
-                  laplacian_term  = laplacian_term + visc*(melt_vel(i,j+1,2)-2*melt_vel(i,j,2)+melt_vel(i,j-1,2)/surf_dx(2)**2)
+               if (melt_vel(i,j-1,2).ne.0.0 .and. melt_vel(i,j+1,2).ne.0.0) then
+                  laplacian_term  = laplacian_term + visc*(melt_vel(i,j+1,2)-2*melt_vel(i,j,2)+melt_vel(i,j-1,2))/surf_dx(2)**2
                end if
                ! Update source term for accelerationin the z direction
                src_term_z(i,j) =  -sw_Bx*J_face/4 & ! Lorentz force
@@ -426,7 +425,6 @@ module shallow_water_module
   
       max_vel_x = 0.0
       max_vel_z = 0.0
-      h_cap = 1.5e-5
       ! Update momentum equation
       do  i = surf_ind(1,1),surf_ind(1,2)
          do  j = surf_ind(2,1),surf_ind(2,2)
@@ -440,7 +438,7 @@ module shallow_water_module
                call get_mass_density(temp_face,rho)
                
                if (hh.gt.0.0_amrex_real) then
-                  if (hh.lt.h_cap) hh = h_cap
+                  if (hh.lt.sw_h_cap) hh = sw_h_cap
                   melt_vel(i,j,1) = (melt_vel(i,j,1) + dt * (src_term_x(i,j) - adv_term_x(i,j)))/(1+3*visc*dt/(rho*hh**2))
                else
                   melt_vel(i,j,1) = 0.0_amrex_real
@@ -463,7 +461,7 @@ module shallow_water_module
                call get_mass_density(temp_face,rho)
                
                if (hh.gt.0.0_amrex_real) then
-                  if (hh.lt.h_cap) hh = h_cap
+                  if (hh.lt.sw_h_cap) hh = sw_h_cap
                   melt_vel(i,j,2) = (melt_vel(i,j,2) + dt * (src_term_z(i,j) - adv_term_z(i,j)))/(1+3*visc*dt/(rho*hh**2))
                else
                   melt_vel(i,j,1) = 0.0_amrex_real
@@ -1292,9 +1290,9 @@ module shallow_water_module
     ! Update surface position
     do j=surf_ind(2,1),surf_ind(2,2)
        do i=surf_ind(1,1),surf_ind(1,2)
-          if (qnew(1,i,j).gt.sw_drytol) then
+         !  if (qnew(1,i,j).gt.sw_drytol) then
              surf_pos(i,j) = melt_pos(i,j) + qnew(1,i,j)
-          end if
+         !  end if
        end do
     end do
 

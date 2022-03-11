@@ -91,6 +91,7 @@ module read_input_module
   public :: sw_drytol
   public :: sw_Bx
   public :: sw_Bz
+  public :: sw_h_cap
   public :: sw_jxb
   public :: stop_time
   public :: surfdist
@@ -165,6 +166,7 @@ module read_input_module
   real(amrex_real), allocatable, save :: sw_jxb(:)
   real(amrex_real), save :: sw_Bx
   real(amrex_real), save :: sw_Bz
+  real(amrex_real), save :: sw_h_cap
   real(amrex_real), allocatable, save :: plasma_flux_params(:)
   real(amrex_real), allocatable, save :: plasma_side_flux_params(:)
   
@@ -243,6 +245,7 @@ contains
     call pp%query("geoclaw_drytol", sw_drytol)
     call pp%query("Bx", sw_Bx)
     call pp%query("Bz", sw_Bz)
+    call pp%query("h_cap", sw_h_cap)
     call amrex_parmparse_destroy(pp)
     
     ! Parameters for the material
@@ -372,6 +375,7 @@ contains
     sw_gravity = 1.0_amrex_real
     sw_Bx = 0.0_amrex_real
     sw_Bz = 0.0_amrex_real
+    sw_h_cap = 0.0_amrex_real
     sw_jxb(1) = 0.0_amrex_real
     sw_jxb(2) = 0.0_amrex_real
     stop_time = 1.0

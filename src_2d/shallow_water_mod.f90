@@ -331,7 +331,7 @@ contains
                                 melt_vel, &
                                 J_th
     
-    use read_input_module, only : sw_magnetic
+    use read_input_module, only : sw_magnetic, sw_h_cap
 
     use material_properties_module, only : get_mass_density, &
                                            get_viscosity
@@ -420,9 +420,9 @@ contains
       call get_mass_density(temp_face,rho)
       
       if (hh.gt.0.0_amrex_real) then
-         if (hh.lt.6e-5) hh = 6e-5
+         if (hh.lt.sw_h_cap) hh = sw_h_cap
          melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))/(1+3*visc*dt/(rho*hh**2))
-         ! melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))/(1+3*visc*dt/(rho*(hh + 6e-5)**2))
+         ! melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))/(1+3*visc*dt/(rho*(hh + sw_h_cap)**2))
          ! melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))
       else
           melt_vel(i,1) = 0.0_amrex_real
