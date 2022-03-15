@@ -53,6 +53,13 @@ module amr_data_module
   public :: nsubsteps
   ! Variable used to check when to regrid
   public :: last_regrid_step
+  ! Variable used to store the total energy poured into the system
+  public :: Qplasma
+  ! Variables used to store the total energy lost to the cooling pipe, thermionic emission, radiation and vaporization
+  public :: Qpipe
+  public :: Qtherm
+  public :: Qrad
+  public :: Qvap
 
   ! ------------------------------------------------------------------
   ! Public subroutines
@@ -89,6 +96,11 @@ module amr_data_module
   type(amrex_multifab), allocatable, save :: phi_new(:)
   type(amrex_multifab), allocatable, save :: phi_old(:)
   type(amrex_multifab), allocatable, save :: temp(:)
+  real(amrex_real), save :: Qplasma
+  real(amrex_real), save :: Qpipe
+  real(amrex_real), save :: Qtherm
+  real(amrex_real), save :: Qrad
+  real(amrex_real), save :: Qvap
 
   
 contains
@@ -174,6 +186,11 @@ contains
        nsubsteps(lev) = amrex_ref_ratio(lev-1)
     end do
     J_th = 0.0_amrex_real
+    Qplasma = 0.0_amrex_real
+    Qpipe = 0.0_amrex_real
+    Qtherm = 0.0_amrex_real
+    Qrad = 0.0_amrex_real
+    Qvap = 0.0_amrex_real
     
   end subroutine amr_data_init
 

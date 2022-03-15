@@ -20,6 +20,7 @@ module domain_module
   public :: integrate_surf
   public :: reset_melt_pos
   public :: revaluate_heat_domain
+  public :: get_local_highest_level
   
 contains
   
@@ -484,6 +485,40 @@ contains
     
   end subroutine integrate_surf
   
+
+  subroutine get_local_highest_level(xlo, dx, lo, hi, lev)
+
+   use read_input_module, only: surfdist
+
+   ! Input and output variables
+   real(amrex_real), intent(in) :: xlo(3)
+   real(amrex_real), intent(in) :: dx(3)
+   integer, intent(in) :: lo(3)
+   integer, intent(in) :: hi(3)
+   integer, intent(out) :: lev(lo(1):hi(1), lo(2):hi(2), lo(3):hi(3))
+
+   ! Local variables
+   real(amrex_real) :: surf_pos_local(lo(1):hi(1), lo(3):hi(3))
+   real(amrex_real) :: ypos
+   integer :: i,j,k
+   integer :: lev_test
+
+   call get_surf_pos(xlo, dx, lo, hi, surf_pos_local)
+
+   do j = lo(2), hi(2)
+      ypos = xlo(2)+(j+0.5-lo(2))*dx(2)
+      do i = lo(1), hi(1)
+         do k = lo(3), hi(3)
+            lev_test = 1
+            do while(abs(ypos-surf_pos_local(i,k)).lt.surfdist(lev_test))
+                lev_test = lev_test+1
+            end do
+            lev(i,j,k) = lev_test-1
+         end do
+      end do
+   end do
+
+  end subroutine get_local_highest_level
   
 end module domain_module
 

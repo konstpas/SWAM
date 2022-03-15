@@ -17,7 +17,12 @@ module plotfile_module
                               surf_dx, &
                               stepno, &
                               melt_vel, &
-                              qnew
+                              qnew, &
+                              Qpipe, &
+                              Qtherm, &
+                              Qrad, &
+                              Qvap, &
+                              Qplasma
   
   use read_input_module, only : plot_file
   
@@ -109,6 +114,14 @@ contains
            write(2, dashfmt) xpos, zpos, surf_pos(i,k), melt_pos(i,k), melt_top(i,k), surf_temperature(i,k)
         end do
     end do
+    close(2)
+
+    ! Output melt thickness
+    name = "cooling_fluxes_" //trim(current_step)//".dat"
+    open(2, file = name, status = 'unknown', action = "write")
+    write(2, *) 'Thermionic       Radiation        Vaporization     Cooling Pipe     Plasma'
+    dashfmt = '(5(es13.6, 4x))'
+    write(2, dashfmt) Qtherm, Qrad, Qvap, Qpipe, Qplasma
     close(2)
 
     ! Output shallow water variables

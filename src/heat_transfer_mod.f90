@@ -136,7 +136,14 @@ module heat_transfer_module
                                                geom, ncomp, phi_tmp, temp_tmp, &
                                                idomain_tmp, flux, fluxes, phi_tmp2, temp_tmp2)
  
-     use amr_data_module, only : phi_new, temp, idomain
+     use amr_data_module, only : phi_new, &
+                                 temp, &
+                                 idomain, &
+                                 Qplasma, &
+                                 Qpipe, &
+                                 Qtherm, &
+                                 Qvap, &
+                                 Qrad
      use read_input_module, only : do_reflux, temp_fs
      use domain_module, only : get_idomain, get_melt_pos, revaluate_heat_domain
      use material_properties_module, only : get_temp
@@ -174,6 +181,7 @@ module heat_transfer_module
      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidout
      type(amrex_box) :: bx
      type(amrex_box) :: tbx
+     real(amrex_real) :: Qpipe_box, Qplasma_box, Qtherm_box, Qrad_box, Qvap_box
      
      ! Box
      bx = mfi%validbox()   
@@ -240,8 +248,14 @@ module heat_transfer_module
                                    pfy, lbound(pfy), ubound(pfy), &
                                    pfz, lbound(pfz), ubound(pfz), &
                                    pidout, lbound(pidout), ubound(pidout), &
-                                   geom, lev, dt)
+                                   geom, lev, dt, &
+                                   Qpipe_box, Qtherm_box, Qvap_box, Qrad_box, Qplasma_box)
      end if
+     Qplasma = Qplasma + Qplasma_box
+     Qpipe = Qpipe + Qpipe_box
+     Qtherm = Qtherm + Qtherm_box
+     Qvap = Qvap + Qvap_box
+     Qrad = Qrad + Qrad_box
  
      ! Get temperature corresponding to the new enthalpy
      call get_temp(bx%lo, bx%hi, &
@@ -284,7 +298,8 @@ module heat_transfer_module
                                     flxy, fy_lo, fy_hi, &
                                     flxz, fz_lo, fz_hi, &
                                     idom, id_lo, id_hi, &
-                                    geom, lev, dt)
+                                    geom, lev, dt, &
+                                    Qpipe_box, Qtherm_box, Qvap_box, Qrad_box, Qplasma_box)
 
       use heat_flux_module, only: get_boundary_heat_flux
 
@@ -308,6 +323,11 @@ module heat_transfer_module
       real(amrex_real), intent(out) :: flxz(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3)) ! flux along the z direction
       real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2),id_lo(3):id_hi(3))
       type(amrex_geometry), intent(in) :: geom ! geometry
+      real(amrex_real), intent(out) :: Qplasma_box
+      real(amrex_real), intent(out) :: Qpipe_box
+      real(amrex_real), intent(out) :: Qtherm_box
+      real(amrex_real), intent(out) :: Qrad_box
+      real(amrex_real), intent(out) :: Qvap_box
 
       !Local variables
       integer :: i,j,k
@@ -334,7 +354,9 @@ module heat_transfer_module
       call get_boundary_heat_flux(time, lo_phys, &
                                   dx, lo, hi, &
                                   idom, id_lo, id_hi, &
-                                  temp, t_lo, t_hi, lev, qbound)
+                                  temp, t_lo, t_hi, lev, dt, &
+                                  Qpipe_box, Qtherm_box, Qvap_box, Qrad_box, &
+                                  Qplasma_box, qbound)
 
       ! Compute enthalpy at the new timestep
       do   i = lo(1),hi(1)
@@ -1012,7 +1034,14 @@ module heat_transfer_module
                                                rhs,  phi_tmp2, temp_tmp2)
  
      use read_input_module, only : temp_fs
-     use amr_data_module, only : phi_new, temp, idomain
+     use amr_data_module, only : phi_new, & 
+                                 temp, & 
+                                 idomain, &
+                                 Qplasma, &
+                                 Qpipe, &
+                                 Qtherm, &
+                                 Qvap, &
+                                 Qrad
      use domain_module, only : get_idomain, revaluate_heat_domain
      use material_properties_module, only : get_temp
      
@@ -1051,6 +1080,7 @@ module heat_transfer_module
      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: prhs
      type(amrex_box) :: tbx
      type(amrex_box) :: bx
+     real(amrex_real) :: Qpipe_box, Qplasma_box, Qtherm_box, Qrad_box, Qvap_box
      
      ! Box
      bx = mfi%validbox()   
@@ -1132,8 +1162,14 @@ module heat_transfer_module
                      pidout, lbound(pidout), ubound(pidout), &
                      ptempin, lbound(ptempin), ubound(ptempin), &
                      pac, lbound(pac), ubound(pac), &                      
-                     prhs, lbound(prhs), ubound(prhs))
+                     prhs, lbound(prhs), ubound(prhs), &
+                     Qpipe_box, Qtherm_box, Qvap_box, Qrad_box, Qplasma_box)
      end if
+     Qplasma = Qplasma + Qplasma_box
+     Qpipe = Qpipe + Qpipe_box
+     Qtherm = Qtherm + Qtherm_box
+     Qvap = Qvap + Qvap_box
+     Qrad = Qrad + Qrad_box
      
    end subroutine predict_heat_solver_implicit_box
  
@@ -1478,7 +1514,8 @@ module heat_transfer_module
                       idom, id_lo, id_hi, &
                       temp, t_lo, t_hi, &
                       alpha, a_lo, a_hi, &
-                      rhs, r_lo, r_hi)
+                      rhs, r_lo, r_hi, &
+                      Qpipe_box, Qtherm_box, Qvap_box, Qrad_box, Qplasma_box)
  
      use heat_flux_module, only: get_boundary_heat_flux
      
@@ -1497,6 +1534,11 @@ module heat_transfer_module
      real(amrex_real), intent(in) :: dx(3)
      real(amrex_real), intent(in) :: time
      real(amrex_real), intent(in) :: dt
+     real(amrex_real), intent(out) :: Qplasma_box
+     real(amrex_real), intent(out) :: Qpipe_box
+     real(amrex_real), intent(out) :: Qtherm_box
+     real(amrex_real), intent(out) :: Qrad_box
+     real(amrex_real), intent(out) :: Qvap_box
      
      ! Local variables
      integer :: i,j,k
@@ -1505,7 +1547,9 @@ module heat_transfer_module
      call get_boundary_heat_flux(time, lo_phys, &
                                  dx, lo, hi, &
                                  idom, id_lo, id_hi, &
-                                 temp, t_lo, t_hi, lev, rhs)
+                                 temp, t_lo, t_hi, lev, dt, &
+                                 Qpipe_box, Qtherm_box, Qvap_box, Qrad_box, &
+                                 Qplasma_box, rhs)
      
      ! Fill rhs of linear problem
      do i = lo(1), hi(1)
