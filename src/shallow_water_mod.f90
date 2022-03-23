@@ -15,6 +15,7 @@ module shallow_water_module
    ! Public subroutines
    ! -----------------------------------------------------------------
    public :: advance_SW
+   public :: init_melt_pos
    
  contains 
  
@@ -25,7 +26,7 @@ module shallow_water_module
    subroutine advance_SW()
  
      use amr_data_module, only : idomain, temp, phi_new, dt
-     use read_input_module, only : solve_sw_momentum, sw_solver
+     use read_input_module, only : solve_sw_momentum, sw_solver, solve_heat
      
      ! Local variables
      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pid
@@ -34,28 +35,32 @@ module shallow_water_module
      type(amrex_mfiter) :: mfi
      type(amrex_box) :: bx
 
-     ! Compute terms that depend on the temperature. Since the temperature
-     ! is a multifab, it must be accessed in blocks according to the rules
-     ! defined by amrex
-     call amrex_mfiter_build(mfi, idomain(amrex_max_level), tiling=.false.)        
-     do while(mfi%next())
-        
-        ! Box
-        bx = mfi%validbox()   
-        
-        ! Pointers
-        ptemp => temp(amrex_max_level)%dataptr(mfi)
-        penth => phi_new(amrex_max_level)%dataptr(mfi)
-        pid   => idomain(amrex_max_level)%dataptr(mfi)
-        
-        ! Terms that depend on the temperature
-        call compute_SW_temperature_terms(bx%lo, bx%hi, &
-                                          ptemp, lbound(ptemp), ubound(ptemp), &
-                                          pid, lbound(pid), ubound(pid), &
-                                          penth, lbound(penth), ubound(penth))
-        
-     end do
-     call amrex_mfiter_destroy(mfi)    
+     if(solve_heat) then
+      ! Compute terms that depend on the temperature. Since the temperature
+      ! is a multifab, it must be accessed in blocks according to the rules
+      ! defined by amrex
+      call amrex_mfiter_build(mfi, idomain(amrex_max_level), tiling=.false.)        
+      do while(mfi%next())
+         
+         ! Box
+         bx = mfi%validbox()   
+         
+         ! Pointers
+         ptemp => temp(amrex_max_level)%dataptr(mfi)
+         penth => phi_new(amrex_max_level)%dataptr(mfi)
+         pid   => idomain(amrex_max_level)%dataptr(mfi)
+         
+         ! Terms that depend on the temperature
+         call compute_SW_temperature_terms(bx%lo, bx%hi, &
+                                             ptemp, lbound(ptemp), ubound(ptemp), &
+                                             pid, lbound(pid), ubound(pid), &
+                                             penth, lbound(penth), ubound(penth))
+         
+      end do
+      call amrex_mfiter_destroy(mfi) 
+   else 
+      call compute_SW_temperature_terms_decoupled()   
+   end if
 
      ! Advance shallow water equations in time
      if (solve_sw_momentum) then
@@ -153,7 +158,27 @@ module shallow_water_module
      xdot_vap = pv*sqrt(m_A/(2*pi*kb*Ts))/rho_m
      
    end subroutine get_evaporation_flux
-   
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to compute the temperature dependent terms
+  ! in the shallow water equations
+  ! -----------------------------------------------------------------
+   subroutine compute_SW_temperature_terms_decoupled()
+    
+      use amr_data_module, only : surf_temperature, surf_evap_flux, surf_enthalpy, J_th
+      use material_properties_module, only : get_enthalpy
+      
+      ! Local variables
+      real(amrex_real) :: enth, temp
+
+      temp = 4000.0
+      surf_evap_flux = 0.0
+      surf_temperature = temp
+      call get_enthalpy(temp, enth)
+      surf_enthalpy = enth
+      j_th = 2e6;
+    
+  end subroutine compute_SW_temperature_terms_decoupled   
 
    ! -----------------------------------------------------------------
    ! Subroutine used to advance the shallow water equations in time
@@ -217,7 +242,7 @@ module shallow_water_module
      ! Z flux 
      do i = surf_ind(1,1),surf_ind(1,2)
         do k = surf_ind(2,1),surf_ind(2,2)+1
-           if     (k.eq.surf_ind(2,1)  ) then 
+           if (k.eq.surf_ind(2,1)) then 
               if (melt_vel(i,k,2) > 0_amrex_real) then 
                  height_flux(i,k,2) = 0! no influx
               else 
@@ -464,7 +489,7 @@ module shallow_water_module
                   if (hh.lt.sw_h_cap) hh = sw_h_cap
                   melt_vel(i,j,2) = (melt_vel(i,j,2) + dt * (src_term_z(i,j) - adv_term_z(i,j)))/(1+3*visc*dt/(rho*hh**2))
                else
-                  melt_vel(i,j,1) = 0.0_amrex_real
+                  melt_vel(i,j,2) = 0.0_amrex_real
                endif
                
                if (ABS(melt_vel(i,j,2)).gt.ABS(max_vel_z)) then
@@ -477,8 +502,8 @@ module shallow_water_module
          
          end do
       end do
-   !  write(*,*) max_vel_x
-   !  write(*,*) max_vel_z
+    write(*,*) max_vel_x
+    write(*,*) max_vel_z
 
       ! Apply boundary conditions - no penetration at the edge
       do j = surf_ind(2,1), surf_ind(2,2)
@@ -560,7 +585,7 @@ module shallow_water_module
                ! Compute height fluxes
                if (melt_vel(i,j,1).gt.0.0_amrex_real) then 
                   height_flux(i,j,1) = melt_height_old(i-1,j)*melt_vel(i,j,1)
-               else 
+               else if (melt_vel(i,j,1).lt.0.0_amrex_real) then 
                   height_flux(i,j,1) = melt_height_old(i,j)*melt_vel(i,j,1)
                end if
                
@@ -602,7 +627,7 @@ module shallow_water_module
                ! Compute height fluxes
                if (melt_vel(i,j,2).gt.0.0_amrex_real) then 
                   height_flux(i,j,2) = melt_height_old(i,j-1)*melt_vel(i,j,2)
-               else 
+               else if (melt_vel(i,j,2).lt.0.0_amrex_real) then 
                   height_flux(i,j,2) = melt_height_old(i,j)*melt_vel(i,j,2)
                end if
                
@@ -667,14 +692,18 @@ module shallow_water_module
                                  surf_temperature, &
                                  melt_pos, &
                                  melt_vel, &
-                                 qnew
+                                 qnew, &
+                                 J_th
      
      use material_properties_module, only : get_viscosity, get_mass_density
      use read_input_module, only : cooling_vaporization, &
                                    sw_iter, &
                                    sw_gravity, &
                                    sw_drytol, &
-                                   sw_jxb
+                                   sw_jxb, &
+                                   sw_Bx, &
+                                   sw_Bz, &
+                                   sw_h_cap
 
      ! Input and output variables
      real(amrex_real), intent(in) :: dt
@@ -804,14 +833,14 @@ module shallow_water_module
                  Srce(1,i,j) = -surf_evap_flux(i,j)
               end if
               ! Source terms for the momentum equation along x
-              Srce(2,i,j) = sw_jxb(1) &
-                            - 3.*visc*uold(i,j)/(hold(i,j)**2) &
+              Srce(2,i,j) = J_th(i,j)*sw_Bz/4 &
+                            - 3.*visc*uold(i,j)/(min(hold(i,j), sw_h_cap)**2) &
                             + visc * ( (uold(i+1,j) + uold(i-1,j) - 2.*uold(i,j))/(dx**2) & 
                             + (uold(i,j+1) + uold(i,j-1) - 2.*uold(i,j))/(dy**2))
               Srce(2,i,j) = Srce(2,i,j)/rho
               ! Source terms for the momentum equation along z
-              Srce(3,i,j) = sw_jxb(2) &
-                            - 3.*visc*vold(i,j)/(hold(i,j)**2) &
+              Srce(3,i,j) = -J_th(i,j)*sw_Bx/4 &
+                            - 3.*visc*vold(i,j)/(min(hold(i,j), sw_h_cap)**2) &
                             + visc * ( (vold(i+1,j) + vold(i-1,j) - 2.*vold(i,j))/(dx**2) & 
                             + (vold(i,j+1) + vold(i,j-1) - 2.*vold(i,j))/(dy**2))
               Srce(3,i,j) = Srce(3,i,j)/rho
@@ -1731,6 +1760,39 @@ module shallow_water_module
    end do
 
   end subroutine fwave_limiter
+
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to prescribe a melt pool when the heat response
+  ! in not calculated.
+  ! -----------------------------------------------------------------
+   subroutine init_melt_pos()
+      use amr_data_module, only : melt_pos, &
+                                  surf_pos, &
+                                  surf_dx, &
+                                  surf_ind
+
+      ! Local variables
+      real(amrex_real) :: x_phys, z_phys
+      real(amrex_real) :: xc, xw
+      integer :: i,j
+
+      xc = 29E-3
+      xw = 5E-3
+      do i = surf_ind(1,1), surf_ind(1,2)
+         do j = surf_ind(2,1), surf_ind(2,2)
+            x_phys = (i+0.5)*surf_dx(1)
+            z_phys = (j+0.5)*surf_dx(2)
+            if (z_phys.gt.1E-2 .and. z_phys.lt.11E-3) then
+               melt_pos(i,j) = surf_pos(i,j) - 20e-6 * EXP(-((x_phys-xc)**2)/(xw**2))
+               if (surf_pos(i,j)-melt_pos(i,j).lt.3e-6) then
+                  melt_pos(i,j) = surf_pos(i,j)
+               end if
+            end if
+         end do
+      end do
+
+   end subroutine init_melt_pos
    
  end module shallow_water_module
  

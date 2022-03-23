@@ -86,10 +86,13 @@ contains
           call amrex_multifab_build(fluxes(idim), phi_new(lev)%ba, phi_new(lev)%dm, ncomp, 0, nodal)
        end do       
     end if
+
+    !$omp parallel private(mfi, flux)
+
     do idim = 1, amrex_spacedim
-       call flux(idim)%reset_omp_private()
+      call flux(idim)%reset_omp_private()
     end do
-       
+
     ! Advance heat solver on all boxes on the level
     call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)  
     do while(mfi%next())
@@ -99,6 +102,8 @@ contains
     end do
     call amrex_mfiter_destroy(mfi)
     
+    !$omp end parallel
+
     ! Update flux registers (fluxes have already been scaled by dt and area in the advance_heat_solver_box subroutine)
     if (do_reflux) then
 
@@ -119,7 +124,7 @@ contains
     ! Clean memory
     call amrex_mfiter_destroy(mfi)
     do idim = 1, amrex_spacedim
-       call amrex_fab_destroy(flux(idim))
+      call amrex_fab_destroy(flux(idim))
     end do
     call amrex_multifab_destroy(phi_tmp)
     call amrex_multifab_destroy(temp_tmp)
@@ -797,11 +802,6 @@ contains
        ! Build temporary idomain multifab to store the domain configuration before SW deformation
        call amrex_multifab_build(idomain_tmp(ilev), ba(ilev), dm(ilev), ncomp, nghost)
        call amrex_multifab_swap(idomain_tmp(ilev), idomain(ilev))
-
-       ! Initialize fluxes (used in the predictor step)
-       do idim = 1, amrex_spacedim
-          call flux(idim)%reset_omp_private()
-       end do
     
        ! Multifabs for the linear solver
        call amrex_multifab_build(rhs(ilev), ba(ilev), dm(ilev), ncomp, 0)
@@ -812,6 +812,13 @@ contains
           call amrex_multifab_build(beta(idim,ilev), ba(ilev), dm(ilev), ncomp, 0, nodal)
        end do
  
+       !$omp parallel private(mfi, flux)
+
+       ! Initialize fluxes (used in the predictor step)
+       do idim = 1, amrex_spacedim
+         call flux(idim)%reset_omp_private()
+       end do
+
        ! Loop through all the boxes in the level
        call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)
        do while(mfi%next())
@@ -822,6 +829,7 @@ contains
 
        end do
        call amrex_mfiter_destroy(mfi)
+       !$omp end parallel
 
     end do
     
@@ -845,6 +853,7 @@ contains
        ! Geometry
        geom = amrex_geom(ilev)
        
+       !$omp parallel private(mfi)
        ! Loop through all the boxes in the level
        call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)
        do while(mfi%next())
@@ -853,6 +862,7 @@ contains
           
        end do
        call amrex_mfiter_destroy(mfi)
+       !$omp end parallel
        call temp_tmp(ilev)%fill_boundary(geom)
        
     end do
@@ -863,6 +873,7 @@ contains
       ! Geometry
       geom = amrex_geom(ilev)
       
+      !$omp parallel private(mfi, bx, pidom, ptemp_tmp)
       ! Loop through all the boxes in the level
       call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)
       do while(mfi%next())
@@ -875,7 +886,8 @@ contains
                            ptemp_tmp, lbound(ptemp_tmp), ubound(ptemp_tmp))
          
       end do
-      call amrex_mfiter_destroy(mfi)      
+      call amrex_mfiter_destroy(mfi)   
+      !$omp end parallel   
    end do
 
     ! Find the melt position
@@ -885,6 +897,7 @@ contains
    geom = amrex_geom(ilev)
    
    ! Loop through all the boxes in the level
+   !$omp parallel private(mfi, bx, pidom)
    call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)
    do while(mfi%next())
       bx = mfi%validbox()
@@ -895,6 +908,7 @@ contains
       
    end do
    call amrex_mfiter_destroy(mfi)
+   !$omp end parallel   
 
 
     ! Explicit update of the temperature due to heat advection
@@ -904,6 +918,7 @@ contains
          geom = amrex_geom(ilev)
          
          ! Loop through all the boxes in the level
+         !$omp parallel private(mfi, bx, pidom, ptemp, ptemp_tmp, pout)
          call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)
          do while(mfi%next())
             bx = mfi%validbox()
@@ -919,6 +934,7 @@ contains
             
          end do
          call amrex_mfiter_destroy(mfi)
+         !$omp end parallel   
       
      end do    
     

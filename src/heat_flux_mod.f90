@@ -54,6 +54,7 @@ contains
 
     use read_input_module, only : plasma_flux_type, &
                                   cooling_thermionic, &
+                                  cooling_thermionic_side, &
                                   cooling_vaporization, &
                                   cooling_radiation, &
                                   geometry_name, &
@@ -220,24 +221,24 @@ contains
                 else
                    STOP "Unknown plasma heat flux type"
                 end if
-                if (lev.eq.amrex_max_level) Qplasma_box = Qplasma_box + q_plasma*dx(2)*dx(3)*dt
+                if (lev.eq.local_max_level(i,j,k)) Qplasma_box = Qplasma_box + q_plasma*dx(2)*dx(3)*dt
  
                !  ! Thermionic cooling flux
-               !  if (cooling_thermionic) then
-               !     call thermionic_cooling(temp(i,j,k), q_plasma, q_therm)
-               !     if (lev.eq.amrex_max_level) Qtherm = Qtherm + q_therm*dx(2)*dx(3)*dt
-               !  end if
+                if (cooling_thermionic_side) then
+                   call thermionic_cooling(temp(i,j,k), q_plasma, q_therm)
+                   if (lev.eq.local_max_level(i,j,k)) Qtherm_box = Qtherm_box + q_therm*dx(2)*dx(3)*dt
+                end if
  
                 ! Vaporization cooling flux
                 if (cooling_vaporization) then
                    call vaporization_cooling(temp(i,j,k), q_vap)
-                   if (lev.eq.amrex_max_level) Qvap_box = Qvap_box + q_vap*dx(2)*dx(3)*dt
+                   if (lev.eq.local_max_level(i,j,k)) Qvap_box = Qvap_box + q_vap*dx(2)*dx(3)*dt
                 end if
  
                 ! Radiative cooling flux
                 if (cooling_radiation) then
                    call radiation_cooling(temp(i,j,k), q_rad)
-                   if (lev.eq.amrex_max_level) Qrad_box = Qrad_box + q_rad*dx(2)*dx(3)*dt
+                   if (lev.eq.local_max_level(i,j,k)) Qrad_box = Qrad_box + q_rad*dx(2)*dx(3)*dt
                 end if
                 qb(i,j,k) = qb(i,j,k) + (q_plasma-q_therm-q_vap-q_rad)/dx(1)
              end if
@@ -889,10 +890,10 @@ contains
 
       Tc = T-T0
       if (Tc.gt.294.0) then
-         write(*,*) 'Temperature near pipe requires extrapolation when computing the convection coefficient'
-         write(*,*) 'The temperature adjacent to pipe is (in Kelvin)'
-         write(*,*) T
-         write(*,*) 'The convection coefficient will be arbitratly assumed constant for T > 567 K'
+         ! write(*,*) 'Temperature near pipe requires extrapolation when computing the convection coefficient'
+         ! write(*,*) 'The temperature adjacent to pipe is (in Kelvin)'
+         ! write(*,*) T
+         ! write(*,*) 'The convection coefficient will be arbitratly assumed constant for T > 567 K'
          Tc = 294
       end if
 

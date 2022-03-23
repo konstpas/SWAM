@@ -150,7 +150,7 @@ contains
        xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1))
 
        if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
-       if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
+       if (xind.gt.surf_ind(1,2)) xind = surf_ind(1,2) 
       
        ! Check if you fall inbetween two grid points of the heighest level
       !  frac_part = (xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1) - xind

@@ -191,6 +191,7 @@ contains
                end if
 
                if (j .le. surf_ind_heat_domain .and. xpos .le. sample_edge .and. (.not.pipe_flag)) then
+               ! if (j .le. surf_ind_heat_domain .and. (.not.pipe_flag)) then
 
                   if (find_liquid) then
                      if (temp(i,j,k).gt.temp_melt) then
@@ -222,45 +223,96 @@ contains
   ! free interface. Note that the surface position is defined on
   ! the faces of the cells and not on the centers
   ! -----------------------------------------------------------------     
-  subroutine get_surf_pos(xlo, dx, lo, hi, surf_pos_heat_domain)
+    subroutine get_surf_pos(xlo, dx, lo, hi, surf_pos_heat_domain)
     
-    use amr_data_module, only : surf_ind, surf_pos, surf_xlo, surf_dx  
-    
-    ! Input and output variables
-    integer, intent(in) :: lo(3), hi(3) 
-    real(amrex_real), intent(in) :: xlo(3)
-    real(amrex_real), intent(in) :: dx(3)
-    real(amrex_real), intent(out) :: surf_pos_heat_domain(lo(1):hi(1),lo(3):hi(3))
-    
-    ! Local variables
-    integer :: i, k
-    integer :: xind, zind
-    real(amrex_real) :: xpos, zpos
-    
-    do  i = lo(1),hi(1)
-       do k = lo(3),hi(3)
-          
-          xpos = xlo(1) + (0.5 + i-lo(1))*dx(1) 
-          zpos = xlo(3) + (0.5 + k-lo(3))*dx(3)
-          
-          ! The nearest integer is taken to round of numerical
-          ! errors since we know that dx(1) is n*surf_dx(1) where
-          ! n is an integer which depends on the current level and
-          ! the refinment ratio between levels. 
-          xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
-          zind = nint((zpos - surf_dx(2)/2 - surf_xlo(2))/surf_dx(2))
-          
-          if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
-          if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
-          if (zind.lt.surf_ind(2,1)) zind = surf_ind(2,1)
-          if (zind.ge.surf_ind(2,2)) zind = surf_ind(2,2)-1 
-          
-          surf_pos_heat_domain(i,k) = surf_pos(xind, zind)
+      ! use amr_data_module, only : surf_ind, surf_pos, surf_xlo, surf_dx  
+      
+      ! ! Input and output variables
+      ! integer, intent(in) :: lo(3), hi(3) 
+      ! real(amrex_real), intent(in) :: xlo(3)
+      ! real(amrex_real), intent(in) :: dx(3)
+      ! real(amrex_real), intent(out) :: surf_pos_heat_domain(lo(1):hi(1),lo(3):hi(3))
+      
+      ! ! Local variables
+      ! integer :: i, k
+      ! integer :: xind, zind
+      ! real(amrex_real) :: xpos, zpos
+      ! real(amrex_real) :: x(1:2), z(1:2)
+      ! real(amrex_real) :: t,u
+  
+      ! do  i = lo(1),hi(1)
+      !    do k = lo(3),hi(3)
             
-       end do
-    end do
+      !       xpos = xlo(1) + (0.5 + i-lo(1))*dx(1) 
+      !       zpos = xlo(3) + (0.5 + k-lo(3))*dx(3)
+             
+      !       xind = floor(xpos/surf_dx(1))
+      !       zind = floor(zpos/surf_dx(2))
+      !       if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)+1
+      !       if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2) 
+      !       if (zind.lt.surf_ind(2,1)) zind = surf_ind(2,1)+1
+      !       if (zind.ge.surf_ind(2,2)) zind = surf_ind(2,2) 
+  
+      !       x(1) = surf_xlo(1)+(xind-0.5)*surf_dx(1)
+      !       x(2) = surf_xlo(1)+(xind+0.5)*surf_dx(1)
+      !       z(1) = surf_xlo(2)+(zind-0.5)*surf_dx(2)
+      !       z(2) = surf_xlo(2)+(zind+0.5)*surf_dx(2)
+  
+      !       t = min(1.0, max(0.0, (xpos-x(1))/(x(2)-x(1))))
+      !       u = min(1.0, max(0.0, (zpos-z(1))/(z(2)-z(1))))
+
+      !       ! Round off numerical accuracies
+      !       if (abs(t-0.5).lt.1e-6) t = 0.5
+      !       if (abs(u-0.5).lt.1e-6) u = 0.5
+      !       if (abs(t-0.0).lt.1e-6) t = 0.0_amrex_real
+      !       if (abs(u-0.0).lt.1e-6) u = 0.0_amrex_real
+      !       if (abs(t-1.0).lt.1e-6) t = 1
+      !       if (abs(u-1.0).lt.1e-6) u = 1
+  
+      !       surf_pos_heat_domain(i,k) = (1-t)*(1-u)*surf_pos(xind-1,zind-1) + t*(1-u)*surf_pos(xind,zind-1) &
+      !                   + t*u*surf_pos(xind,zind) + (1-t)*u*surf_pos(xind-1,zind)
+            
+
+      !    end do
+      ! end do
+
+      use amr_data_module, only : surf_ind, surf_pos, surf_xlo, surf_dx  
     
-  end subroutine get_surf_pos
+      ! Input and output variables
+      integer, intent(in) :: lo(3), hi(3) 
+      real(amrex_real), intent(in) :: xlo(3)
+      real(amrex_real), intent(in) :: dx(3)
+      real(amrex_real), intent(out) :: surf_pos_heat_domain(lo(1):hi(1),lo(3):hi(3))
+      
+      ! Local variables
+      integer :: i, k
+      integer :: xind, zind
+      real(amrex_real) :: xpos, zpos
+      
+      do  i = lo(1),hi(1)
+         do k = lo(3),hi(3)
+            
+            xpos = xlo(1) + (0.5 + i-lo(1))*dx(1) 
+            zpos = xlo(3) + (0.5 + k-lo(3))*dx(3)
+            
+            ! The nearest integer is taken to round of numerical
+            ! errors since we know that dx(1) is n*surf_dx(1) where
+            ! n is an integer which depends on the current level and
+            ! the refinment ratio between levels. 
+            xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
+            zind = nint((zpos - surf_dx(2)/2 - surf_xlo(2))/surf_dx(2))
+            
+            if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
+            if (xind.gt.surf_ind(1,2)) xind = surf_ind(1,2)
+            if (zind.lt.surf_ind(2,1)) zind = surf_ind(2,1)
+            if (zind.gt.surf_ind(2,2)) zind = surf_ind(2,2) 
+            
+            surf_pos_heat_domain(i,k) = surf_pos(xind, zind)
+              
+         end do
+      end do
+      
+    end subroutine get_surf_pos
   
     
   ! -----------------------------------------------------------------
@@ -310,7 +362,7 @@ contains
        do k = lo(3), hi(3)  ! z-direction 	
           do j = lo(2), hi(2) 
              
-             if (nint(idom(i,j,k)).eq.3 .and. nint(idom(i,j-1,k)).ne.3) then
+             if (nint(idom(i,j,k)).ge.2 .and. nint(idom(i,j-1,k)).lt.2) then
                 
                 it(1) = i
                 it(2) = j
@@ -318,7 +370,7 @@ contains
                 grid_pos = geom%get_physical_location(it)
                 melt_pos(i,k) = grid_pos(2) 
                 
-             else if (nint(idom(i,j,k)).eq.3 .and. nint(idom(i,j-1,k)).ne.3) then
+             else if (nint(idom(i,j,k)).lt.2 .and. nint(idom(i,j-1,k)).ge.2) then
                 
                 it(1) = i
                 it(2) = j
@@ -405,6 +457,7 @@ contains
   
                ! Points added on top of solid (take upwind temperature)   
                else
+                  ! write(*,*) 'Point added on top of solid' 
   
                   ! Index for the surface properties (temperature and enthalpy)
                   xpos = xlo(1) + (0.5 + i-lo(1))*dx(1)  

@@ -86,19 +86,22 @@ module heat_transfer_module
            call amrex_multifab_build(fluxes(idim), phi_new(lev)%ba, phi_new(lev)%dm, ncomp, 0, nodal)
         end do       
      end if
+
+    !$OMP parallel private(mfi, flux)
      do idim = 1, amrex_spacedim
         call flux(idim)%reset_omp_private()
      end do
         
      ! Advance heat solver on all boxes on the level
-     call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)  
+     call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
      do while(mfi%next())
         call advance_heat_solver_explicit_box(lev, time, dt, substep, mfi, &
                                               geom, ncomp, phi_tmp, temp_tmp, &
                                               idomain_tmp, flux, fluxes, phi_tmp2, temp_tmp2)
      end do
      call amrex_mfiter_destroy(mfi)
-     
+    !$OMP end parallel
+
      ! Update flux registers (fluxes have already been scaled by dt and area in the advance_heat_solver_box subroutine)
      if (do_reflux) then
  
@@ -251,11 +254,13 @@ module heat_transfer_module
                                    geom, lev, dt, &
                                    Qpipe_box, Qtherm_box, Qvap_box, Qrad_box, Qplasma_box)
      end if
+     !$omp critical
      Qplasma = Qplasma + Qplasma_box
      Qpipe = Qpipe + Qpipe_box
      Qtherm = Qtherm + Qtherm_box
      Qvap = Qvap + Qvap_box
      Qrad = Qrad + Qrad_box
+     !$omp end critical
  
      ! Get temperature corresponding to the new enthalpy
      call get_temp(bx%lo, bx%hi, &
@@ -878,22 +883,18 @@ module heat_transfer_module
         call amrex_multifab_build(temp_tmp2(ilev), ba(ilev), dm(ilev), ncomp, nghost+1)
         call fillpatch(ilev, time, phi_tmp(ilev))
 
-       ! Fill in the temperature and enthalpy ultifabs with 2 ghost points from previous solution   
+       ! Fill in the temperature and enthalpy ultifabs with 2 ghost points from previous solution  
         srccmp = 1
         dstcmp = 1
         call temp_tmp2(ilev)%copy(temp(ilev), srccmp, dstcmp, ncomp, nghost+1)
         call temp_tmp2(ilev)%fill_boundary(geom)
         call phi_tmp2(ilev)%copy(phi_old(ilev), srccmp, dstcmp, ncomp, nghost+1)
         call phi_tmp2(ilev)%fill_boundary(geom)
-        
+       
         ! Build temporary idomain multifab to store the domain configuration before SW deformation
         call amrex_multifab_build(idomain_tmp(ilev), ba(ilev), dm(ilev), ncomp, nghost)
         call amrex_multifab_swap(idomain_tmp(ilev), idomain(ilev))
  
-        ! Initialize fluxes (used in the predictor step)
-        do idim = 1, amrex_spacedim
-           call flux(idim)%reset_omp_private()
-        end do
      
         ! Multifabs for the linear solver
         call amrex_multifab_build(rhs(ilev), ba(ilev), dm(ilev), ncomp, 0)
@@ -903,7 +904,12 @@ module heat_transfer_module
            nodal(idim) = .true.
            call amrex_multifab_build(beta(idim,ilev), ba(ilev), dm(ilev), ncomp, 0, nodal)
         end do
-  
+
+      !$omp parallel private(mfi, flux)
+        ! Initialize fluxes (used in the predictor step)
+        do idim = 1, amrex_spacedim
+         call flux(idim)%reset_omp_private()
+        end do
         ! Loop through all the boxes in the level
         call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)
         do while(mfi%next())
@@ -914,6 +920,7 @@ module heat_transfer_module
  
         end do
         call amrex_mfiter_destroy(mfi)
+      !$omp end parallel
  
      end do
      
@@ -927,6 +934,7 @@ module heat_transfer_module
         ! Geometry
         geom = amrex_geom(ilev)
         
+       !$omp parallel private(mfi)
         ! Loop through all the boxes in the level
         call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)
         do while(mfi%next())
@@ -936,6 +944,7 @@ module heat_transfer_module
            
         end do
         call amrex_mfiter_destroy(mfi)
+       !$omp end parallel
         call temp_tmp(ilev)%fill_boundary(geom) ! Fill in the solution to the ghost points
         
      end do
@@ -946,6 +955,7 @@ module heat_transfer_module
       ! Geometry
       geom = amrex_geom(ilev)
       
+     !$omp parallel private(mfi, bx, pidom, ptemp_tmp)
       ! Loop through all the boxes in the level
       call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)
       do while(mfi%next())
@@ -958,7 +968,8 @@ module heat_transfer_module
                            ptemp_tmp, lbound(ptemp_tmp), ubound(ptemp_tmp))
          
       end do
-      call amrex_mfiter_destroy(mfi)      
+      call amrex_mfiter_destroy(mfi)  
+     !$omp end parallel       
      end do
 
 
@@ -969,6 +980,7 @@ module heat_transfer_module
      geom = amrex_geom(ilev)
    
      ! Loop through all the boxes in the level
+    !$omp parallel private(mfi, bx, pidom)
      call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)
      do while(mfi%next())
         bx = mfi%validbox()
@@ -979,14 +991,16 @@ module heat_transfer_module
       
      end do
      call amrex_mfiter_destroy(mfi)
+    !$omp end parallel   
 
-       ! Explicit update of the temperature due to heat advection
-       do ilev = 0, amrex_max_level
- 
+     ! Explicit update of the temperature due to heat advection
+     do ilev = 0, amrex_max_level
+
          ! Geometry
          geom = amrex_geom(ilev)
 
          ! Loop through all the boxes in the level
+        !$omp parallel private(mfi, bx, pidom, ptemp, ptemp_tmp, pout)
          call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)
          do while(mfi%next())
             bx = mfi%validbox()
@@ -1002,23 +1016,24 @@ module heat_transfer_module
             
          end do
          call amrex_mfiter_destroy(mfi)
-   
-       end do        
+        !$omp end parallel   
 
-       ! Clean memory
-       do ilev = 0, amrex_max_level
-          call amrex_multifab_destroy(phi_tmp(ilev))
-          call amrex_multifab_destroy(temp_tmp(ilev))
-          call amrex_multifab_destroy(phi_tmp2(ilev))
-          call amrex_multifab_destroy(temp_tmp2(ilev))
-          call amrex_multifab_destroy(idomain_tmp(ilev))
-          call amrex_multifab_destroy(rhs(ilev))
-          call amrex_multifab_destroy(alpha(ilev))
-          do idim = 1, amrex_spacedim
-             call amrex_multifab_destroy(beta(idim,ilev))
-          end do
-          call amrex_distromap_destroy(dm)
-       end do
+     end do        
+
+      ! Clean memory
+      do ilev = 0, amrex_max_level
+         call amrex_multifab_destroy(phi_tmp(ilev))
+         call amrex_multifab_destroy(temp_tmp(ilev))
+         call amrex_multifab_destroy(phi_tmp2(ilev))
+         call amrex_multifab_destroy(temp_tmp2(ilev))
+         call amrex_multifab_destroy(idomain_tmp(ilev))
+         call amrex_multifab_destroy(rhs(ilev))
+         call amrex_multifab_destroy(alpha(ilev))
+         do idim = 1, amrex_spacedim
+            call amrex_multifab_destroy(beta(idim,ilev))
+         end do
+         call amrex_distromap_destroy(dm)
+      end do
  
      
    end subroutine advance_heat_solver_implicit
@@ -1165,11 +1180,13 @@ module heat_transfer_module
                      prhs, lbound(prhs), ubound(prhs), &
                      Qpipe_box, Qtherm_box, Qvap_box, Qrad_box, Qplasma_box)
      end if
+     !$omp critical
      Qplasma = Qplasma + Qplasma_box
      Qpipe = Qpipe + Qpipe_box
      Qtherm = Qtherm + Qtherm_box
      Qvap = Qvap + Qvap_box
      Qrad = Qrad + Qrad_box
+     !$omp end critical
      
    end subroutine predict_heat_solver_implicit_box
  
@@ -1230,18 +1247,6 @@ module heat_transfer_module
                                    ptempin, lbound(ptempin), ubound(ptempin), &
                                    pac, lbound(pac), ubound(pac))
      end if
-     
-   !   ! Get corrected temperature 
-   !   call get_temp(lbound(ptemp), ubound(ptemp), &
-   !                 pout, lbound(pout), ubound(pout), &
-   !                 ptemp, lbound(ptemp), ubound(ptemp), .true.)
- 
-     ! Update melt position
-   !   if (lev.eq.amrex_max_level) then
-   !      call get_melt_pos(bx%lo, bx%hi, &
-   !                        pid, lbound(pid), ubound(pid), &
-   !                        geom)
-   !   end if
  
      
    end subroutine correct_heat_solver_implicit_box

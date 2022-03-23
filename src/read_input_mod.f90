@@ -47,12 +47,14 @@ module read_input_module
   public :: check_int
   public :: cooling_debug
   public :: cooling_thermionic
+  public :: cooling_thermionic_side
   public :: cooling_vaporization
   public :: cooling_radiation
   public :: do_reflux
   public :: dt_change_max
   public :: fixed_melt_velocity
   public :: heat_solver
+  public :: solve_heat
   public :: sw_solver
   public :: in_dt
   public :: ls_verbose
@@ -138,6 +140,7 @@ module read_input_module
   integer, save :: sw_iter
   integer, save :: verbose
   logical, save :: cooling_thermionic
+  logical, save :: cooling_thermionic_side
   logical, save :: cooling_vaporization
   logical, save :: cooling_radiation
   logical, save :: do_reflux
@@ -145,6 +148,7 @@ module read_input_module
   logical, save :: ls_agglomeration
   logical, save :: ls_consolidation
   logical, save :: solve_sw
+  logical, save :: solve_heat
   logical, save :: solve_sw_momentum
   real(amrex_real), save :: cfl
   real(amrex_real), save :: dt_change_max
@@ -214,6 +218,7 @@ contains
    
     ! Parameters for the heat solver
     call amrex_parmparse_build(pp, "heat")
+    call pp%query("solve",solve_heat)
     call pp%query("surf_pos", surf_pos_init)   
     call pp%getarr("fixed_melt_velocity", fixed_melt_velocity)  
     call pp%query("sample_edge", sample_edge)   
@@ -227,6 +232,7 @@ contains
     call pp%query("plasma_side_flux_input_file", plasma_side_flux_input_file)
     call pp%query("temp_free_surface", temp_fs)
     call pp%query("cooling_thermionic",cooling_thermionic)
+    call pp%query("side_cooling_thermionic",cooling_thermionic_side)
     call pp%query("cooling_vaporization",cooling_vaporization)
     call pp%query("cooling_radiation",cooling_radiation)
     call pp%getarr("cooling_debug",cooling_debug)
@@ -318,6 +324,8 @@ contains
     cooling_debug(3) = 301
     cooling_debug(4) = 1
     cooling_debug(5) = 1e6
+    solve_heat = .true.
+    cooling_thermionic_side = .false.
     cooling_thermionic = .true.
     cooling_vaporization = .true.
     cooling_radiation = .true.

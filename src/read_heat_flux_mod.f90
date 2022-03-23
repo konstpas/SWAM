@@ -41,24 +41,24 @@ module read_heat_flux_module
       integer :: dims(1:3)
       
       if(side_flag) then
-        call get_mesh_dimensions (plasma_side_flux_input_file, dims)
+        call get_mesh_dimensions (plasma_side_flux_input_file, len(plasma_side_flux_input_file), dims)
         
         allocate (plasma_side_flux_time_mesh(1:dims(1)))
         allocate (plasma_side_flux_surf_y_mesh(1:dims(2)))
         allocate (plasma_side_flux_surf_z_mesh(1:dims(3)))
         allocate (heat_side_flux_table(1:dims(1),1:dims(2),1:dims(3)) )
         
-        call read_heatflux_file(plasma_side_flux_input_file, plasma_side_flux_time_mesh, &
+        call read_heatflux_file(plasma_side_flux_input_file, len(plasma_side_flux_input_file), plasma_side_flux_time_mesh, &
                                 plasma_side_flux_surf_y_mesh, plasma_side_flux_surf_z_mesh, heat_side_flux_table)
       else
-        call get_mesh_dimensions (plasma_flux_input_file, dims)
+        call get_mesh_dimensions (plasma_flux_input_file, len(plasma_flux_input_file), dims)
         
         allocate (plasma_flux_time_mesh(1:dims(1)))
         allocate (plasma_flux_surf_x_mesh(1:dims(2)))
         allocate (plasma_flux_surf_z_mesh(1:dims(3)))
         allocate (heat_flux_table(1:dims(1),1:dims(2),1:dims(3)) )
         
-        call read_heatflux_file(plasma_flux_input_file, plasma_flux_time_mesh, &
+        call read_heatflux_file(plasma_flux_input_file, len(plasma_flux_input_file), plasma_flux_time_mesh, &
                                 plasma_flux_surf_x_mesh, plasma_flux_surf_z_mesh, heat_flux_table)
       end if
       
@@ -68,10 +68,11 @@ module read_heat_flux_module
     ! Subroutine used to get the dimensions of the cartesian mesh 
     ! described in the heat flux input file.
     ! -----------------------------------------------------------------
-    subroutine get_mesh_dimensions(input_filename, dims)
+    subroutine get_mesh_dimensions(input_filename, length, dims)
 
         ! Input and output variable
-        character ( len = 80 ), intent(in) :: input_filename
+        integer, intent(in) :: length
+        character ( len = length ), intent(in) :: input_filename
         integer, intent(out) :: dims(3)
 
         ! Local variables
@@ -121,11 +122,12 @@ module read_heat_flux_module
     ! It also returns arrays for the vectors that generated the heat
     ! flux mesh in the input file.
     ! -----------------------------------------------------------------
-    subroutine read_heatflux_file(input_filename, tpoints, &
+    subroutine read_heatflux_file(input_filename, length, tpoints, &
                                 xpoints, zpoints, heatflux)
 
         ! Input and output variables
-        character ( len = 80 ), intent(in) :: input_filename 
+        integer, intent(in) :: length
+        character ( len = length ), intent(in) :: input_filename 
         real(amrex_real), allocatable, dimension(:), intent(out) :: tpoints
         real(amrex_real), allocatable, dimension(:), intent(out)  :: xpoints
         real(amrex_real), allocatable, dimension(:), intent(out)  :: zpoints
