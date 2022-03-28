@@ -852,13 +852,13 @@ module shallow_water_module
               end if
               ! Source terms for the momentum equation along x
               Srce(2,i,j) = J_th(i,j)*sw_Bz/4 &
-                            - 3.*visc*uold(i,j)/(min(hold(i,j), sw_h_cap)**2) &
+                            - 3.*visc*uold(i,j)/(max(hold(i,j), sw_h_cap)**2) &
                             + visc * ( (uold(i+1,j) + uold(i-1,j) - 2.*uold(i,j))/(dx**2) & 
                             + (uold(i,j+1) + uold(i,j-1) - 2.*uold(i,j))/(dy**2))
               Srce(2,i,j) = Srce(2,i,j)/rho
               ! Source terms for the momentum equation along z
               Srce(3,i,j) = -J_th(i,j)*sw_Bx/4 &
-                            - 3.*visc*vold(i,j)/(min(hold(i,j), sw_h_cap)**2) &
+                            - 3.*visc*vold(i,j)/(max(hold(i,j), sw_h_cap)**2) &
                             + visc * ( (vold(i+1,j) + vold(i-1,j) - 2.*vold(i,j))/(dx**2) & 
                             + (vold(i,j+1) + vold(i,j-1) - 2.*vold(i,j))/(dy**2))
               Srce(3,i,j) = Srce(3,i,j)/rho
