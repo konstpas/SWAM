@@ -775,9 +775,9 @@ module heat_transfer_module
                 xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
                 zind = nint((zpos - surf_dx(2)/2 - surf_xlo(2))/surf_dx(2))
                 if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
-                if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
+                if (xind.gt.surf_ind(1,2)) xind = surf_ind(1,2) 
                 if (zind.lt.surf_ind(2,1)) zind = surf_ind(2,1)
-                if (zind.ge.surf_ind(2,2)) zind = surf_ind(2,2)-1 
+                if (zind.gt.surf_ind(2,2)) zind = surf_ind(2,2) 
                 vx(i,j,k) = melt_vel(xind,zind,1)
                !  vx(i,j,k) = melt_vel(i,k,1)
                 
@@ -804,9 +804,9 @@ module heat_transfer_module
                 xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
                 zind = nint((zpos - surf_dx(2)/2 - surf_xlo(2))/surf_dx(2))
                 if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
-                if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
+                if (xind.gt.surf_ind(1,2)) xind = surf_ind(1,2) 
                 if (zind.lt.surf_ind(2,1)) zind = surf_ind(2,1)
-                if (zind.ge.surf_ind(2,2)) zind = surf_ind(2,2)-1 
+                if (zind.gt.surf_ind(2,2)) zind = surf_ind(2,2) 
                 vz(i,j,k) = melt_vel(xind,zind,2)
                !  vz(i,j,k) = melt_vel(i,k,2)
                 

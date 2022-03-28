@@ -472,9 +472,6 @@ module shallow_water_module
                if (ABS(melt_vel(i,j,1)).gt.ABS(max_vel_x)) then
                   max_vel_x = melt_vel(i,j,1)
                end if
-            ! No penetration boundary condition
-            else
-               melt_vel(i,j,1) = 0
             end if
 
             ! Update of z component of velocity
@@ -495,9 +492,6 @@ module shallow_water_module
                if (ABS(melt_vel(i,j,2)).gt.ABS(max_vel_z)) then
                   max_vel_z = melt_vel(i,j,2)
                end if
-            ! No penetration boundary condition
-            else
-               melt_vel(i,j,2) = 0
             end if
          
          end do
@@ -505,12 +499,36 @@ module shallow_water_module
     write(*,*) max_vel_x
     write(*,*) max_vel_z
 
-      ! Apply boundary conditions - no penetration at the edge
+      ! Apply boundary conditions - no inflow, free outflow
+      ! x-component
       do j = surf_ind(2,1), surf_ind(2,2)
-         melt_vel(surf_ind(1,2)+1,j,1) = 0
+         ! Lower bound
+         if ( melt_vel(surf_ind(1,1)+1, j, 1).lt.0 ) then 
+            melt_vel(surf_ind(1,1), j, 1) = melt_vel(surf_ind(1,1)+1, j, 1)
+         else
+            melt_vel(surf_ind(1,1), j, 1) = 0
+         end if
+         ! Upper bound
+         if ( melt_vel(surf_ind(1,2), j, 1).gt.0 ) then 
+            melt_vel(surf_ind(1,2)+1, j, 1) = melt_vel(surf_ind(1,2), j, 1)
+         else
+            melt_vel(surf_ind(1,2), j, 1) = 0
+         end if
       end do
+      ! z-component
       do i = surf_ind(1,1), surf_ind(1,2)
-         melt_vel(i,surf_ind(2,2)+1,2) = 0
+         ! Lower bound
+         if ( melt_vel(i, surf_ind(2,1)+1, 2).lt.0 ) then 
+            melt_vel(i, surf_ind(2,1), 2) = melt_vel(i, surf_ind(2,1)+1, 2)
+         else
+            melt_vel(i, surf_ind(2,1), 2) = 0
+         end if
+         ! Upper bound
+         if ( melt_vel(i, surf_ind(2,2), 2).gt.0 ) then 
+            melt_vel(i, surf_ind(2,2)+1, 2) = melt_vel(i, surf_ind(2,2), 2)
+         else
+            melt_vel(i, surf_ind(2,2)+1, 2) = 0
+         end if
       end do
 
       if (abs(max_vel_x)*dt.ge.surf_dx(1)) then

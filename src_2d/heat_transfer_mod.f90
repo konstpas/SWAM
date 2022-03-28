@@ -709,7 +709,7 @@ contains
              xpos = lo_phys(1) + (0.5+i-lo(1))*dx(1)  
              xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1))
              if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
-             if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
+             if (xind.gt.surf_ind(1,2)) xind = surf_ind(1,2) 
              vx(i,j) = melt_vel(xind,1)
              
           else
