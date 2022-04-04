@@ -381,7 +381,8 @@ contains
     real(amrex_real) :: dx(2) ! Grid size
     real(amrex_real) :: lo_phys(2) ! Physical location of the lowest corner of the tile box
     real(amrex_real) :: qbound(lo(1):hi(1),lo(2):hi(2)) ! Volumetric heating (boundary)
-
+    real(amrex_real) :: qvol(lo(1):hi(1),lo(2):hi(2)) ! Volumetric heating 
+ 
     ! Get grid size
     dx = geom%dx(1:2) ! grid width at level 
 
@@ -403,13 +404,20 @@ contains
                                 idom, id_lo, id_hi, &
                                 temp, t_lo, t_hi, lev, qbound)
 
+    ! Volumetric sources
+    call get_volumetric_heat_source(dx, lo_phys, lo, hi, &
+                                    u_old, uo_lo, uo_hi, &
+                                    idom, id_lo, id_hi, &
+                                    qvol)
+    
     ! Compute enthalpy at the new timestep
     do i = lo(1),hi(1)
        do  j = lo(2),hi(2)
           u_new(i,j) = u_old(i,j) &
                - dt/dx(1) * (flxx(i+1,j) - flxx(i,j)) & ! flux divergence x-direction 
                - dt/dx(2) * (flxy(i,j+1) - flxy(i,j)) & ! flux divergence y-direction 
-               + dt*qbound(i,j) ! 'boundary volumetric' source
+               + dt*qbound(i,j) & ! 'boundary volumetric' source
+               + dt*qvol(i,j)
        end do
     end do
     
@@ -667,6 +675,49 @@ contains
  
   end subroutine create_face_flux_fixT
 
+  ! -----------------------------------------------------------------
+  ! Subroutine used to compute the volumetric enthalpy source terms
+  ! -----------------------------------------------------------------  
+  subroutine get_volumetric_heat_source(dx, lo_phys, lo, hi, &
+                                        u_old, uo_lo, uo_hi, &
+                                        idom, id_lo, id_hi, &
+                                        qvol)
+  				
+    use material_properties_module, only: get_conductivity
+
+    ! Input and output variables
+    integer, intent(in) :: lo(2), hi(2)  
+    integer, intent(in) :: uo_lo(2), uo_hi(2)
+    integer, intent(in) :: id_lo(2), id_hi(2)
+    real(amrex_real), intent(in) :: dx(2)
+    real(amrex_real), intent(in) :: lo_phys(2)
+    real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))
+    real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2))
+    real(amrex_real), intent(out) :: qvol(lo(1):hi(1),lo(2):hi(2))
+    ! Local variables
+    integer :: i,j
+    real(amrex_real) :: ktherm
+    real(amrex_real) :: temp_face
+    integer :: fx_lo(2), fx_hi(2)
+    real(amrex_real) :: vx(lo(1):hi(1)+1,lo(2):hi(2))
+
+
+    ! Construct 3D melt velocity profile from the 2D shallow water solution
+    fx_lo = lo
+    fx_hi = hi
+    fx_hi(1) = fx_hi(1) + 1
+    call get_face_velocity(lo_phys, lo, hi, dx, &
+                           vx, fx_lo, fx_hi, &
+                           idom, id_lo, id_hi)
+    
+    ! Volumetric heat source terms
+    do i = lo(1), hi(1)
+       do j = lo(2), hi(2)          
+          qvol(i,j) = u_old(i,j) * (vx(i+1,j) - vx(i,j))/dx(1)
+       end do
+    end do
+ 
+  end subroutine get_volumetric_heat_source
   
   ! -----------------------------------------------------------------
   ! Subroutine used to the velocity on the faces of each grid cell.
