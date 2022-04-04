@@ -393,7 +393,7 @@ contains
   ! -----------------------------------------------------------------
   ! Subroutine used to re-evaluate the heat equation domain
   ! -----------------------------------------------------------------  
-  subroutine revaluate_heat_domain(xlo, dx, lo, hi, &
+  subroutine revaluate_heat_domain(lev, xlo, dx, lo, hi, &
                                    idom_old, ido_lo, ido_hi, &
                                    idom_new, idn_lo, idn_hi, &
                                    u_in, u_lo, u_hi, &
@@ -410,6 +410,7 @@ contains
                                 melt_vel
     
     ! Input and output variables
+    integer, intent(in) :: lev
     integer, intent(in) :: lo(3), hi(3) ! bounds of current tile box
     integer, intent(in) :: u_lo(3), u_hi(3) ! bounds of input enthalpy box 
     integer, intent(in) :: u2_lo(3), u2_hi(3) ! bounds of input enthalpy box with 2 ghost points
@@ -463,11 +464,11 @@ contains
                   xpos = xlo(1) + (0.5 + i-lo(1))*dx(1)  
                   xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1))
                   if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
-                  if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1  
+                  if (xind.gt.surf_ind(1,2)) xind = surf_ind(1,2)  
                   zpos = xlo(3) + (0.5 + k-lo(3))*dx(3)  
                   zind = nint((zpos - surf_dx(2)/2 - surf_xlo(2))/surf_dx(2)) 
                   if (zind.lt.surf_ind(2,1)) zind = surf_ind(2,1)
-                  if (zind.ge.surf_ind(2,2)) zind = surf_ind(2,2)-1 
+                  if (zind.gt.surf_ind(2,2)) zind = surf_ind(2,2) 
                   
                   ! Figure out which column is upwind. Firsttry to find upwind in the direction of x, only if that doesn't work
                   ! look in the z direction.
@@ -481,8 +482,10 @@ contains
                   elseif (melt_vel(xind,zind+1,2).lt.0_amrex_real) then
                     zind = zind+1
                   else
-                    write(*,*) & 
-                    'Wind not blowing towards this column, cell shouldnt be added. Taking the column on the left as upwind'
+                     if (lev.eq.amrex_max_level) then
+                        write(*,*) & 
+                        'Wind not blowing towards this column, cell shouldnt be added. Taking the column on the left as upwind'
+                     end if
                     ! Boundary condition   
                     if (xind.gt.surf_ind(1,1)) xind = xind-1 
                   end if 

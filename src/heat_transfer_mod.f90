@@ -221,7 +221,7 @@ module heat_transfer_module
                       ptempin, lbound(ptempin), ubound(ptempin))
      
      ! Re-evaluate heat transfer domain after the deformation
-     call revaluate_heat_domain(geom%get_physical_location(bx%lo), geom%dx, &
+     call revaluate_heat_domain(lev, geom%get_physical_location(bx%lo), geom%dx, &
                                 bx%lo, bx%hi, &
                                 pidin, lbound(pidin), ubound(pidin), &
                                 pidout, lbound(pidout), ubound(pidout), &
@@ -1133,7 +1133,7 @@ module heat_transfer_module
                       ptempin, lbound(ptempin), ubound(ptempin))
      
      ! Re-evaluate heat transfer domain after the deformation
-     call revaluate_heat_domain(geom%get_physical_location(bx%lo), geom%dx, &
+     call revaluate_heat_domain(lev, geom%get_physical_location(bx%lo), geom%dx, &
                                 bx%lo, bx%hi, &
                                 pidin, lbound(pidin), ubound(pidin), &
                                 pidout, lbound(pidout), ubound(pidout), &

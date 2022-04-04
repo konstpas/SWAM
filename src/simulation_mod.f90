@@ -309,7 +309,7 @@ contains
 
    ! Advance shallow-water equations (only at max level)
    if (solve_sw .and. lev.eq.amrex_max_level) then
-      call advance_SW    
+      call advance_SW(time)    
    end if 
    
    ! Set melt interface position array equal to free interface position array 
@@ -375,7 +375,7 @@ contains
 
     ! Propagate SW equations (only at max level)
     if (solve_sw) then
-       call advance_SW    
+       call advance_SW(time)    
     end if
 
     if(solve_heat) then

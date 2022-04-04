@@ -43,6 +43,7 @@ module amr_data_module
   public :: surf_evap_flux ! Free surface evaporation flux
   public :: qnew ! Variable to store the solution
   public :: J_th ! Variable to store the thermionic current
+  public :: domain_top ! Position of the top of the simulation domain
   ! Temperature
   public :: temp
   ! Time
@@ -96,6 +97,7 @@ module amr_data_module
   type(amrex_multifab), allocatable, save :: phi_new(:)
   type(amrex_multifab), allocatable, save :: phi_old(:)
   type(amrex_multifab), allocatable, save :: temp(:)
+  real(amrex_real), save :: domain_top
   real(amrex_real), save :: Qplasma
   real(amrex_real), save :: Qpipe
   real(amrex_real), save :: Qtherm
@@ -178,6 +180,7 @@ contains
     surf_enthalpy = 0.0_amrex_real
     surf_xlo(1) = amrex_problo(1) 
     surf_xlo(2) = amrex_problo(3)
+    domain_top = amrex_probhi(2)
     t_new = 0.0_amrex_real
     t_old = -1.0_amrex_real
     stepno = 0 
