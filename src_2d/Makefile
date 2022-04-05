@@ -2,7 +2,7 @@
 COMP_NAME = gfortran
 
 # Compiler options
-COMP_OPT = -Wall -O2
+COMP_OPT = -Wall -g
 
 # Linker
 LINK_NAME = g++
