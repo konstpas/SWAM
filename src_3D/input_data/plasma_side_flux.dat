@@ -1,0 +1,29 @@
+# A cartesian grid is assumed. First the dimensions of the grid are given.
+# Then, the two vectors that define the mesh are provided, with the time coordinates given first.
+# Lastly, the incoming heat flux is given in as an array that will be read in a time major way.
+# 
+# Number of time point, Number of y points, Number of z points
+2 2 3
+# Time coordinates [s]
+0.000000
+4.999999
+# y-coordinates [m]
+0.000000
+0.028000
+# z-coordinates [m]
+0.000000
+0.006000
+0.012000
+# Incoming heat flux [W/m^2]
+0.000000
+2400000000.000000
+4800000000.000000
+0.000000
+2400000000.000000
+4800000000.000000
+0.000000
+2400000000.000000
+4800000000.000000
+0.000000
+2400000000.000000
+4800000000.000000

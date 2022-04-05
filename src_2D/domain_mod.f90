@@ -39,23 +39,35 @@ contains
     integer, intent(in) :: id_lo(2), id_hi(2)
     integer, intent(in) :: t_lo(2), t_hi(2)
     real(amrex_real), intent(in) :: dx(2)    
-    real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1), t_lo(2):t_hi(2))
     real(amrex_real), intent(inout) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2))
+    real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1), t_lo(2):t_hi(2))
     real(amrex_real), intent(in) :: xlo(2)
 
+    ! Define idomains depending on the geometry specified in input
     if (geometry_name .eq. "Slab") then
-      call get_slab_idomain(xlo, dx, lo, hi, &
-                            idom, id_lo, id_hi, &
-                            temp, t_lo, t_hi)
+       
+       call get_slab_idomain(xlo, dx, lo, hi, &
+                             idom, id_lo, id_hi, &
+                             temp, t_lo, t_hi)
+       
     elseif (geometry_name .eq. "West") then
-      call get_west_idomain(xlo, dx, lo, hi, &
-                            idom, id_lo, id_hi, &
-                            temp, t_lo, t_hi)
+      
+       call get_west_idomain(xlo, dx, lo, hi, &
+                             idom, id_lo, id_hi, &
+                             temp, t_lo, t_hi)
+       
     elseif (geometry_name .eq. "West_rectangular") then
-      call get_west_rectangular_idomain(xlo, dx, lo, hi, &
-                                        idom, id_lo, id_hi, &
-                                        temp, t_lo, t_hi)
-    end if
+       
+       call get_west_rectangular_idomain(xlo, dx, lo, hi, &
+                                         idom, id_lo, id_hi, &
+                                         temp, t_lo, t_hi)
+
+    else
+
+       STOP 'Unknown geometry name'
+       
+   end if
+   
   end subroutine get_idomain
 
   ! -----------------------------------------------------------------
@@ -63,8 +75,8 @@ contains
   ! between material and background in a slab geometry
   ! -----------------------------------------------------------------
   subroutine get_slab_idomain(xlo, dx, lo, hi, &
-                         idom, id_lo, id_hi, &
-                         temp, t_lo, t_hi)
+                              idom, id_lo, id_hi, &
+                              temp, t_lo, t_hi)
 
     use material_properties_module, only : temp_melt    
     
@@ -73,17 +85,18 @@ contains
     integer, intent(in) :: id_lo(2), id_hi(2)
     integer, intent(in) :: t_lo(2), t_hi(2)
     real(amrex_real), intent(in) :: dx(2)    
-    real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1), t_lo(2):t_hi(2))
     real(amrex_real), intent(inout) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2))
+    real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1), t_lo(2):t_hi(2))
     real(amrex_real), intent(in) :: xlo(2)
 
     ! Local variables
     logical :: find_liquid
+    logical :: inside_domain
     integer :: i,j
     integer :: surf_ind_heat_domain
     real(amrex_real) :: surf_pos_heat_domain(id_lo(1):id_hi(1))
-    real(amrex_real) :: xpos_face, ypos_face
-    logical :: inside_domain
+    real(amrex_real) :: xpos_face
+    real(amrex_real) :: ypos_face
 
     ! Get location of the free surface
     call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
@@ -99,9 +112,11 @@ contains
     ! Set flags to distinguish between material and background
     do i = lo(1)-1, hi(1)+1
 
+       ! Index of the free surface in the heat transfer domain
        surf_ind_heat_domain = id_lo(2) + &
                               floor((surf_pos_heat_domain(i) - &
-                              xlo(2)+dx(2))/dx(2))
+                              xlo(2) + dx(2))/dx(2))
+
        xpos_face = xlo(1) + (i-lo(1))*dx(1)
        
        do j = lo(2)-1, hi(2)+1
@@ -405,10 +420,8 @@ contains
   subroutine get_melt_pos(lo, hi, idom, id_lo, id_hi, geom)
        
     use amr_data_module, only : melt_pos, &
-                                melt_top, &
-                              !   surf_pos, &
-                                surf_pos_grid
-       
+                                melt_top
+   
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) 
     integer, intent(in) :: id_lo(2), id_hi(2)    
@@ -437,11 +450,6 @@ contains
              it(2) = j
              grid_pos = geom%get_physical_location(it)
              melt_top(i) = grid_pos(2)
-            !  ! If the free surface is not molten, reset the melt bottom to the free surface (this corresponds to set to zero
-            !  ! the melt thickness)
-            !  if (nint(idom(i,j)).ne.0) then
-            !     melt_pos(i) = surf_pos(i)
-            !  end if
             
           end if
 
@@ -450,7 +458,7 @@ contains
             it(1) = i
             it(2) = j
             grid_pos = geom%get_physical_location(it)
-            surf_pos_grid(i) = grid_pos(2) 
+
           end if
        end do   
     end do

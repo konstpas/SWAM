@@ -13,15 +13,27 @@ module amr_data_module
   private
 
   ! ------------------------------------------------------------------
+  ! Public subroutines
+  ! ------------------------------------------------------------------
+  public :: amr_data_init
+  public :: amr_data_finalize
+  
+  
+  ! ------------------------------------------------------------------
   ! Public variables
   ! ------------------------------------------------------------------
-  ! Time step (one for each level)
+  ! Time step 
   public :: dt
   ! Flux registers
   public :: flux_reg
+  ! Enthalpy in the heat transfer domain (2D)
+  public :: phi_new
+  public :: phi_old
+  ! Temperature in the heat transfer domain (2D)
+  public :: temp
   ! Indexes used to label material and background
   public :: idomain
-  ! Boundary conditions of the entire simulation box
+  ! Boundary conditions of the heat transfer domain
   public :: lo_bc
   public :: hi_bc
   ! Bottom of the melt pool (1D)
@@ -30,21 +42,24 @@ module amr_data_module
   public :: melt_top
   ! Melt velocity (1D)
   public :: melt_vel 
-  ! Enthalpy
-  public :: phi_new
-  public :: phi_old
-  ! Variables used for the solution of the shallow water equations
-  public :: surf_dx ! Grid resolution 
-  public :: surf_ind ! Grid index 
-  public :: surf_pos ! Free surface position
-  public :: surf_pos_grid ! Free surface position on the grid
-  public :: surf_xlo ! Free surface lowest corner
-  public :: surf_temperature ! Free surface temperature
-  public :: surf_enthalpy ! Free surface enthalpy
-  public :: surf_evap_flux ! Free surface evaporation flux 
-  public :: J_th ! Variable to store the thermionic current
-  ! Temperature
-  public :: temp
+  ! Resolution of the shallow water grid
+  public :: surf_dx
+  ! Index of the shallow water grid
+  public :: surf_ind
+  ! Coordinates of the bottom left corner of the shallow water grid
+  public :: surf_xlo
+  ! Position of the free surface (1D)
+  public :: surf_pos 
+  ! Position of the free surface in the heat transfer domain
+  ! public :: surf_pos_grid
+  ! Temperature on the free surface (1D)
+  public :: surf_temperature
+  ! Enthalpy on the free surface (1D)
+  public :: surf_enthalpy
+  ! Evaporation flux on the free surface (1D)
+  public :: surf_evap_flux
+  ! Thermionic current on the free surface (1D)
+  public :: J_th
   ! Time
   public :: t_new
   public :: t_old
@@ -53,23 +68,16 @@ module amr_data_module
   public :: nsubsteps
   ! Variable used to check when to regrid
   public :: last_regrid_step
-  
-  ! ------------------------------------------------------------------
-  ! Public subroutines
-  ! ------------------------------------------------------------------
-  public :: amr_data_init
-  public :: amr_data_finalize
 
-  
   ! ------------------------------------------------------------------
   ! Declare public variables
   ! ------------------------------------------------------------------
-  integer, allocatable, save :: lo_bc(:,:)
   integer, allocatable, save :: hi_bc(:,:)
-  integer, save  :: surf_ind(1,2)
-  integer, allocatable, save :: stepno(:)
+  integer, allocatable, save :: lo_bc(:,:)
   integer, allocatable, save :: last_regrid_step(:)
   integer, allocatable, save :: nsubsteps(:)
+  integer, allocatable, save :: stepno(:)
+  integer, save  :: surf_ind(1,2)
   real(amrex_real), allocatable, save :: dt(:)
   real(amrex_real), allocatable, save :: melt_pos(:)
   real(amrex_real), allocatable, save :: melt_top(:)
@@ -81,15 +89,15 @@ module amr_data_module
   real(amrex_real), allocatable, save :: surf_pos(:)
   real(amrex_real), allocatable, save :: surf_pos_grid(:)
   real(amrex_real), allocatable, save :: J_th(:)
+  real(amrex_real), save :: surf_dx(1)
   real(amrex_real), allocatable, save :: surf_temperature(:)
   real(amrex_real), save :: surf_xlo(1)
-  real(amrex_real), save :: surf_dx(1)
   type(amrex_fluxregister), allocatable, save :: flux_reg(:)
   type(amrex_multifab), allocatable, save :: idomain(:)
   type(amrex_multifab), allocatable, save :: phi_new(:)
   type(amrex_multifab), allocatable, save :: phi_old(:)
   type(amrex_multifab), allocatable, save :: temp(:)
-
+  
 contains
 
   ! ------------------------------------------------------------------
