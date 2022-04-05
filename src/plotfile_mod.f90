@@ -17,9 +17,14 @@ module plotfile_module
                               surf_dx, &
                               stepno, &
                               melt_vel, &
-                              qnew
+                              qnew, &
+                              Qpipe, &
+                              Qtherm, &
+                              Qrad, &
+                              Qvap, &
+                              Qplasma
   
-  use read_input_module, only : plot_file
+  use read_input_module, only : plot_file, solve_heat
   
   implicit none
 
@@ -30,6 +35,7 @@ module plotfile_module
   ! -----------------------------------------------------------------
   public :: writeplotfile
   public :: write2dplotfile 
+  public :: initialize_heatfluxes_file
 
   ! -----------------------------------------------------------------
   ! Declare private variables shared by all subroutines
@@ -69,32 +75,34 @@ contains
        write(current_step,fmt='(i15.15)') stepno(0)
     end if
 
-    ! Get number of levels
-    nlevs = amrex_get_numlevels()
+    if (solve_heat) then
+      ! Get number of levels
+      nlevs = amrex_get_numlevels()
 
-    ! Enthalpy output
-    name = trim(plot_file) // "_enthalpy_" //current_step 
-    call amrex_string_build(varname(1), "phi")
-    call amrex_write_plotfile(name, nlevs, phi_new, &
-                              varname, amrex_geom, &
-                              t_new(0), stepno, &
-                              amrex_ref_ratio)
+      ! Enthalpy output
+      name = trim(plot_file) // "_enthalpy_" //current_step 
+      call amrex_string_build(varname(1), "phi")
+      call amrex_write_plotfile(name, nlevs, phi_new, &
+                                 varname, amrex_geom, &
+                                 t_new(0), stepno, &
+                                 amrex_ref_ratio)
 
-    ! Temperature output
-    name = trim(plot_file) // "_temperature_" //current_step 
-    call amrex_string_build(varname(1), "Temperature")
-    call amrex_write_plotfile(name, nlevs, temp, &
-                              varname, amrex_geom, &
-                              t_new(0), stepno, &
-                              amrex_ref_ratio)
+      ! Temperature output
+      name = trim(plot_file) // "_temperature_" //current_step 
+      call amrex_string_build(varname(1), "Temperature")
+      call amrex_write_plotfile(name, nlevs, temp, &
+                                 varname, amrex_geom, &
+                                 t_new(0), stepno, &
+                                 amrex_ref_ratio)
 
-    ! Output flag to distinguish between material and background
-    name = trim(plot_file) // "_idomain_" //current_step 
-    call amrex_string_build(varname(1), "idomain")
-    call amrex_write_plotfile(name, nlevs, idomain, &
-                              varname, amrex_geom, &
-                              t_new(0), stepno, &
-                              amrex_ref_ratio)
+      ! Output flag to distinguish between material and background
+      name = trim(plot_file) // "_idomain_" //current_step 
+      call amrex_string_build(varname(1), "idomain")
+      call amrex_write_plotfile(name, nlevs, idomain, &
+                                 varname, amrex_geom, &
+                                 t_new(0), stepno, &
+                                 amrex_ref_ratio)
+    end if
 
     max_temp = 0.0
     max_temp_lev = 0.0
@@ -122,6 +130,13 @@ contains
            end if
         end do
     end do
+    close(2)
+
+    ! Output melt thickness
+    name = "heat_fluxes.dat"! //trim(current_step)//".dat"
+    open(2, file = name, status = 'old', action = "write", access = 'append')
+    dashfmt = '(6(es13.6, 4x))'
+    write(2, dashfmt) t_new(0), Qtherm, Qrad, Qvap, Qpipe, Qplasma
     close(2)
 
     ! Output shallow water variables
@@ -178,6 +193,15 @@ contains
     close(1)
     
   end subroutine write2dplotfile
+
+  subroutine initialize_heatfluxes_file()
+
+   open (1, file = 'heat_fluxes.dat', &
+         status = 'unknown') 
+   write(1, *) 'Time[s]          Thermionic[J]    Radiation[J]     Vaporization[J]  Cooling Pipe[J]  Plasma[J]'
+   close(1)
+  end subroutine
+
   
   
 end module plotfile_module

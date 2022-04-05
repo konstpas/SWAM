@@ -25,7 +25,7 @@ contains
   subroutine run_simulation()
 
     use amr_data_module, only : t_new, stepno, dt
-    use read_input_module, only : max_step, stop_time, plot_int, heat_solver, do_reflux
+    use read_input_module, only : max_step, stop_time, plot_int, heat_solver, do_reflux, solve_heat
     use plotfile_module, only: writeplotfile, write2dplotfile
     use energy_module, only: sum_enthalpy
 
@@ -44,7 +44,7 @@ contains
     last_plot_file_step = 0;
 
     ! Automatically disable reflux if the heat equation is not solved explicitly
-    if (heat_solver.ne."explicit") then
+    if (heat_solver.ne."explicit" .or. .not.solve_heat) then
       do_reflux = .false.
     end if
 
@@ -64,7 +64,7 @@ contains
        call compute_dt
 		 
        ! Advance all levels of one time step
-       if (heat_solver.eq."explicit") then
+       if (heat_solver.eq."explicit" .and. solve_heat) then
           lev = 0
           substep = 1
           call advance_one_timestep_subcycling(lev, cur_time, substep)
@@ -73,7 +73,11 @@ contains
        end if
       
        ! Get total enthalpy in the domain
-       call sum_enthalpy(total_enthalpy)
+       if(solve_heat) then
+         call sum_enthalpy(total_enthalpy)
+       else
+         total_enthalpy = 0.0
+       end if
  	
        ! Update time on all levels
        cur_time = cur_time + dt(0)
@@ -159,7 +163,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine est_timestep(lev, dt)
 
-    use read_input_module, only : cfl, heat_solver
+    use read_input_module, only : cfl, heat_solver, solve_heat
     use material_properties_module, only : max_diffus 
 
     ! Input and output variables 
@@ -169,7 +173,7 @@ contains
     ! Local variables 
     real(amrex_real) :: dxsqr
 
-    if (heat_solver.eq."explicit") then
+    if (heat_solver.eq."explicit" .and. solve_heat) then
 
       ! NOTE: There are two stability criteria to take into
       ! account, the von Neumann stability and the CFL
@@ -305,7 +309,7 @@ contains
 
    ! Advance shallow-water equations (only at max level)
    if (solve_sw .and. lev.eq.amrex_max_level) then
-      call advance_SW    
+      call advance_SW(time)    
    end if 
    
    ! Set melt interface position array equal to free interface position array 
@@ -359,7 +363,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine advance_all_levels(time, dt)
 
-    use read_input_module, only : solve_sw
+    use read_input_module, only : solve_sw, solve_heat
     use domain_module, only : reset_melt_pos
     use material_properties_module, only : get_temp
     use shallow_water_module, only : advance_SW
@@ -371,17 +375,19 @@ contains
 
     ! Propagate SW equations (only at max level)
     if (solve_sw) then
-       call advance_SW    
+       call advance_SW(time)    
     end if
 
-    ! Set melt interface position array equal to free interface position array 
-    ! Since melt layer may span several tile boxes in y-direction (in mfiterator below), we cannot reset within each loop 
-    ! Therefore we reset melt position after solving SW, and before propagating temperature 
-    ! Melt position is then found after heat has been propagated 
-    call reset_melt_pos 
-   
-    ! Advance heat equation
-    call advance_heat_solver_implicit(time, dt)
+    if(solve_heat) then
+      ! Set melt interface position array equal to free interface position array 
+      ! Since melt layer may span several tile boxes in y-direction (in mfiterator below), we cannot reset within each loop 
+      ! Therefore we reset melt position after solving SW, and before propagating temperature 
+      ! Melt position is then found after heat has been propagated 
+      call reset_melt_pos 
+      
+      ! Advance heat equation
+      call advance_heat_solver_implicit(time, dt)
+   end if
 
  end subroutine advance_all_levels
 

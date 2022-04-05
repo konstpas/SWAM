@@ -48,15 +48,22 @@ contains
   subroutine get_boundary_heat_flux(time, xlo, &
                                     dx, lo, hi, &
                                     idom, id_lo, id_hi, &
-                                    temp, t_lo, t_hi, qb)
+                                    temp, t_lo, t_hi, lev, dt, &
+                                    Qpipe_box, Qtherm_box, Qvap_box, Qrad_box, &
+                                    Qplasma_box, qb)
 
     use read_input_module, only : plasma_flux_type, &
                                   cooling_thermionic, &
+                                  cooling_thermionic_side, &
                                   cooling_vaporization, &
                                   cooling_radiation, &
                                   geometry_name, &
                                   plasma_side_flux_type, &
                                   sample_edge
+
+    use amr_data_module, only : J_th
+
+    use domain_module, only : get_local_highest_level
 
     ! Input and output variables
     integer, intent(in) :: lo(3), hi(3)  
@@ -67,6 +74,13 @@ contains
     real(amrex_real), intent(in) :: dx(3)
     real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2),id_lo(3):id_hi(3))
     real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))
+    integer, intent(in) :: lev
+    real(amrex_real), intent(in) :: dt
+    real(amrex_real), intent(out) :: Qplasma_box
+    real(amrex_real), intent(out) :: Qpipe_box
+    real(amrex_real), intent(out) :: Qtherm_box
+    real(amrex_real), intent(out) :: Qrad_box
+    real(amrex_real), intent(out) :: Qvap_box
     real(amrex_real), intent(out) :: qb(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))
 
     ! Local variables
@@ -75,6 +89,7 @@ contains
     real(amrex_real) :: q_vap, q_rad, q_therm, q_cool
     real(amrex_real) :: xpos, ypos, zpos
     logical :: side_flag
+    integer :: local_max_level(lo(1):hi(1), lo(2):hi(2), lo(3):hi(3))
 
     qb = 0.0
     q_plasma = 0.0
@@ -82,6 +97,14 @@ contains
     q_vap = 0.0
     q_therm = 0.0
     q_cool = 0.0
+    local_max_level = 0.0
+    Qpipe_box = 0.0
+    Qplasma_box = 0.0
+    Qtherm_box = 0.0
+    Qrad_box = 0.0
+    Qvap_box = 0.0
+
+    call get_local_highest_level(xlo, dx, lo, hi, local_max_level)
 
     do i = lo(1), hi(1)
        do j = lo(2), hi(2)
@@ -112,20 +135,28 @@ contains
                 else
                    STOP "Unknown plasma heat flux type"
                 end if
+                if (lev.eq.amrex_max_level) Qplasma_box = Qplasma_box + q_plasma*dx(1)*dx(3)*dt
                 
                 ! Thermionic cooling flux
                 if (cooling_thermionic) then
-                   call thermionic_cooling(temp(i,j,k), q_plasma, q_therm)
+                  if(lev.eq.amrex_max_level) then
+                     call thermionic_cooling(temp(i,j,k), q_plasma, q_therm, J_th(i,k))
+                  else
+                     call thermionic_cooling(temp(i,j,k), q_plasma, q_therm)
+                  end if
+                  if (lev.eq.amrex_max_level) Qtherm_box = Qtherm_box + q_therm*dx(1)*dx(3)*dt
                 end if
                 
                 ! Vaporization cooling flux
                 if (cooling_vaporization) then
                    call vaporization_cooling(temp(i,j,k), q_vap)
+                   if (lev.eq.amrex_max_level) Qvap_box = Qvap_box+ q_vap*dx(1)*dx(3)*dt
                 end if
                 
                 ! Radiative cooling flux
                 if (cooling_radiation) then
                    call radiation_cooling(temp(i,j,k), q_rad)
+                   if (lev.eq.amrex_max_level) Qrad_box = Qrad_box +q_rad*dx(1)*dx(3)*dt
                 end if
                 
                 ! Sum all flux contributions
@@ -139,26 +170,32 @@ contains
              if(nint(idom(i,j,k)).ne.-1 .and. nint(idom(i,j+1,k)).eq.-1) then
                 call active_cooling(temp(i,j,k), q_cool)
                 qb(i,j,k) = qb(i,j,k) - q_cool/dx(2)
+                if(lev.eq.local_max_level(i,j,k)) Qpipe_box = Qpipe_box + q_cool*dx(1)*dx(3)*dt
              end if
              if(nint(idom(i,j,k)).ne.-1 .and. nint(idom(i,j-1,k)).eq.-1) then
                 call active_cooling(temp(i,j,k), q_cool)
                 qb(i,j,k) = qb(i,j,k) - q_cool/dx(2)
+                if(lev.eq.local_max_level(i,j,k)) Qpipe_box = Qpipe_box + q_cool*dx(1)*dx(3)*dt
              end if
              if(nint(idom(i,j,k)).ne.-1 .and. nint(idom(i+1,j,k)).eq.-1) then
                 call active_cooling(temp(i,j,k), q_cool)
                 qb(i,j,k) = qb(i,j,k) - q_cool/dx(1)
+                if(lev.eq.local_max_level(i,j,k)) Qpipe_box = Qpipe_box + q_cool*dx(2)*dx(3)*dt
              end if
              if(nint(idom(i,j,k)).ne.-1 .and. nint(idom(i-1,j,k)).eq.-1) then
                 call active_cooling(temp(i,j,k), q_cool)
                 qb(i,j,k) = qb(i,j,k) - q_cool/dx(1)
+                if(lev.eq.local_max_level(i,j,k)) Qpipe_box = Qpipe_box + q_cool*dx(2)*dx(3)*dt
              end if                   
              if(nint(idom(i,j,k)).ne.-1 .and. nint(idom(i,j,k+1)).eq.-1) then
                 call active_cooling(temp(i,j,k), q_cool)
                 qb(i,j,k) = qb(i,j,k) - q_cool/dx(3)
+                if(lev.eq.local_max_level(i,j,k)) Qpipe_box = Qpipe_box + q_cool*dx(1)*dx(2)*dt
              end if
              if(nint(idom(i,j,k)).ne.-1 .and. nint(idom(i,j,k-1)).eq.-1) then
                 call active_cooling(temp(i,j,k), q_cool)
                 qb(i,j,k) = qb(i,j,k) - q_cool/dx(3)
+                if(lev.eq.local_max_level(i,j,k)) Qpipe_box = Qpipe_box + q_cool*dx(1)*dx(2)*dt
              end if   
 
 
@@ -184,20 +221,25 @@ contains
                 else
                    STOP "Unknown plasma heat flux type"
                 end if
+                
+                if (lev.eq.local_max_level(i,j,k)) Qplasma_box = Qplasma_box + q_plasma*dx(2)*dx(3)*dt
  
-                ! Thermionic cooling flux
-                if (cooling_thermionic) then
+               !  ! Thermionic cooling flux
+                if (cooling_thermionic_side) then
                    call thermionic_cooling(temp(i,j,k), q_plasma, q_therm)
+                   if (lev.eq.local_max_level(i,j,k)) Qtherm_box = Qtherm_box + q_therm*dx(2)*dx(3)*dt
                 end if
  
                 ! Vaporization cooling flux
                 if (cooling_vaporization) then
                    call vaporization_cooling(temp(i,j,k), q_vap)
+                   if (lev.eq.local_max_level(i,j,k)) Qvap_box = Qvap_box + q_vap*dx(2)*dx(3)*dt
                 end if
  
                 ! Radiative cooling flux
                 if (cooling_radiation) then
                    call radiation_cooling(temp(i,j,k), q_rad)
+                   if (lev.eq.local_max_level(i,j,k)) Qrad_box = Qrad_box + q_rad*dx(2)*dx(3)*dt
                 end if
                 qb(i,j,k) = qb(i,j,k) + (q_plasma-q_therm-q_vap-q_rad)/dx(1)
              end if
@@ -577,7 +619,7 @@ contains
    ! thermionic emission given the surface temperature temperature
    ! see E. Thorén et al. Plasma Phys. Control. Fusion 63 035021 (2021)
    ! -----------------------------------------------------------------   
-   subroutine thermionic_cooling(Ts, q_plasma, q_therm)
+   subroutine thermionic_cooling(Ts, q_plasma, q_therm, Jth)
  
      use material_properties_module, only : get_work_function, &
                                             get_Richardson
@@ -588,16 +630,17 @@ contains
      real(amrex_real), intent(in) :: Ts        ! Temperature at the center of cells adjacent to the free surface [K]
      real(amrex_real), intent(in) :: q_plasma  ! Plasma heat flux [K]
      real(amrex_real), intent(out) :: q_therm  ! Flux of energy due to thermionic emission [W/m^2]
+     real(amrex_real), intent(out), optional :: Jth
      
      ! Local variables
      real(amrex_real) :: kb = 1.38064852E-23 ! Boltzmann constant [m^2*kg/(s^2*K)]
      real(amrex_real) :: Jth_nom
      real(amrex_real) :: Jth_lim
-     real(amrex_real) :: Jth
      real(amrex_real) :: Aeff
      real(amrex_real) :: Wf
      real(amrex_real) :: e = 1.60217662E-19
      real(amrex_real) :: pi = 3.1415927
+     real(amrex_real) :: J
      
      call get_work_function(Wf)
      call get_Richardson(Aeff)
@@ -609,10 +652,12 @@ contains
      Jth_lim = 1.51e4 * q_plasma**(1.0/3.0) * (SIN(thermionic_alpha/180*pi))**2
 
      ! Minimum between nominal and space-charge limited
-     Jth = MIN(Jth_lim, Jth_nom)
+     J = MIN(Jth_lim, Jth_nom)
 
      ! Heat flux
-     q_therm = Jth/e*(Wf+2*kb*Ts)
+     q_therm = J/e*(Wf+2*kb*Ts)
+
+     if (present(Jth)) Jth = J
      
    end subroutine thermionic_cooling
  
@@ -847,6 +892,8 @@ contains
       Tc = T-T0
       if (Tc.gt.294.0) then
          write(*,*) 'Temperature near pipe requires extrapolation when computing the convection coefficient'
+         write(*,*) 'The temperature adjacent to pipe is (in Kelvin)'
+         write(*,*) T
          write(*,*) 'The convection coefficient will be arbitratly assumed constant for T > 567 K'
          Tc = 294
       end if

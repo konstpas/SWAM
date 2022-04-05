@@ -15,7 +15,8 @@ module plotfile_module
                               melt_top, &
                               surf_ind, &
                               surf_dx, &
-                              stepno
+                              stepno, &
+                              melt_vel
   
   use read_input_module, only : plot_file
   

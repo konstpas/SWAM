@@ -47,12 +47,15 @@ module read_input_module
   public :: check_int
   public :: cooling_debug
   public :: cooling_thermionic
+  public :: cooling_thermionic_side
   public :: cooling_vaporization
   public :: cooling_radiation
   public :: do_reflux
   public :: dt_change_max
   public :: fixed_melt_velocity
   public :: heat_solver
+  public :: solve_heat
+  public :: sw_solver
   public :: in_dt
   public :: ls_verbose
   public :: ls_bottom_verbose
@@ -88,6 +91,9 @@ module read_input_module
   public :: sw_iter
   public :: sw_gravity
   public :: sw_drytol
+  public :: sw_Bx
+  public :: sw_Bz
+  public :: sw_h_cap
   public :: sw_jxb
   public :: stop_time
   public :: surfdist
@@ -110,6 +116,7 @@ module read_input_module
   character(len=:), allocatable, save :: material
   character(len=:), allocatable, save :: geometry_name
   character(len=:), allocatable, save :: heat_solver
+  character(len=:), allocatable, save :: sw_solver
   character(len=:), allocatable, save :: plasma_flux_type
   character(len=:), allocatable, save :: plasma_flux_input_file
   character(len=:), allocatable, save :: plasma_side_flux_type
@@ -133,6 +140,7 @@ module read_input_module
   integer, save :: sw_iter
   integer, save :: verbose
   logical, save :: cooling_thermionic
+  logical, save :: cooling_thermionic_side
   logical, save :: cooling_vaporization
   logical, save :: cooling_radiation
   logical, save :: do_reflux
@@ -140,6 +148,7 @@ module read_input_module
   logical, save :: ls_agglomeration
   logical, save :: ls_consolidation
   logical, save :: solve_sw
+  logical, save :: solve_heat
   logical, save :: solve_sw_momentum
   real(amrex_real), save :: cfl
   real(amrex_real), save :: dt_change_max
@@ -159,6 +168,9 @@ module read_input_module
   real(amrex_real), allocatable, save :: fixed_melt_velocity(:)
   real(amrex_real), allocatable, save :: surfdist(:)
   real(amrex_real), allocatable, save :: sw_jxb(:)
+  real(amrex_real), save :: sw_Bx
+  real(amrex_real), save :: sw_Bz
+  real(amrex_real), save :: sw_h_cap
   real(amrex_real), allocatable, save :: plasma_flux_params(:)
   real(amrex_real), allocatable, save :: plasma_side_flux_params(:)
   
@@ -206,6 +218,7 @@ contains
    
     ! Parameters for the heat solver
     call amrex_parmparse_build(pp, "heat")
+    call pp%query("solve",solve_heat)
     call pp%query("surf_pos", surf_pos_init)   
     call pp%getarr("fixed_melt_velocity", fixed_melt_velocity)  
     call pp%query("sample_edge", sample_edge)   
@@ -219,6 +232,7 @@ contains
     call pp%query("plasma_side_flux_input_file", plasma_side_flux_input_file)
     call pp%query("temp_free_surface", temp_fs)
     call pp%query("cooling_thermionic",cooling_thermionic)
+    call pp%query("side_cooling_thermionic",cooling_thermionic_side)
     call pp%query("cooling_vaporization",cooling_vaporization)
     call pp%query("cooling_radiation",cooling_radiation)
     call pp%getarr("cooling_debug",cooling_debug)
@@ -229,11 +243,14 @@ contains
     ! Parameters for the shallow water solver
     call amrex_parmparse_build(pp, "sw")
     call pp%query("solve", solve_sw)
+    call pp%query("solver",sw_solver)
     call pp%query("solve_momentum", solve_sw_momentum)
     call pp%query("geoclaw_iter", sw_iter)
     call pp%query("geoclaw_gravity", sw_gravity)
-    call pp%query("drytol", sw_drytol)
-    call pp%getarr("jxb", sw_jxb)
+    call pp%query("geoclaw_drytol", sw_drytol)
+    call pp%query("Bx", sw_Bx)
+    call pp%query("Bz", sw_Bz)
+    call pp%query("h_cap", sw_h_cap)
     call amrex_parmparse_destroy(pp)
     
     ! Parameters for the material
@@ -280,6 +297,7 @@ contains
         
     allocate(character(len=3)::check_file)
     allocate(character(len=8)::heat_solver)
+    allocate(character(len=8)::sw_solver)
     allocate(character(len=8)::plasma_flux_type)
     allocate(character(len=8)::plasma_side_flux_type)
     allocate(character(len=25)::plasma_flux_input_file)
@@ -293,7 +311,6 @@ contains
     allocate(cooling_debug(5))
     allocate(fixed_melt_velocity(2))
     allocate(surfdist(0:amrex_max_level))
-    allocate(sw_jxb(2))
     allocate(plasma_flux_params(100))
     allocate(plasma_side_flux_params(100))
     
@@ -305,6 +322,8 @@ contains
     cooling_debug(3) = 301
     cooling_debug(4) = 1
     cooling_debug(5) = 1e6
+    solve_heat = .true.
+    cooling_thermionic_side = .false.
     cooling_thermionic = .true.
     cooling_vaporization = .true.
     cooling_radiation = .true.
@@ -355,12 +374,14 @@ contains
     plot_int = -1
     regrid_int = 2
     solve_sw = .true.
+    sw_solver = "explicit"
     solve_sw_momentum = .true.
     sw_drytol = 1e-6_amrex_real
     sw_iter = 1000
     sw_gravity = 1.0_amrex_real
-    sw_jxb(1) = 0.0_amrex_real
-    sw_jxb(2) = 0.0_amrex_real
+    sw_Bx = 0.0_amrex_real
+    sw_Bz = 0.0_amrex_real
+    sw_h_cap = 0.0_amrex_real
     stop_time = 1.0
     do i = 0, amrex_max_level
        surfdist(i) = 0.0_amrex_real
@@ -380,6 +401,7 @@ contains
     
     deallocate(check_file)
     deallocate(heat_solver)
+    deallocate(sw_solver)
     deallocate(material)
     deallocate(geometry_name)
     deallocate(phase_init)

@@ -31,8 +31,9 @@ contains
                                   read_input_file, &
                                   restart, &
                                   plasma_flux_type, &
+                                  plasma_side_flux_type, &
                                   geometry_name, &
-                                  plasma_side_flux_type
+                                  solve_heat
     use read_heat_flux_module, only : construct_heat_flux_table
     use material_properties_module, only : init_mat_prop
     use heat_flux_module, only : debug_cooling_fluxes
@@ -42,6 +43,8 @@ contains
                               my_remake_level, &
                               my_clear_level, &
                               my_error_estimate
+    use plotfile_module, only : initialize_heatfluxes_file
+    use shallow_water_module, only : init_melt_pos
     
     ! Initialize amrex 
     call amrex_init 
@@ -60,8 +63,14 @@ contains
     if (plasma_flux_type.eq.'Input_file') call construct_heat_flux_table(.false.)
     if (geometry_name.eq.'West' .and. plasma_side_flux_type.eq.'Input_file') call construct_heat_flux_table(.true.)
 
+    ! Generate file to write the heat fluxes in it
+    call initialize_heatfluxes_file()
+ 
     ! Initialize amrex data used in the simulation
     call amr_data_init
+
+    ! Initialize melt pool if thermal response is not simulated
+    if (.not.solve_heat) call init_melt_pos
 
     ! Initialize amrex functions to generate grid
     call amrex_init_virtual_functions(my_make_new_level_from_scratch, &

@@ -8,7 +8,7 @@ COMP_OPT = -Wall -O2
 LINK_NAME = g++
 
 # Amrex
-AMREX_LIBRARY_HOME ?= /home/konstantinos/amrex_local
+AMREX_LIBRARY_HOME ?=  /home/flc/nobackup/amrex_3D
 LIBDIR := $(AMREX_LIBRARY_HOME)/lib
 INCDIR := $(AMREX_LIBRARY_HOME)/include
 COMP_FLAGS := -I$(INCDIR) 
@@ -31,11 +31,11 @@ include .depend
 
 # Compiling rules
 %.o: %.f90
-	$(COMP_NAME) $(COMP_OPT) $(COMP_FLAGS) -c $<
+	$(COMP_NAME) $(COMP_OPT) -fopenmp $(COMP_FLAGS) -c $<
 
 # Link                                                                                               
 $(EXECUTABLE): $(OBJS)
-	$(LINK_NAME) -fopenmp $^ -o $@ $(LINK_FLAGS)
+	$(LINK_NAME) -fopenmp $^ -o $@ $(LINK_FLAGS) 
 
 # Generate dependencies
 depend .depend:

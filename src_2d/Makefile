@@ -2,7 +2,7 @@
 COMP_NAME = gfortran
 
 # Compiler options
-COMP_OPT = -Wall -O2
+COMP_OPT = -Wall -g
 
 # Linker
 LINK_NAME = g++
@@ -12,7 +12,7 @@ AMREX_LIBRARY_HOME ?= /home/flc/nobackup/amrex_2D
 LIBDIR := $(AMREX_LIBRARY_HOME)/lib
 INCDIR := $(AMREX_LIBRARY_HOME)/include
 COMP_FLAGS := -I$(INCDIR) -fopenmp
-LINK_FLAGS := -L$(LIBDIR) -lamrex -lgfortran
+LINK_FLAGS := -L$(LIBDIR) -lamrex -lgfortran -static-libgfortran -static-libgcc
 
 # Files                                                                                              
 SRCf90 = $(wildcard *.f90)

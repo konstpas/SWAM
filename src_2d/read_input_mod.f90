@@ -84,9 +84,10 @@ module read_input_module
   public :: regrid_int
   public :: restart
   public :: solve_sw
+  public :: solve_heat
   public :: solve_sw_momentum
-  public :: sw_drytol
-  public :: sw_jxb
+  public :: sw_magnetic
+  public :: sw_h_cap
   public :: stop_time
   public :: surfdist
   public :: surf_pos_init
@@ -137,6 +138,7 @@ module read_input_module
   logical, save :: ls_agglomeration
   logical, save :: ls_consolidation
   logical, save :: solve_sw
+  logical, save :: solve_heat
   logical, save :: solve_sw_momentum
   real(amrex_real), save :: cfl
   real(amrex_real), save :: dt_change_max
@@ -147,8 +149,8 @@ module read_input_module
   real(amrex_real), save :: surf_pos_init
   real(amrex_real), save :: sample_edge
   real(amrex_real), save :: cool_pipe_radius
-  real(amrex_real), save :: sw_jxb
-  real(amrex_real), save :: sw_drytol
+  real(amrex_real), save :: sw_magnetic
+  real(amrex_real), save :: sw_h_cap
   real(amrex_real), save :: temp_fs
   real(amrex_real), save :: temp_init
   real(amrex_real), save :: thermionic_alpha
@@ -202,6 +204,8 @@ contains
    
     ! Parameters for the heat solver
     call amrex_parmparse_build(pp, "heat")
+    call pp%query("surf_pos", surf_pos_init) 
+    call pp%query("solve", solve_heat)  
     call pp%query("fixed_melt_velocity", fixed_melt_velocity)  
     call pp%query("surf_pos", surf_pos_init)
     call pp%query("sample_edge", sample_edge) 
@@ -226,8 +230,8 @@ contains
     call amrex_parmparse_build(pp, "sw")
     call pp%query("solve", solve_sw)
     call pp%query("solve_momentum", solve_sw_momentum)
-    call pp%query("drytol", sw_drytol)
-    call pp%query("jxb", sw_jxb)
+    call pp%query("magnetic", sw_magnetic)
+    call pp%query("h_cap", sw_h_cap)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the material
@@ -343,10 +347,11 @@ contains
     plot_file = "plt"
     plot_int = -1
     regrid_int = 2
+    solve_heat = .false.
     solve_sw = .true.
     solve_sw_momentum = .true.
-    sw_drytol = 1.0e-6
-    sw_jxb = 0.0_amrex_real
+    sw_magnetic = 0.0_amrex_real
+    sw_h_cap = 0.0_amrex_real
     stop_time = 1.0
     do i = 0, amrex_max_level
        surfdist(i) = 0.0
