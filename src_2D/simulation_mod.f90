@@ -26,7 +26,7 @@ contains
 
     use amr_data_module, only : t_new, stepno, dt
     use read_input_module, only : max_step, stop_time, plot_int, heat_solver, do_reflux, solve_heat
-    use plotfile_module, only: writeplotfile, write1dplotfile
+    use plotfile_module, only: writeplotfile
     use energy_module, only: sum_enthalpy
 
     ! Local variables
@@ -96,7 +96,6 @@ contains
        if (plot_int .gt. 0 .and. mod(step+1,plot_int) .eq. 0) then
           last_plot_file_step = step+1
           call writeplotfile
-          call write1dplotfile
        end if
 
        ! Stopping criteria

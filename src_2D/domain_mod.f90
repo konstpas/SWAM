@@ -17,7 +17,6 @@ module domain_module
   public :: get_idomain
   public :: get_melt_pos
   public :: get_surf_pos
-  public :: integrate_surf
   public :: reset_melt_pos
   public :: revaluate_heat_domain
   
@@ -91,52 +90,40 @@ contains
 
     ! Local variables
     logical :: find_liquid
-    logical :: inside_domain
     integer :: i,j
     integer :: surf_ind_heat_domain
     real(amrex_real) :: surf_pos_heat_domain(id_lo(1):id_hi(1))
-    real(amrex_real) :: xpos_face
-    real(amrex_real) :: ypos_face
-
+ 
     ! Get location of the free surface
     call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
 
-    ! Check whether the liquid should be distinguished from the solid or not
+    ! Do not distinguish between liquid and solid if the temperature
+    ! multifab passed in input doesn't have ghost point. This should
+    ! happen only in the initialization phase
     if (t_lo(1).eq.lo(1)-1 .and. t_hi(1).eq.hi(1)+1 .and. &
-         t_lo(2).eq.lo(2)-1 .and. t_hi(2).eq.hi(2)+1) then
+        t_lo(2).eq.lo(2)-1 .and. t_hi(2).eq.hi(2)+1) then
        find_liquid = .true.
     else
        find_liquid = .false.
     end if
     
     ! Set flags to distinguish between material and background
-    do i = lo(1)-1, hi(1)+1
+    do i = lo(1)-1,hi(1)+1
 
        ! Index of the free surface in the heat transfer domain
        surf_ind_heat_domain = id_lo(2) + &
                               floor((surf_pos_heat_domain(i) - &
-                              xlo(2) + dx(2))/dx(2))
-
-       xpos_face = xlo(1) + (i-lo(1))*dx(1)
+                              xlo(2)+dx(2))/dx(2))
        
        do j = lo(2)-1, hi(2)+1
 
-          ypos_face = xlo(2) + (j-lo(2))*dx(2)
-
-          ! Initialization
-          inside_domain = .true.
-          if (xpos_face.lt.amrex_problo(1) .or. xpos_face.gt.amrex_probhi(1) .or. &
-              ypos_face.lt.amrex_problo(2) .or. ypos_face.gt.amrex_probhi(2)) then
-               inside_domain = .false.
-          end if
-
-          if (j .le. surf_ind_heat_domain .and. inside_domain) then
-
+          if (j .le. surf_ind_heat_domain) then
+             
              if (find_liquid) then
                 if (temp(i,j).gt.temp_melt) then
                    idom(i,j) = 3 ! Liquid
                 else if (temp(i,j).eq.temp_melt) then
-                   idom(i,j) = 2 ! Liquid
+                   idom(i,j) = 2 ! Material at melting (mushy)
                 else
                    idom(i,j) = 1 ! Solid
                 end if
@@ -151,190 +138,213 @@ contains
        end do
        
     end do
-
-  end subroutine get_slab_idomain  
-
-    ! -----------------------------------------------------------------
-    ! Subroutine used to obtain the integer field used to distinguish
-    ! between material and background in WEST geometry
-    ! -----------------------------------------------------------------
-    subroutine get_west_idomain(xlo, dx, lo, hi, &
-                           idom, id_lo, id_hi, &
-                           temp, t_lo, t_hi)
-  
-      use material_properties_module, only : temp_melt  
-      use read_input_module, only : sample_edge, &
-                                    cool_pipe_cntr, &
-                                    cool_pipe_radius  
       
-      ! Input and output variables
-      integer, intent(in) :: lo(2), hi(2)
-      integer, intent(in) :: id_lo(2), id_hi(2)
-      integer, intent(in) :: t_lo(2), t_hi(2)
-      real(amrex_real), intent(in) :: dx(2)    
-      real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1), t_lo(2):t_hi(2))
-      real(amrex_real), intent(inout) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2))
-      real(amrex_real), intent(in) :: xlo(2)
+
+  end subroutine get_slab_idomain
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to obtain the integer field used to distinguish
+  ! between material and background in WEST geometry with circular
+  ! cooling pipe
+  ! -----------------------------------------------------------------
+  subroutine get_west_idomain(xlo, dx, lo, hi, &
+                              idom, id_lo, id_hi, &
+                              temp, t_lo, t_hi)
   
-      ! Local variables
-      logical :: find_liquid
-      integer :: i,j
-      integer :: surf_ind_heat_domain
-      real(amrex_real) :: surf_pos_heat_domain(id_lo(1):id_hi(1))
-      real(amrex_real) :: xpos, ypos
-      logical :: pipe_flag
+    use material_properties_module, only : temp_melt  
+    use read_input_module, only : sample_edge, &
+                                  cool_pipe_cntr, &
+                                  cool_pipe_radius  
+    
+    ! Input and output variables
+    integer, intent(in) :: lo(2), hi(2)
+    integer, intent(in) :: id_lo(2), id_hi(2)
+    integer, intent(in) :: t_lo(2), t_hi(2)
+    real(amrex_real), intent(in) :: dx(2)
+    real(amrex_real), intent(inout) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2))
+    real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1), t_lo(2):t_hi(2))
+    real(amrex_real), intent(in) :: xlo(2)
   
-      ! Get location of the free surface
-      call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
-  
-      ! Check whether the liquid should be distinguished from the solid or not
-      if (t_lo(1).eq.lo(1)-1 .and. t_hi(1).eq.hi(1)+1 .and. &
-           t_lo(2).eq.lo(2)-1 .and. t_hi(2).eq.hi(2)+1) then
-         find_liquid = .true.
-      else
-         find_liquid = .false.
-      end if
-      
-      ! Set flags to distinguish between material and background
-      do i = lo(1)-1, hi(1)+1
-  
-         surf_ind_heat_domain = id_lo(2) + &
+    ! Local variables
+    logical :: find_liquid
+    integer :: i,j
+    integer :: surf_ind_heat_domain
+    real(amrex_real) :: surf_pos_heat_domain(id_lo(1):id_hi(1))
+    real(amrex_real) :: xpos, ypos
+    logical :: pipe_flag
+    
+    ! Get location of the free surface
+    call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
+    
+    ! Do not distinguish between liquid and solid if the temperature
+    ! multifab passed in input doesn't have ghost point. This should
+    ! happen only in the initialization phase
+    if (t_lo(1).eq.lo(1)-1 .and. t_hi(1).eq.hi(1)+1 .and. &
+        t_lo(2).eq.lo(2)-1 .and. t_hi(2).eq.hi(2)+1) then
+       find_liquid = .true.
+    else
+       find_liquid = .false.
+    end if
+    
+    ! Set flags to distinguish between material and background
+    do i = lo(1)-1, hi(1)+1
+
+       ! Index of the free surface in the heat transfer domain
+       surf_ind_heat_domain = id_lo(2) + &
+            floor((surf_pos_heat_domain(i) - &
+            xlo(2)+dx(2))/dx(2))
+
+       ! x position of the i-th center in the current box
+       xpos = xlo(1) + (0.5 + i - lo(1))*dx(1) 
+       
+       do j = lo(2)-1, hi(2)+1  
+
+          ! y position of the j-th center in the current box
+          ypos = xlo(2) + (0.5+j-lo(2))*dx(2)
+
+          ! Check if the grid point (i,j) falls inside the cooling pipe
+          if (sqrt((xpos-cool_pipe_cntr(1))**2 &
+                   +(ypos-cool_pipe_cntr(2))**2) .lt. cool_pipe_radius) then
+             pipe_flag = .true.
+          else
+             pipe_flag = .false.
+          end if
+
+          ! Set flags
+          if (j .le. surf_ind_heat_domain .and. &
+               xpos .le. sample_edge .and. &
+               (.not.pipe_flag)) then             
+             if (find_liquid) then
+                if (temp(i,j).gt.temp_melt) then
+                   idom(i,j) = 3 ! Liquid
+                else if (temp(i,j).eq.temp_melt) then
+                   idom(i,j) = 2 ! Material at melting (mushy)
+                else
+                   idom(i,j) = 1 ! Solid 
+                end if
+             else
+                idom(i,j) = 1 ! Liquid or solid (no distinction is made)
+             end if
+            
+          elseif (pipe_flag) then
+             idom(i,j) = -1 ! Background inside the cooling pipe
+          else
+             idom(i,j) = 0 ! Background above the free surface
+          end if
+          
+       end do
+       
+    end do
+    
+  end subroutine get_west_idomain
+
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to obtain the integer field used to distinguish
+  ! between material and background in WEST geometry with rectangular
+  ! cooling pipe
+  ! -----------------------------------------------------------------
+  subroutine get_west_rectangular_idomain(xlo, dx, lo, hi, &
+                                          idom, id_lo, id_hi, &
+                                          temp, t_lo, t_hi)
+    
+    use material_properties_module, only : temp_melt  
+    use read_input_module, only : sample_edge, &
+         cool_pipe_cntr, &
+         cool_pipe_radius  
+    
+    ! Input and output variables
+    integer, intent(in) :: lo(2), hi(2)
+    integer, intent(in) :: id_lo(2), id_hi(2)
+    integer, intent(in) :: t_lo(2), t_hi(2)
+    real(amrex_real), intent(in) :: dx(2)    
+    real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1), t_lo(2):t_hi(2))
+    real(amrex_real), intent(inout) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2))
+    real(amrex_real), intent(in) :: xlo(2)
+    
+    ! Local variables
+    logical :: find_liquid
+    integer :: i,j
+    integer :: surf_ind_heat_domain
+    real(amrex_real) :: surf_pos_heat_domain(id_lo(1):id_hi(1))
+    real(amrex_real) :: xpos, ypos
+    logical :: pipe_flag
+    real(amrex_real), parameter :: pi = 3.14159265358979
+    
+    ! Get location of the free surface
+    call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
+    
+    ! Do not distinguish between liquid and solid if the temperature
+    ! multifab passed in input doesn't have ghost point. This should
+    ! happen only in the initialization phase
+    if (t_lo(1).eq.lo(1)-1 .and. t_hi(1).eq.hi(1)+1 .and. &
+         t_lo(2).eq.lo(2)-1 .and. t_hi(2).eq.hi(2)+1) then
+       find_liquid = .true.
+    else
+       find_liquid = .false.
+    end if
+    
+    ! Set flags to distinguish between material and background
+    do i = lo(1)-1, hi(1)+1
+
+       ! Index of the free surface in the heat transfer domain
+       surf_ind_heat_domain = id_lo(2) + &
                                 floor((surf_pos_heat_domain(i) - &
                                 xlo(2)+dx(2))/dx(2))
 
-         xpos = xlo(1) + (0.5+i-lo(1))*dx(1) 
-         
-         do j = lo(2)-1, hi(2)+1  
+       ! x position of the i-th center in the current box
+       xpos = xlo(1) + (0.5+i-lo(1))*dx(1) 
+       
+       do j = lo(2)-1, hi(2)+1  
+          
+          ! y position of the j-th center in the current box
+          ypos = xlo(2) + (0.5+j-lo(2))*dx(2)
+
+          ! Check if the grid point (i,j) falls inside the cooling pipe
+          if((xpos.lt.cool_pipe_cntr(1)+(pi)*cool_pipe_radius/4) .and. & 
+               (xpos.gt.cool_pipe_cntr(1)-(pi)*cool_pipe_radius/4) .and. &
+               (ypos.lt.cool_pipe_cntr(2)+(pi)*cool_pipe_radius/4) .and. &
+               (ypos.gt.cool_pipe_cntr(2)-(pi)*cool_pipe_radius/4)) then
+             pipe_flag = .true.
+          else
+             pipe_flag = .false.
+          end if
+
+          ! Set flags
+          if (j .le. surf_ind_heat_domain .and. &
+               xpos .le. sample_edge .and. &
+               (.not.pipe_flag)) then
+             if (find_liquid) then
+                if (temp(i,j).gt.temp_melt) then
+                   idom(i,j) = 3 ! Liquid
+                else if (temp(i,j).eq.temp_melt) then
+                   idom(i,j) = 2 ! Material at melting (mushy)
+                else
+                   idom(i,j) = 1 ! Solid
+                end if
+             else
+                idom(i,j) = 1 ! Solid or liquid (no distinction is made)
+             end if
+             
+          elseif (pipe_flag) then
+             idom(i,j) = -1 ! Background inside the cooling pipe
+          else
+             idom(i,j) = 0 ! Background above the free surface
+          end if
             
-            ypos = xlo(2) + (0.5+j-lo(2))*dx(2) 
-            if (sqrt((xpos-cool_pipe_cntr(1))**2+(ypos-cool_pipe_cntr(2))**2).lt.cool_pipe_radius) then
-              pipe_flag = .true.
-            else
-              pipe_flag = .false.
-            end if
-
-            if (j .le. surf_ind_heat_domain .and. xpos .le. sample_edge .and. (.not.pipe_flag)) then
-               if (find_liquid) then
-                  if (temp(i,j).gt.temp_melt) then
-                      idom(i,j) = 3
-                  else if (temp(i,j).eq.temp_melt) then
-                      idom(i,j) = 2
-                  else
-                      idom(i,j) = 1
-                  end if
-               else
-                  idom(i,j) = 1
-               end if
-               
-            elseif (pipe_flag) then
-               idom(i,j) = -1
-            else
-               idom(i,j) = 0
-            end if
-            
-         end do
-         
-      end do
-  
-    end subroutine get_west_idomain
-
-
-    ! -----------------------------------------------------------------
-    ! Subroutine used to obtain the integer field used to distinguish
-    ! between material and background in WEST-like geometry with rectangular
-    ! cross-section cooling pipes
-    ! -----------------------------------------------------------------
-    subroutine get_west_rectangular_idomain(xlo, dx, lo, hi, &
-                           idom, id_lo, id_hi, &
-                           temp, t_lo, t_hi)
-  
-      use material_properties_module, only : temp_melt  
-      use read_input_module, only : sample_edge, &
-                                    cool_pipe_cntr, &
-                                    cool_pipe_radius  
-      
-      ! Input and output variables
-      integer, intent(in) :: lo(2), hi(2)
-      integer, intent(in) :: id_lo(2), id_hi(2)
-      integer, intent(in) :: t_lo(2), t_hi(2)
-      real(amrex_real), intent(in) :: dx(2)    
-      real(amrex_real), intent(in) :: temp(t_lo(1):t_hi(1), t_lo(2):t_hi(2))
-      real(amrex_real), intent(inout) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2))
-      real(amrex_real), intent(in) :: xlo(2)
-  
-      ! Local variables
-      logical :: find_liquid
-      integer :: i,j
-      integer :: surf_ind_heat_domain
-      real(amrex_real) :: surf_pos_heat_domain(id_lo(1):id_hi(1))
-      real(amrex_real) :: xpos, ypos
-      logical :: pipe_flag
-      real(amrex_real), parameter :: pi = 3.14159265358979
-  
-      ! Get location of the free surface
-      call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
-  
-      ! Check whether the liquid should be distinguished from the solid or not
-      if (t_lo(1).eq.lo(1)-1 .and. t_hi(1).eq.hi(1)+1 .and. &
-           t_lo(2).eq.lo(2)-1 .and. t_hi(2).eq.hi(2)+1) then
-         find_liquid = .true.
-      else
-         find_liquid = .false.
-      end if
-      
-      ! Set flags to distinguish between material and background
-      do i = lo(1)-1, hi(1)+1
-  
-         surf_ind_heat_domain = id_lo(2) + &
-                                floor((surf_pos_heat_domain(i) - &
-                                xlo(2)+dx(2))/dx(2))
-
-         xpos = xlo(1) + (0.5+i-lo(1))*dx(1) 
-         
-         do j = lo(2)-1, hi(2)+1  
-            
-            ypos = xlo(2) + (0.5+j-lo(2))*dx(2) 
-            if((xpos.lt.cool_pipe_cntr(1)+(pi)*cool_pipe_radius/4) .and. & 
-             (xpos.gt.cool_pipe_cntr(1)-(pi)*cool_pipe_radius/4) .and. &
-             (ypos.lt.cool_pipe_cntr(2)+(pi)*cool_pipe_radius/4) .and. &
-             (ypos.gt.cool_pipe_cntr(2)-(pi)*cool_pipe_radius/4)) then
-              pipe_flag = .true.
-            else
-              pipe_flag = .false.
-            end if
-
-            if (j .le. surf_ind_heat_domain .and. xpos .le. sample_edge .and. (.not.pipe_flag)) then
-               if (find_liquid) then
-                  if (temp(i,j).gt.temp_melt) then
-                      idom(i,j) = 3
-                  else if (temp(i,j).eq.temp_melt) then
-                      idom(i,j) = 2
-                  else
-                      idom(i,j) = 1
-                  end if
-               else
-                  idom(i,j) = 1
-               end if
-               
-            elseif (pipe_flag) then
-               idom(i,j) = -1
-            else
-               idom(i,j) = 0
-            end if
-            
-         end do
-         
-      end do
-  
-    end subroutine get_west_rectangular_idomain
+       end do
+       
+    end do
+    
+  end subroutine get_west_rectangular_idomain
     
 
   
   ! -----------------------------------------------------------------
   ! Subroutine used to interpolate the free surface position as given
   ! by the fluid solver in order to construct the heat conduction
-  ! free interface. Note that the surface position is defined on
-  ! the faces of the cells and not on the centers
+  ! free interface at a given box on a given level characterized
+  ! by xlo (lower corner) and dx (grid resolution) 
   ! -----------------------------------------------------------------     
   subroutine get_surf_pos(xlo, dx, lo, hi, surf_pos_heat_domain)
 
@@ -344,6 +354,7 @@ contains
                                 surf_xlo, &
                                 surf_dx  
 
+    
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) 
     real(amrex_real), intent(in) :: xlo(2)
@@ -354,36 +365,23 @@ contains
     integer :: i
     integer :: xind
     real(amrex_real) :: xpos
-   !  real(amrex_real) :: frac_part
-   !  real(amrex_real) :: num_tol
+
+    ! Note: xlo is the lowest corner of a given box and is defined on the faces.
+    ! xpos refers to the x-coordinate of one cell center of a given box
+    ! and is defined on the centers.
     
-   !  num_tol = 1e-5
     do  i = lo(1),hi(1)
-   
-       ! In what follows -surf_dx(1)/2 is used since
-       ! the surface is staggered 'backwards' on the faces with
-       ! respect to the xlo and xpos values which are defined on the
-       ! centers. 
 
-       xpos = xlo(1) + (0.5+i-lo(1))*dx(1)  
+       ! x position of the i-th cell center 
+       xpos = xlo(1) + (0.5 + i - lo(1)) * dx(1)  
 
-       ! The nearest integer is taken to round of numerical
-       ! errors since we know that dx(1) is n*surf_dx(1) where
-       ! n is an integer which depends on the current level and
-       ! the refinment ratio between levels.
+       ! Index of xpos in the heat transfer domain at the highest level
        xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1))
-
        if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
        if (xind.gt.surf_ind(1,2)) xind = surf_ind(1,2) 
       
-       ! Check if you fall inbetween two grid points of the heighest level
-      !  frac_part = (xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1) - xind
-      !  if (frac_part.gt.0.5-num_tol .and. frac_part.lt.0.5+num_tol ) then
-      !    surf_pos_heat_domain(i) = (surf_pos(xind)+surf_pos(xind+1))/2
-      !  else
-         ! surf_pos_heat_domain(i) = surf_pos(xind)
-      !  end if
-
+       ! Position of the free surface in the heat transfer domain at
+       ! a given level
        surf_pos_heat_domain(i) = surf_pos(xind)
        
     end do
@@ -404,7 +402,7 @@ contains
                                 surf_ind
     
     integer :: i
-  
+    
     do i =  surf_ind(1,1), surf_ind(1,2) 
        melt_pos(i) = surf_pos(i)
        melt_top(i) = surf_pos(i)
@@ -433,19 +431,22 @@ contains
     integer :: it(1:2) 
     real(amrex_real) :: grid_pos(1:2)
         
-    do i = lo(1), hi(1)  ! x-direction
+    do i = lo(1), hi(1)  
        do j = lo(2), hi(2) 
-             
+
+          ! Positon of the melt bottom
           if (nint(idom(i,j)).ge.2 .and. nint(idom(i,j-1)).lt.2) then
              
              it(1) = i
              it(2) = j
              grid_pos = geom%get_physical_location(it)
              melt_pos(i) = grid_pos(2) 
+
              
+          ! Position of the melt top (is not necessarily equal to the free surface,
+          ! due to cooling effects)
           elseif(nint(idom(i,j)).lt.2 .and. nint(idom(i,j-1)).ge.2) then
 
-            
              it(1) = i
              it(2) = j
              grid_pos = geom%get_physical_location(it)
@@ -453,20 +454,13 @@ contains
             
           end if
 
-          if (nint(idom(i,j)).eq.0 .and. nint(idom(i,j-1)).gt.0) then
-             
-            it(1) = i
-            it(2) = j
-            grid_pos = geom%get_physical_location(it)
-
-          end if
        end do   
     end do
     
   end subroutine get_melt_pos
   
   ! -----------------------------------------------------------------
-  ! Subroutine used to re-evaluate the heat equation domain
+  ! Subroutine used to re-evaluate the heat transfer domain
   ! -----------------------------------------------------------------  
   subroutine revaluate_heat_domain(xlo, dx, lo, hi, &
                                    idom_old, ido_lo, ido_hi, &
@@ -477,12 +471,8 @@ contains
                                    temp2, t2_lo, t2_hi)
 
     use material_properties_module, only : temp_melt
-    use amr_data_module, only : surf_ind, &
-                                surf_temperature, &
-                                surf_enthalpy, &
-                                surf_dx, &
-                                surf_xlo, &
-                                melt_vel
+    use amr_data_module, only : surf_temperature, &
+                                surf_enthalpy
     
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) ! bounds of current tile box
@@ -501,14 +491,10 @@ contains
     real(amrex_real), intent(in) :: u_in2(u2_lo(1):u2_hi(1),u2_lo(2):u2_hi(2))
     real(amrex_real), intent(in) :: temp2(t2_lo(1):t2_hi(1),t2_lo(2):t2_hi(2))
      
-    !Local variables
+    ! Local variables
     integer :: i,j
     integer :: xind
-    real(amrex_real) :: xpos
 
-    ! NOTE: as it is now, the domain revaluation is correct only if the velocity is positive
-    ! i.e. if the velocity goes in the direction of positive x
-    
     do i = lo(1)-1,hi(1)+1
        do  j = lo(2)-1,hi(2)+1
 
@@ -523,7 +509,7 @@ contains
                 temp(i,j) = temp2(i,j-1)
                 idom_new(i,j) = 3
 
-            ! ! Points added on top of mushy
+             ! Points added on top of mushy
              elseif (temp2(i,j-1).eq.temp_melt) then
 
                ! Update properties
@@ -531,27 +517,12 @@ contains
                temp(i,j) = temp2(i,j-1)
                idom_new(i,j) = 2
 
-             ! Points added on top of solid (take upwind temperature)   
+             ! Points added on top of solid
              else
 
-                ! Index for the surface properties (temperature and enthalpy)
-                xpos = xlo(1) + (0.5 + i-lo(1))*dx(1)  
-                xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
-                if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
-                if (xind.ge.surf_ind(1,2)) xind = surf_ind(1,2)-1 
+                ! Index of upwind column
+                call get_upwind_column_xind(lo, xlo, dx, i, xind)
                 
-                ! Figure out which column is upwind
-                if (melt_vel(xind,1).gt.0_amrex_real) then
-                  ! Boundary condition   
-                  if (xind.gt.surf_ind(1,1)) xind = xind-1 
-                elseif (melt_vel(xind+1,1).lt.0_amrex_real) then
-                  xind = xind+1
-                else
-                  write(*,*) 'Wind not blowing towards this column, cell shouldnt be added. Taking the column on the left as upwind'
-                  ! Boundary condition   
-                  if (xind.gt.surf_ind(1,1)) xind = xind-1 
-                end if 
-
                 ! Update properties
                 u_in(i,j) = surf_enthalpy(xind)
                 temp(i,j) = surf_temperature(xind)
@@ -560,6 +531,7 @@ contains
                 else if (temp(i,j).eq.temp_melt) then
                    idom_new(i,j) = 2
                 else
+                   ! Add warning here, this should not happen
                    idom_new(i,j) = 1
                 end if
                 
@@ -567,38 +539,67 @@ contains
              
           ! Points removed from the domain
           else if (nint(idom_new(i,j)).eq.0) then
+             
              u_in(i,j) = 0.0_amrex_real
              temp(i,j) = 0.0_amrex_real
+             
           end if
           
        end do
     end do
     
   end subroutine revaluate_heat_domain
-  
-  
-  ! -----------------------------------------------------------------
-  ! Subroutine used to get the total volume of molten material
-  ! -----------------------------------------------------------------
-  subroutine integrate_surf(melt_vol)
 
-    use amr_data_module, only : melt_top, melt_pos, surf_ind, surf_dx
+  ! -----------------------------------------------------------------
+  ! Subroutine used to identify the upwind column while
+  ! revaluating the heat domain
+  ! -----------------------------------------------------------------  
+  subroutine get_upwind_column_xind(lo, xlo, dx, xind_lev, xind)
 
+    use amr_data_module, only : melt_vel, &
+                                surf_ind, &
+                                surf_dx, &
+                                surf_xlo
+    
     ! Input and output variables
-    real(amrex_real), intent(out) :: melt_vol ! Integrated melt area [mm2]
+    integer, intent(in) :: lo(2) ! Bounds of current tile box
+    integer, intent(in) :: xind_lev ! Index on the current level
+    integer, intent(out) :: xind ! Index on the maximum level
+    real(amrex_real), intent(in) :: xlo(2) ! Physical location of box boundaries
+    real(amrex_real), intent(in) :: dx(2) ! Grid size
 
     ! Local variables
-    integer :: i 
- 
-    melt_vol = 0 
+    logical found_upwind
+    real(amrex_real) :: xpos
     
-    do i =  surf_ind(1,1), surf_ind(1,2) 
-       melt_vol = melt_vol +  melt_top(i) - melt_pos(i)
-    end do
+    ! Map current level to the maximum level where the free surface is defined
+    xpos = xlo(1) + (0.5 + xind_lev - lo(1))*dx(1)  
+    xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
+    if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
+    if (xind.gt.surf_ind(1,2)) xind = surf_ind(1,2)                 
     
-    melt_vol = melt_vol*surf_dx(1)*1E6  
+    ! Identify upwind column
+    if (melt_vel(xind,1).gt.0_amrex_real) then
+       xind = xind - 1
+       found_upwind = .true.
+    end if
+    
+    if (melt_vel(xind+1,1).lt.0_amrex_real) then
+       xind = xind + 1
+       found_upwind = .true.
+    end if
 
-  end subroutine integrate_surf
+    if (.not.found_upwind) then
+       xind = xind - 1
+       write(*,*) 'Upwind column could not be identified:'&
+            ' Taking the column on the left as upwind'
+    end if
 
+    ! Ensure that the upwind colum falls inside the computational domain
+    if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
+    if (xind.gt.surf_ind(1,2)) xind = surf_ind(1,2)                 
+    
+    
+  end subroutine get_upwind_column_xind
   
 end module domain_module

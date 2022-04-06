@@ -28,13 +28,6 @@ module plotfile_module
   ! Public subroutines
   ! -----------------------------------------------------------------
   public :: writeplotfile
-  public :: write1dplotfile 
-
-  ! -----------------------------------------------------------------
-  ! Declare private variables shared by all subroutines
-  ! -----------------------------------------------------------------
-  logical, save :: init_1d = .true. 
-  
     
 contains
 
@@ -118,40 +111,6 @@ contains
     close(2)
   end subroutine writeplotfile
 
-  
-  ! -----------------------------------------------------------------
-  ! Subroutine used to output the total volume of the melt pool
-  ! -----------------------------------------------------------------  
-  subroutine write1dplotfile()
-    
-    use domain_module, only : integrate_surf
-    
-    real(amrex_real) :: melt_vol 
-
-    ! Get total volume of molten pool
-    call integrate_surf(melt_vol) 
-
-    ! Write output header
-    if (init_1d) then 
-
-       init_1d = .false. 
-       open (1, file = 'surf_1D_time.dat', &
-             status = 'unknown') 
-       write(1,*) 'Surface properties vs time' 
-       write(1,*) 'Time [s]' , 'Integrated molten volume [mm3]'
-       write(1,*) ''
-       
-    end if
-
-    ! Write output
-    open (1, file = 'surf_1D_time.dat', &
-          status = 'old', &
-          access = 'append')    
-    write(1,*) t_new(0), melt_vol  
-    close(1)
-    
-  end subroutine write1dplotfile
-  
  
 end module plotfile_module
 

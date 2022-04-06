@@ -46,7 +46,7 @@ module amr_data_module
   public :: surf_dx
   ! Index of the shallow water grid
   public :: surf_ind
-  ! Coordinates of the bottom left corner of the shallow water grid
+  ! Lower corner of the shallow water domain
   public :: surf_xlo
   ! Position of the free surface (1D)
   public :: surf_pos 
@@ -163,7 +163,7 @@ contains
     surf_pos_grid = surf_pos_init
     surf_temperature = 0.0_amrex_real
     J_th = 0.0_amrex_real
-    surf_xlo(1) = amrex_problo(1) 
+    surf_xlo(1) = amrex_problo(1)
     t_new = 0.0_amrex_real
     t_old = -1.0_amrex_real
     stepno = 0 
