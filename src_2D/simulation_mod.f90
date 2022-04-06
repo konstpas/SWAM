@@ -27,7 +27,6 @@ contains
     use amr_data_module, only : t_new, stepno, dt
     use read_input_module, only : max_step, stop_time, plot_int, heat_solver, do_reflux, solve_heat
     use plotfile_module, only: writeplotfile
-    use energy_module, only: sum_enthalpy
 
     ! Local variables
     integer :: last_plot_file_step
@@ -35,7 +34,6 @@ contains
     integer :: lev
     integer :: substep
     real(amrex_real) :: cur_time
-    real(amrex_real) :: total_enthalpy
 
     ! Initialize time
     cur_time = t_new(0)
@@ -71,13 +69,6 @@ contains
        else
           call advance_one_timestep(cur_time)
        end if
-          
-       ! Get total enthalpy in the domain
-       if(solve_heat) then
-         call sum_enthalpy(total_enthalpy)
-       else
-         total_enthalpy = 0.0
-       end if
  	
        ! Update time on all levels
        cur_time = cur_time + dt(0)
@@ -87,8 +78,6 @@ contains
 
        ! Print timestep information on screen (end)
        if (amrex_parallel_ioprocessor()) then
-          print *, 'Enthalpy is', total_enthalpy 
-          print *, '' 
           print *, "STEP", step+1, "end. TIME =", cur_time, "DT =", dt(0)
        end if
 

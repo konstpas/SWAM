@@ -76,9 +76,9 @@ module read_input_module
   public :: plasma_flux_type
   public :: plasma_flux_params
   public :: plasma_flux_input_file
-  public :: plasma_side_flux_type
-  public :: plasma_side_flux_params
-  public :: plasma_side_flux_input_file
+  public :: plasma_flux_side_type
+  public :: plasma_flux_side_params
+  public :: plasma_flux_side_input_file
   public :: plot_file
   public :: plot_int
   public :: regrid_int
@@ -111,8 +111,8 @@ module read_input_module
   character(len=:), allocatable, save :: heat_solver
   character(len=:), allocatable, save :: plasma_flux_type
   character(len=:), allocatable, save :: plasma_flux_input_file
-  character(len=:), allocatable, save :: plasma_side_flux_type
-  character(len=:), allocatable, save :: plasma_side_flux_input_file
+  character(len=:), allocatable, save :: plasma_flux_side_type
+  character(len=:), allocatable, save :: plasma_flux_side_input_file
   character(len=:), allocatable, save :: phase_init
   character(len=:), allocatable, save :: plot_file
   character(len=:), allocatable, save :: restart   
@@ -158,7 +158,7 @@ module read_input_module
   real(amrex_real), allocatable, save :: cool_pipe_cntr(:)
   real(amrex_real), allocatable, save :: surfdist(:)
   real(amrex_real), allocatable, save :: plasma_flux_params(:)
-  real(amrex_real), allocatable, save :: plasma_side_flux_params(:)
+  real(amrex_real), allocatable, save :: plasma_flux_side_params(:)
   
 contains
 
@@ -213,10 +213,10 @@ contains
     call pp%query("phase_init", phase_init)
     call pp%query("plasma_flux_type", plasma_flux_type) 
     call pp%getarr("plasma_flux_params", plasma_flux_params)
-    call pp%query("plasma_side_flux_type", plasma_side_flux_type) 
-    call pp%getarr("plasma_side_flux_params", plasma_side_flux_params)
+    call pp%query("plasma_side_flux_type", plasma_flux_side_type) 
+    call pp%getarr("plasma_side_flux_params", plasma_flux_side_params)
     call pp%query("plasma_flux_input_file", plasma_flux_input_file)
-    call pp%query("plasma_side_flux_input_file", plasma_side_flux_input_file)
+    call pp%query("plasma_side_flux_input_file", plasma_flux_side_input_file)
     call pp%query("temp_free_surface", temp_fs)
     call pp%query("cooling_thermionic",cooling_thermionic)
     call pp%query("cooling_vaporization",cooling_vaporization)
@@ -280,9 +280,9 @@ contains
     allocate(character(len=3)::check_file)
     allocate(character(len=8)::heat_solver)
     allocate(character(len=8)::plasma_flux_type)
-    allocate(character(len=8)::plasma_side_flux_type)
+    allocate(character(len=8)::plasma_flux_side_type)
     allocate(character(len=25)::plasma_flux_input_file)
-    allocate(character(len=25)::plasma_side_flux_input_file)
+    allocate(character(len=25)::plasma_flux_side_input_file)
     allocate(character(len=8)::material)
     allocate(character(len=4)::geometry_name)
     allocate(cool_pipe_cntr(2))
@@ -292,7 +292,7 @@ contains
     allocate(cooling_debug(5))    
     allocate(surfdist(0:amrex_max_level))
     allocate(plasma_flux_params(100))
-    allocate(plasma_side_flux_params(100))
+    allocate(plasma_flux_side_params(100))
 
     cfl = 0.70
     check_file = "chk"
@@ -335,15 +335,15 @@ contains
     plasma_flux_params(3) = 300e6
     plasma_flux_params(4) = 0.0
     plasma_flux_params(5) = 0.01
-    plasma_side_flux_params(1) = 0.0
-    plasma_side_flux_params(2) = 1.0
-    plasma_side_flux_params(3) = 300e6
-    plasma_side_flux_params(4) = 0.0
-    plasma_side_flux_params(5) = 0.01
+    plasma_flux_side_params(1) = 0.0
+    plasma_flux_side_params(2) = 1.0
+    plasma_flux_side_params(3) = 300e6
+    plasma_flux_side_params(4) = 0.0
+    plasma_flux_side_params(5) = 0.01
     plasma_flux_type = "Gaussian"
-    plasma_side_flux_type = "Gaussian"
+    plasma_flux_side_type = "Gaussian"
     plasma_flux_input_file = "plasma_flux.dat"
-    plasma_side_flux_input_file = "plasma_side_flux.dat"
+    plasma_flux_side_input_file = "plasma_side_flux.dat"
     plot_file = "plt"
     plot_int = -1
     regrid_int = 2
@@ -376,9 +376,9 @@ contains
     deallocate(phase_init)
     deallocate(plasma_flux_params)
     deallocate(plasma_flux_type)
-    deallocate(plasma_side_flux_type)
+    deallocate(plasma_flux_side_type)
     deallocate(plasma_flux_input_file)
-    deallocate(plasma_side_flux_input_file)
+    deallocate(plasma_flux_side_input_file)
     deallocate(plot_file)
     deallocate(restart)
     deallocate(surfdist)
