@@ -121,10 +121,10 @@ contains
 
     ! Initialize heat flux
     qb = 0.0
-    
-    do i = lo(1), hi(1)
-       do j = lo(2), hi(2)
-          
+
+    do j = lo(2), hi(2)
+       do i = lo(1), hi(1)
+       
           ! Locate the free surface 
           if(nint(idom(i,j)).ne.0 .and. nint(idom(i,j+1)).eq.0) then
              
@@ -218,9 +218,9 @@ contains
 
     ! Initialize heat flux
     qb = 0.0   
-    
-    do i = lo(1), hi(1)
-       do j = lo(2), hi(2)
+
+    do j = lo(2), hi(2)
+       do i = lo(1), hi(1)
 
           ! Get contributions from the different sides of the cooling pipe
           
@@ -296,9 +296,9 @@ contains
 
     ! Return immediately if the geometry does not include a second exposed side
     if (geometry_name .ne. "West" .and. geometry_name .ne. "West_rectangular") return
-    
-    do i = lo(1), hi(1)
-       do j = lo(2), hi(2)
+
+    do j = lo(2), hi(2)
+       do i = lo(1), hi(1)
           
           if( nint(idom(i,j)).ne.0 .and. & 
               (xpos.ge.sample_edge .or. nint(idom(i+1,j)).eq.0)) then

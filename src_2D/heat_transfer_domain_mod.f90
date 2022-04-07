@@ -109,15 +109,14 @@ contains
     end if
     
     ! Set flags to distinguish between material and background
-    do i = lo(1)-1,hi(1)+1
+    do j = lo(2)-1,hi(2)+1
+       do i = lo(1)-1, hi(1)+1
 
-       ! Index of the free surface in the heat transfer domain
-       surf_ind_heat_domain = id_lo(2) + &
-                              floor((surf_pos_heat_domain(i) - &
-                              xlo(2)+dx(2))/dx(2))
-       
-       do j = lo(2)-1, hi(2)+1
-
+          ! Index of the free surface in the heat transfer domain
+          surf_ind_heat_domain = id_lo(2) + &
+                                 floor((surf_pos_heat_domain(i) - &
+                                 xlo(2)+dx(2))/dx(2))
+          
           if (j .le. surf_ind_heat_domain) then
              
              if (find_liquid) then
@@ -136,8 +135,7 @@ contains
              idom(i,j) = 0 ! Background
           end if
           
-       end do
-       
+       end do       
     end do
       
 
@@ -188,18 +186,18 @@ contains
     end if
     
     ! Set flags to distinguish between material and background
-    do i = lo(1)-1, hi(1)+1
+    do j = lo(2)-1, hi(2)+1  
+       do i = lo(1)-1, hi(1)+1
 
-       ! Index of the free surface in the heat transfer domain
-       surf_ind_heat_domain = id_lo(2) + &
-            floor((surf_pos_heat_domain(i) - &
-            xlo(2)+dx(2))/dx(2))
-
-       ! x position of the i-th center in the current box
-       xpos = xlo(1) + (0.5 + i - lo(1))*dx(1) 
+          ! Index of the free surface in the heat transfer domain
+          surf_ind_heat_domain = id_lo(2) + &
+                                 floor((surf_pos_heat_domain(i) - &
+                                 xlo(2)+dx(2))/dx(2))
+          
+          ! x position of the i-th center in the current box
+          xpos = xlo(1) + (0.5 + i - lo(1))*dx(1) 
+          
        
-       do j = lo(2)-1, hi(2)+1  
-
           ! y position of the j-th center in the current box
           ypos = xlo(2) + (0.5+j-lo(2))*dx(2)
 
@@ -234,7 +232,6 @@ contains
           end if
           
        end do
-       
     end do
     
   end subroutine get_west_idomain
@@ -286,18 +283,17 @@ contains
     end if
     
     ! Set flags to distinguish between material and background
-    do i = lo(1)-1, hi(1)+1
+    do j = lo(2)-1, hi(2)+1  
+       do i = lo(1)-1, hi(1)+1       
 
-       ! Index of the free surface in the heat transfer domain
-       surf_ind_heat_domain = id_lo(2) + &
-                                floor((surf_pos_heat_domain(i) - &
-                                xlo(2)+dx(2))/dx(2))
+          ! Index of the free surface in the heat transfer domain
+          surf_ind_heat_domain = id_lo(2) + &
+                                 floor((surf_pos_heat_domain(i) - &
+                                 xlo(2)+dx(2))/dx(2))
 
-       ! x position of the i-th center in the current box
-       xpos = xlo(1) + (0.5+i-lo(1))*dx(1) 
-       
-       do j = lo(2)-1, hi(2)+1  
-          
+          ! x position of the i-th center in the current box
+          xpos = xlo(1) + (0.5+i-lo(1))*dx(1) 
+
           ! y position of the j-th center in the current box
           ypos = xlo(2) + (0.5+j-lo(2))*dx(2)
 
@@ -333,8 +329,7 @@ contains
              idom(i,j) = 0 ! Background above the free surface
           end if
             
-       end do
-       
+       end do       
     end do
     
   end subroutine get_west_rectangular_idomain
@@ -422,9 +417,9 @@ contains
     integer :: i,j
     integer :: it(1:2) 
     real(amrex_real) :: grid_pos(1:2)
-        
-    do i = lo(1), hi(1)  
-       do j = lo(2), hi(2) 
+
+    do j = lo(2), hi(2)        
+       do i = lo(1), hi(1)  
 
           ! Positon of the melt bottom
           if (nint(idom(i,j)).ge.2 .and. nint(idom(i,j-1)).lt.2) then
@@ -487,8 +482,8 @@ contains
     integer :: i,j
     integer :: xind
 
-    do i = lo(1)-1,hi(1)+1
-       do  j = lo(2)-1,hi(2)+1
+    do  j = lo(2)-1,hi(2)+1
+       do i = lo(1)-1,hi(1)+1
 
           ! Points added to the domain
           if (nint(idom_old(i,j)).eq.0 .and. nint(idom_new(i,j)).ne.0) then
@@ -615,9 +610,9 @@ contains
     integer :: xind
     
     ! Assign x-component of the velocity
-    do i = lo(1), hi(1)+1
-       do j = lo(2), hi(2)
-
+    do j = lo(2), hi(2)
+       do i = lo(1), hi(1)+1
+          
           if (nint(idom(i,j)).ge.2 .and. nint(idom(i-1,j)).ge.2) then
 
              call interp_to_max_lev(lo, xlo, dx, i, xind)

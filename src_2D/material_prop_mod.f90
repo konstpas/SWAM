@@ -714,9 +714,9 @@ module material_properties_module
 
     ! Obtain the temperature from linear interpolation of the enthalpy-temperature tables
     if (direct) then
-       
-       do i = lo(1),hi(1)
-          do j = lo(2),hi(2)
+
+       do j = lo(2),hi(2)
+          do i = lo(1),hi(1)
              
              ! Routine bisection assumes that first argument is an array 
              ! with its index starting from one. Since enth_table
@@ -737,9 +737,9 @@ module material_properties_module
        
     else ! Obtain enthalpy
 
-       do i = lo(1),hi(1)
-          do j = lo(2),hi(2)             
-             
+       do j = lo(2),hi(2)             
+          do i = lo(1),hi(1)
+          
              call bisection(temp_table, phiT_table_n_points+1, temp(i,j), idx)
              if (temp_table(idx).eq.temp_table(idx-1)) idx = idx-1
              

@@ -450,8 +450,8 @@ contains
                                     qvol)
     
     ! Compute enthalpy at the new timestep
-    do i = lo(1),hi(1)
-       do  j = lo(2),hi(2)
+    do  j = lo(2),hi(2)
+       do i = lo(1),hi(1)
           u_new(i,j) = u_old(i,j) &
                        - dt/dx(1) * (flxx(i+1,j) - flxx(i,j)) & ! flux divergence x-direction 
                        - dt/dx(2) * (flxy(i,j+1) - flxy(i,j)) & ! flux divergence y-direction 
@@ -534,9 +534,9 @@ contains
                                temp, t_lo, t_hi)
 
     ! Compute enthalpy at the new timestep
-    do i = lo(1),hi(1)
-       do  j = lo(2),hi(2)
-          
+    do  j = lo(2),hi(2)
+       do i = lo(1),hi(1)
+           
           if (nint(idom(i,j)).ne.0 .and. nint(idom(i,j+1)).eq.0) then
              u_new(i,j) = u_fs ! Impose temperature on the free surface
           else if(nint(idom(i,j)).eq.0) then
@@ -610,8 +610,8 @@ contains
                            idom, id_lo, id_hi)
     
     ! Flux along the x direction
-    do i = lo(1), hi(1)+1
-       do j = lo(2), hi(2)          
+    do j = lo(2), hi(2)          
+       do i = lo(1), hi(1)+1
 
           if (nint(idom(i-1,j)).eq.0 .or. nint(idom(i,j)).eq.0) then
 
@@ -643,8 +643,8 @@ contains
     end do
     
     ! Flux along the y direction
-    do i = lo(1), hi(1)
-       do j = lo(2), hi(2)+1
+    do j = lo(2), hi(2)+1
+       do i = lo(1), hi(1)
 
           if (nint(idom(i,j-1)).eq.0 .or. nint(idom(i,j)).eq.0) then
 
@@ -700,8 +700,8 @@ contains
 
      
     ! Flux along the x direction
-    do i = lo(1), hi(1)+1
-       do j = lo(2), hi(2)          
+    do j = lo(2), hi(2)          
+       do i = lo(1), hi(1)+1
 
           ! Diffusive component
           temp_face = (temp(i,j) + temp(i-1,j))/2_amrex_real
@@ -712,9 +712,9 @@ contains
     end do
     
     ! Flux along the y direction
-    do i = lo(1), hi(1)
-       do j = lo(2), hi(2)+1
-          
+    do j = lo(2), hi(2)+1
+       do i = lo(1), hi(1)
+       
           ! Diffusive component (there is no advection in the y direction)
           temp_face = (temp(i,j) + temp(i,j-1))/2_amrex_real
           call get_conductivity(temp_face, ktherm)
@@ -760,8 +760,8 @@ contains
                            idom, id_lo, id_hi)
     
     ! Volumetric heat source terms
-    do i = lo(1), hi(1)
-       do j = lo(2), hi(2)          
+    do j = lo(2), hi(2)          
+       do i = lo(1), hi(1)
           qvol(i,j) = u_old(i,j) * (vx(i+1,j) - vx(i,j))/dx(1)
        end do
     end do

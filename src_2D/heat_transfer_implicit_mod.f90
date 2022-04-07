@@ -704,8 +704,8 @@ contains
     real(amrex_real) :: lf
 
     ! Fill alpha matrix
-    do i = lo(1), hi(1)
-       do j = lo(2), hi(2)
+    do j = lo(2), hi(2)
+       do i = lo(1), hi(1)
           if (temp(i,j).ne.temp_melt) then
              call get_mass_density(temp(i,j), rho)
              call get_heat_capacity(temp(i,j), cp)
@@ -755,8 +755,8 @@ contains
     real(amrex_real) :: temp_face
 
     if (dim == 1) then ! x-direction
-       do i = lo(1), hi(1)+1
-          do j = lo(2), hi(2)
+       do j = lo(2), hi(2)
+          do i = lo(1), hi(1)+1
              
              if(nint(idom(i-1,j)).eq.0 .or. nint(idom(i,j)).eq.0 .or. & 
                 nint(idom(i-1,j)).eq.-1 .or. nint(idom(i,j)).eq.-1) then
@@ -770,9 +770,9 @@ contains
        end do
 
     else if (dim == 2) then ! y-direction
-       do i = lo(1), hi(1)
-          do j = lo(2), hi(2)+1
-             
+       do j = lo(2), hi(2)+1
+          do i = lo(1), hi(1)
+        
              if(nint(idom(i,j-1)).eq.0 .or. nint(idom(i,j)).eq.0 .or. &
                 nint(idom(i,j-1)).eq.-1 .or. nint(idom(i,j)).eq.-1) then
                  beta(i,j) = 0_amrex_real ! Suppress flux at the free surface and cooling pipe surface
@@ -827,8 +827,8 @@ contains
                                 temp, t_lo, t_hi, lev, rhs)
     
     ! Fill rhs of linear problem
-    do i = lo(1), hi(1)
-       do j = lo(2), hi(2)          
+    do j = lo(2), hi(2)          
+       do i = lo(1), hi(1)
           rhs(i,j) = rhs(i,j)*dt + temp(i,j)*alpha(i,j)
        end do
     end do
@@ -858,8 +858,8 @@ contains
     integer :: i,j
 
     ! Fill rhs of linear problem
-    do i = lo(1), hi(1)
-       do j = lo(2), hi(2)          
+    do j = lo(2), hi(2)          
+       do i = lo(1), hi(1)
           rhs(i,j) = temp(i,j)*alpha(i,j)
        end do
     end do
@@ -905,8 +905,8 @@ contains
     
     ! Get new enthalpy for points undergoing transition 
     ! (might overwrite enthalpy found previously.)
-    do i = lo(1), hi(1)
-       do j = lo(2), hi(2)
+    do j = lo(2), hi(2)
+       do i = lo(1), hi(1)
           if (temp_old(i,j).le.temp_melt .and. temp_new(i,j).gt.temp_melt) then
              ubase = max(u_old(i,j), enth_at_melt)
              u_new(i,j) = ubase + alpha(i,j)*(temp_new(i,j) - temp_melt)
@@ -953,7 +953,6 @@ contains
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pout
    
-    ! 
     do ilev = 0, amrex_max_level
  
        ! Geometry
@@ -1030,8 +1029,9 @@ contains
                            idom, id_lo, id_hi)
 
     ! Update temperature profile
-    do i = lo(1), hi(1)
-       do j = lo(2), hi(2)
+    do j = lo(2), hi(2)
+       do i = lo(1), hi(1)
+
           vx_l = ux(i,j)
           vx_r = ux(i+1,j)
 
