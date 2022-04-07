@@ -350,10 +350,7 @@ contains
   subroutine get_surf_pos(xlo, dx, lo, hi, surf_pos_heat_domain)
 
     
-    use amr_data_module, only : surf_ind, &
-                                surf_pos, &
-                                surf_xlo, &
-                                surf_dx  
+    use amr_data_module, only : surf_pos
 
     
     ! Input and output variables
@@ -365,7 +362,6 @@ contains
     ! Local variables
     integer :: i
     integer :: xind
-    real(amrex_real) :: xpos
 
     ! Note: xlo is the lowest corner of a given box and is defined on the faces.
     ! xpos refers to the x-coordinate of one cell center of a given box
@@ -373,13 +369,8 @@ contains
     
     do  i = lo(1),hi(1)
 
-       ! x position of the i-th cell center 
-       xpos = xlo(1) + (0.5 + i - lo(1)) * dx(1)  
-
-       ! Index of xpos in the heat transfer domain at the highest level
-       xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1))
-       if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
-       if (xind.gt.surf_ind(1,2)) xind = surf_ind(1,2) 
+       ! Map to maximum level
+       call interp_to_max_lev(lo, xlo, dx, i, xind)
       
        ! Position of the free surface in the heat transfer domain at
        ! a given level
@@ -557,10 +548,8 @@ contains
   ! -----------------------------------------------------------------  
   subroutine get_upwind_column_xind(lo, xlo, dx, xind_lev, xind)
 
-    use amr_data_module, only : melt_vel, &
-                                surf_ind, &
-                                surf_dx, &
-                                surf_xlo
+    use amr_data_module, only : surf_ind, &
+                                melt_vel
     
     ! Input and output variables
     integer, intent(in) :: lo(2) ! Bounds of current tile box
@@ -571,13 +560,9 @@ contains
 
     ! Local variables
     logical found_upwind
-    real(amrex_real) :: xpos
     
-    ! Map current level to the maximum level where the free surface is defined
-    xpos = xlo(1) + (0.5 + xind_lev - lo(1))*dx(1)  
-    xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
-    if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
-    if (xind.gt.surf_ind(1,2)) xind = surf_ind(1,2)                 
+    ! Map current level to the maximum level
+    call interp_to_max_lev(lo, xlo, dx, xind_lev, xind)
     
     ! Identify upwind column
     if (melt_vel(xind,1).gt.0_amrex_real) then
@@ -609,14 +594,11 @@ contains
   ! This subroutine translates to 2D the 1D velocity field obtained
   ! from the solution of the shallow water equations
   ! -----------------------------------------------------------------  
-  subroutine get_face_velocity(lo_phys, lo, hi, dx, &
+  subroutine get_face_velocity(xlo, lo, hi, dx, &
                                vx, vx_lo, vx_hi, &
                                idom, id_lo, id_hi)
 
-    use amr_data_module, only : surf_dx, &
-                                surf_xlo, &
-                                surf_ind, &
-                                melt_vel
+    use amr_data_module, only : melt_vel
                                 
     
     ! Input and output variables
@@ -624,14 +606,13 @@ contains
     integer, intent(in) :: id_lo(2), id_hi(2)
     integer, intent(in) :: vx_lo(2), vx_hi(2)
     real(amrex_real), intent(in) :: dx(2)
-    real(amrex_real), intent(in) :: lo_phys(2)
+    real(amrex_real), intent(in) :: xlo(2)
     real(amrex_real), intent(in)  :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2))
     real(amrex_real), intent(out) :: vx(vx_lo(1):vx_hi(1),vx_lo(2):vx_hi(2))
 
     ! Local variables
     integer :: i,j
     integer :: xind
-    real(amrex_real) :: xpos
     
     ! Assign x-component of the velocity
     do i = lo(1), hi(1)+1
@@ -639,13 +620,7 @@ contains
 
           if (nint(idom(i,j)).ge.2 .and. nint(idom(i-1,j)).ge.2) then
 
-             ! Interpolation similar to the one used to find the free
-             ! surface position in the heat transfer domain. See
-             ! subroutine get_surf_pos in the domain module
-             xpos = lo_phys(1) + (0.5 + i - lo(1))*dx(1)  
-             xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1))
-             if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
-             if (xind.gt.surf_ind(1,2)) xind = surf_ind(1,2) 
+             call interp_to_max_lev(lo, xlo, dx, i, xind)
              vx(i,j) = melt_vel(xind,1)
              
           else
@@ -659,5 +634,40 @@ contains
 
     
   end subroutine get_face_velocity
+
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to interpolate spatial locations to the maximum
+  ! amrex level where the free surface is defined
+  ! -----------------------------------------------------------------  
+  subroutine interp_to_max_lev(lo, xlo, dx, xind_lev, xind)
+
+    use amr_data_module, only : surf_ind, &
+                                surf_dx, &
+                                surf_xlo
+    
+    ! Input and output variables
+    integer, intent(in) :: lo(2) ! Bounds of current tile box
+    integer, intent(in) :: xind_lev ! Index on the current level
+    integer, intent(out) :: xind ! Index on the maximum level
+    real(amrex_real), intent(in) :: xlo(2) ! Physical location of box boundaries
+    real(amrex_real), intent(in) :: dx(2) ! Grid size
+
+    ! Local variables
+    real(amrex_real) :: xpos
+
+    ! Note: xlo is the lowest corner of a given box and is defined on the faces.
+    ! xpos refers to the x-coordinate of one cell center of a given box
+    ! and is defined on the centers.
+    
+    ! Position referring to xind_lev
+    xpos = xlo(1) + (0.5 + xind_lev - lo(1))*dx(1)
+
+    ! Index of xpos at the maximum level
+    xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1))
+    if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
+    if (xind.gt.surf_ind(1,2)) xind = surf_ind(1,2)
+    
+  end subroutine interp_to_max_lev
   
 end module heat_transfer_domain_module
