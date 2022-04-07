@@ -204,12 +204,6 @@ contains
     deallocate(last_regrid_step)
     deallocate(melt_pos)
     deallocate(melt_vel)
-    deallocate(plasma_flux_time_mesh)
-    deallocate(plasma_flux_surf_mesh)
-    deallocate(plasma_flux_table)
-    deallocate(plasma_flux_side_time_mesh)
-    deallocate(plasma_flux_side_surf_mesh)
-    deallocate(plasma_flux_side_table)
     deallocate(surf_enthalpy)
     deallocate(surf_evap_flux)
     deallocate(surf_pos)
@@ -221,6 +215,15 @@ contains
     deallocate(stepno)
     deallocate(nsubsteps)
 
+    ! Deallocate public variables that are allocated only for
+    ! certain geometries
+    if (allocated(plasma_flux_time_mesh)) deallocate(plasma_flux_time_mesh)
+    if (allocated(plasma_flux_surf_mesh)) deallocate(plasma_flux_surf_mesh)
+    if (allocated(plasma_flux_table)) deallocate(plasma_flux_table)
+    if (allocated(plasma_flux_side_time_mesh)) deallocate(plasma_flux_side_time_mesh)
+    if (allocated(plasma_flux_side_surf_mesh)) deallocate(plasma_flux_side_surf_mesh)
+    if (allocated(plasma_flux_side_table)) deallocate(plasma_flux_side_table)
+    
     ! Destroy multifabs
     do lev = 0, amrex_max_level
 
