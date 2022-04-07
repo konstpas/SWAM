@@ -33,8 +33,9 @@ contains
 
 
   ! -----------------------------------------------------------------
-  ! Subroutine used to output the multifabs containing, for example
-  ! the enthalpy and the temperature in all domain at all levels
+  ! Subroutine used to write plotfiles (containing the multifabs)
+  ! and regular text files (with free surface coordinates and
+  ! similar)
   ! -----------------------------------------------------------------
   subroutine writeplotfile()
 

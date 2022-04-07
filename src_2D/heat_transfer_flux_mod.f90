@@ -179,11 +179,11 @@ contains
              ! Check the validity of the heat flux
              if(qb(i,j).ne.qb(i,j)) then
                 
-                write(*,*) 'Nan heat flux on free surface at cell ' 
-                write(*,*) i, j
-                write(*,*) xpos, ypos
-                write(*,*) 'Where the surface temperature is '
-                write(*,*) temp(i,j)
+                print *, 'Nan heat flux on free surface at cell ' 
+                print *, i, j
+                print *, xpos, ypos
+                print *, 'Where the surface temperature is '
+                print *, temp(i,j)
                 STOP
                 
              end if
@@ -350,11 +350,11 @@ contains
              ! Check the validity of the heat flux
              if(qb(i,j).ne.qb(i,j)) then
            
-                write(*,*) 'Nan heat flux on second exposed face at cell ' 
-                write(*,*) i, j
-                write(*,*) xpos, ypos
-                write(*,*) 'Where the surface temperature is '
-                write(*,*) temp(i,j)
+                print *, 'Nan heat flux on second exposed face at cell ' 
+                print *, i, j
+                print *, xpos, ypos
+                print *, 'Where the surface temperature is '
+                print *, temp(i,j)
                 STOP
                 
              end if

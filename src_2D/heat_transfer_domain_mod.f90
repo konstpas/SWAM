@@ -592,7 +592,7 @@ contains
 
     if (.not.found_upwind) then
        xind = xind - 1
-       write(*,*) 'Upwind column could not be identified:'&
+       print *, 'Upwind column could not be identified:'&
             ' Taking the column on the left as upwind'
     end if
 

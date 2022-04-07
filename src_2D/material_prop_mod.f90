@@ -834,8 +834,9 @@ module material_properties_module
     ! Local variables    
     integer jl,jm,ju
 
-    jl=0 ! Initialize lower
-    ju=n+1 ! upper limits.
+    ! Initialize lowe and upper limits
+    jl=0
+    ju=n+1
     do while(ju-jl.gt.1)
        jm=(ju+jl)/2
        if((xx(n).ge.xx(1)).eqv.(x.ge.xx(jm)))then

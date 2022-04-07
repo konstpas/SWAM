@@ -933,7 +933,7 @@ contains
   end subroutine ch_to_digit
   
   ! -----------------------------------------------------------------
-  ! A subroutine that takes a character and capcapitalizes it. 
+  ! A subroutine that takes a character and capitalizes it. 
   ! Taken from
   ! https://people.sc.fsu.edu/~jburkardt/f_src/table_io/table_io.html
   ! -----------------------------------------------------------------

@@ -285,7 +285,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine advance_one_level_subcycling(lev, time, dt, substep)
 
-    use read_input_module, only : solve_sw
+    use read_input_module, only : solve_sw, solve_heat
     use heat_transfer_module, only : advance_heat_solver_explicit_level
     use heat_transfer_domain_module, only : reset_melt_pos
     use shallow_water_module, only : advance_SW
@@ -301,15 +301,18 @@ contains
        call advance_SW    
     end if 
     
-    ! Set melt interface position array equal to free interface position array 
-    ! Since melt layer may span several tile boxes in y-direction (in mfiterator below), we cannot reset within each loop 
-    ! Therefore we reset melt position after solving SW, and before propagating temperature 
-    ! Melt position is then found after heat has been propagated 
-    call reset_melt_pos 
+    if(solve_heat) then
+       
+       ! Set melt interface position array equal to free interface position array 
+       ! The new melt position is then found after heat has been propagated 
+       call reset_melt_pos 
+       
+       ! Advance heat equation
+       call advance_heat_solver_explicit_level(lev, time, dt, substep)
+       
+   end if
 
-    ! Advance heat equation
-    call advance_heat_solver_explicit_level(lev, time, dt, substep)
-
+    
   end subroutine advance_one_level_subcycling
 
   ! -----------------------------------------------------------------
@@ -368,14 +371,14 @@ contains
     end if
 
     if(solve_heat) then
+       
       ! Set melt interface position array equal to free interface position array 
-      ! Since melt layer may span several tile boxes in y-direction (in mfiterator below), we cannot reset within each loop 
-      ! Therefore we reset melt position after solving SW, and before propagating temperature 
-      ! Melt position is then found after heat has been propagated 
+      ! The new melt position is then found after heat has been propagated 
       call reset_melt_pos 
       
       ! Advance heat equation
       call advance_heat_solver_implicit(time, dt)
+      
    end if
 
   end subroutine advance_all_levels
