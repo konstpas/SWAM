@@ -41,7 +41,7 @@ contains
     call advance_conduction(time, dt, phi_tmp, temp_tmp, idomain_tmp)
 
     ! Advance the advective part of the heat equation
-    call advance_advection(time, temp_tmp)
+    call advance_advection(dt, temp_tmp)
 
     ! Update position of the melt bottom
     call get_melt_pool_bottom   
