@@ -20,17 +20,9 @@ contains
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the enthalpy at a new time step for
-  ! a given level via an explicit update
+  ! a given level via an explicit update.
   ! -----------------------------------------------------------------
   subroutine advance_heat_solver_explicit_level(lev, time, dt, substep)
-
-    use read_input_module, only : do_reflux
-    use amr_data_module, only : phi_new, &
-                                phi_old, &
-                                temp, &
-                                idomain, &
-                                flux_reg
-    use regrid_module, only : fillpatch
     
     ! Input and output variables 
     integer, intent(in) :: lev
@@ -39,40 +31,92 @@ contains
     real(amrex_real), intent(in) :: dt
     
     ! Local variables
-    integer, parameter :: nghost = 1 ! number of ghost points in each spatial direction 
-    integer :: ncomp
-    integer :: srccmp
-    integer :: dstcmp
-    integer :: idim
-    logical :: nodal(2) ! logical for flux multifabs 
     type(amrex_multifab) :: phi_tmp ! Enthalpy multifab with ghost points
     type(amrex_multifab) :: temp_tmp ! Temperature multifab with ghost points
     type(amrex_multifab) :: phi_tmp2 ! Enthalpy multifab with 2 ghost points
     type(amrex_multifab) :: temp_tmp2 ! Temperature multifab with 2 ghost points
     type(amrex_multifab) :: idomain_tmp ! Idomain multifab to distinguish material and background
-    type(amrex_fab) :: flux(amrex_spacedim)
     type(amrex_multifab) :: fluxes(amrex_spacedim)
+
+    ! Initialize temporary multifabs and fluxes
+    call init_tmp_multifab(lev, time, phi_tmp, temp_tmp, phi_tmp2, temp_tmp2, &
+                           idomain_tmp, fluxes)
+
+    ! Advance heat transfer equation of one timestep
+    call advance(lev, time, dt, substep, phi_tmp, temp_tmp, &
+                 idomain_tmp, fluxes, phi_tmp2, temp_tmp2)
+
+    ! Update flux registers (fluxes have already been scaled by dt and area
+    ! in the advance_heat_solver_box subroutine)
+    call update_flux_registers(lev, fluxes)
+    
+    ! Clean memory
+    call amrex_multifab_destroy(phi_tmp)
+    call amrex_multifab_destroy(temp_tmp)
+    call amrex_multifab_destroy(phi_tmp2)
+    call amrex_multifab_destroy(temp_tmp2)
+    call amrex_multifab_destroy(idomain_tmp)
+    
+  end subroutine advance_heat_solver_explicit_level
+
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to initialize the multifabs and fluxes used in the
+  ! update of the heat equation
+  ! -----------------------------------------------------------------
+  subroutine init_tmp_multifab(lev, time, phi_tmp, temp_tmp, phi_tmp2, &
+                               temp_tmp2, idomain_tmp, fluxes)
+
+    use read_input_module, only : do_reflux
+    use amr_data_module, only : phi_new, &
+                                phi_old, &
+                                temp, &
+                                idomain 
+    use regrid_module, only : fillpatch
+    
+    ! Input and output variables 
+    integer, intent(in) :: lev
+    real(amrex_real), intent(in) :: time
+    type(amrex_multifab), intent(out) :: phi_tmp
+    type(amrex_multifab), intent(out) :: temp_tmp
+    type(amrex_multifab), intent(out) :: phi_tmp2
+    type(amrex_multifab), intent(out) :: temp_tmp2
+    type(amrex_multifab), intent(out) :: idomain_tmp
+    type(amrex_multifab), intent(out) :: fluxes(amrex_spacedim)
+    
+    ! Local variables
+    integer, parameter :: nghost = 1 ! number of ghost points in each spatial direction 
+    integer :: ncomp
+    integer :: srccmp
+    integer :: dstcmp
+    integer :: idim
+    logical :: nodal(2) 
     type(amrex_geometry) :: geom
-    type(amrex_mfiter) :: mfi
+    type(amrex_boxarray) :: ba
+    type(amrex_distromap) :: dm
     
     ! Get geometry
     geom = amrex_geom(lev)
     
     ! Get number of components
     ncomp = phi_new(lev)%ncomp()
-
+    
+    ! Get boxarray and distribution mapping 
+    ba = phi_new(lev)%ba
+    dm = phi_new(lev)%dm
+    
     ! Swap old and new enthalpies before updating solution
     call amrex_multifab_swap(phi_old(lev), phi_new(lev))
     
     ! Build enthalpy and temperature multifabs with ghost points
-    call amrex_multifab_build(phi_tmp, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost) 
-    call amrex_multifab_build(temp_tmp, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost)
-    call amrex_multifab_build(phi_tmp2, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost+1) 
-    call amrex_multifab_build(temp_tmp2, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost+1)
+    call amrex_multifab_build(phi_tmp, ba, dm, ncomp, nghost) 
+    call amrex_multifab_build(temp_tmp, ba, dm, ncomp, nghost)
+    call amrex_multifab_build(phi_tmp2, ba, dm, ncomp, nghost+1) 
+    call amrex_multifab_build(temp_tmp2, ba, dm, ncomp, nghost+1)
     call fillpatch(lev, time, phi_tmp)
 
     ! Build temporary idomain multifab to store the domain configuration before SW deformation
-    call amrex_multifab_build(idomain_tmp, phi_new(lev)%ba, phi_new(lev)%dm, ncomp, nghost)
+    call amrex_multifab_build(idomain_tmp, ba, dm, ncomp, nghost)
     call amrex_multifab_swap(idomain_tmp, idomain(lev))
 
     ! Fill in multifabs with two ghost points
@@ -88,17 +132,56 @@ contains
        do idim = 1, amrex_spacedim
           nodal = .false.
           nodal(idim) = .true.
-          call amrex_multifab_build(fluxes(idim), phi_new(lev)%ba, phi_new(lev)%dm, ncomp, 0, nodal)
+          call amrex_multifab_build(fluxes(idim), ba, dm, ncomp, 0, nodal)
        end do       
     end if
 
+    ! Clean memory
+    call amrex_distromap_destroy(dm)
+    
+  end subroutine init_tmp_multifab
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to compute the enthalpy at a new time step for
+  ! a given level via an explicit update. No flux register
+  ! synchronization is performed
+  ! -----------------------------------------------------------------
+  subroutine advance(lev, time, dt, substep, phi_tmp, temp_tmp, &
+                     idomain_tmp, fluxes, phi_tmp2, temp_tmp2)
+
+    use amr_data_module, only : phi_new
+    
+    ! Input and output variables 
+    integer, intent(in) :: lev
+    integer, intent(in) :: substep
+    real(amrex_real), intent(in) :: time
+    real(amrex_real), intent(in) :: dt
+    type(amrex_multifab), intent(inout) :: phi_tmp
+    type(amrex_multifab), intent(inout) :: temp_tmp
+    type(amrex_multifab), intent(inout) :: phi_tmp2
+    type(amrex_multifab), intent(inout) :: temp_tmp2
+    type(amrex_multifab), intent(inout) :: idomain_tmp
+    type(amrex_multifab), intent(inout) :: fluxes(amrex_spacedim)
+    
+    ! Local variables
+    integer :: ncomp
+    integer :: idim
+    type(amrex_fab) :: flux(amrex_spacedim)
+    type(amrex_geometry) :: geom
+    type(amrex_mfiter) :: mfi
+
+    ! Get geometry
+    geom = amrex_geom(lev)
+    
+    ! Get number of components
+    ncomp = phi_new(lev)%ncomp()
+    
     !$omp parallel private(mfi, flux)
 
     do idim = 1, amrex_spacedim
       call flux(idim)%reset_omp_private()
     end do
 
-    ! Advance heat solver on all boxes on the level
     call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)  
     do while(mfi%next())
        call advance_box(lev, time, dt, substep, mfi, &
@@ -109,8 +192,31 @@ contains
     
     !$omp end parallel
 
+    ! Clean memory
+    do idim = 1, amrex_spacedim
+      call amrex_fab_destroy(flux(idim))
+   end do
+   
+  end subroutine advance
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to update the flux registers after the
+  ! heat transfer equation has been advanced in time
+  ! -----------------------------------------------------------------
+  subroutine update_flux_registers(lev, fluxes)
+
+    use read_input_module, only : do_reflux
+    use amr_data_module, only : flux_reg
+    
+    ! Input and output variables 
+    integer, intent(in) :: lev
+    type(amrex_multifab), intent(inout) :: fluxes(amrex_spacedim)
+
+    ! Local variables
+    integer :: idim
+    
     ! Update flux registers (fluxes have already been scaled by dt and area
-    ! in the advance_heat_solver_box subroutine)
+    ! in the advance subroutine)
     if (do_reflux) then
 
        if (lev > 0) then
@@ -126,21 +232,9 @@ contains
        end do
        
     end if
-
-    ! Clean memory
-    call amrex_mfiter_destroy(mfi)
-    do idim = 1, amrex_spacedim
-      call amrex_fab_destroy(flux(idim))
-    end do
-    call amrex_multifab_destroy(phi_tmp)
-    call amrex_multifab_destroy(temp_tmp)
-    call amrex_multifab_destroy(phi_tmp2)
-    call amrex_multifab_destroy(temp_tmp2)
-    call amrex_multifab_destroy(idomain_tmp)
     
-  end subroutine advance_heat_solver_explicit_level
-
-
+  end subroutine update_flux_registers
+  
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the enthalpy at a new time step for
   ! a given box on a given level via an explicit update

@@ -199,7 +199,7 @@ contains
     ! Initialize temporary multifabs
     do ilev = 0, amrex_max_level
        
-       ! Get boxarray and distribution mapping on level
+       ! Get boxarray and distribution mapping
        ba(ilev) = phi_new(ilev)%ba
        dm(ilev) = phi_new(ilev)%dm
 
