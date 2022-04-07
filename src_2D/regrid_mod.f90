@@ -50,7 +50,7 @@ contains
 
     use read_input_module, only : do_reflux
     use material_properties_module, only : get_temp
-    use domain_module, only : get_idomain
+    use heat_transfer_domain_module, only : get_idomain
 
     ! Input and output variables
     integer, intent(in), value :: lev
@@ -160,7 +160,7 @@ contains
 
     use read_input_module, only : do_reflux
     use material_properties_module, only : get_temp
-    use domain_module, only : get_idomain
+    use heat_transfer_domain_module, only : get_idomain
 
     ! Input and output variables    
     integer, intent(in), value :: lev
@@ -312,7 +312,7 @@ contains
 
     use read_input_module, only : do_reflux
     use material_properties_module, only : get_temp
-    use domain_module, only : get_idomain
+    use heat_transfer_domain_module, only : get_idomain
 
     ! Input and output variables    
     integer, intent(in), value :: lev
@@ -505,7 +505,7 @@ contains
                            tag, taglo, taghi, &
                            settag)
     
-    use domain_module, only : get_surf_pos   
+    use heat_transfer_domain_module, only : get_surf_pos   
     use material_properties_module, only : enth_at_melt
 
     ! Input and output variables

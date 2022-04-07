@@ -26,8 +26,7 @@ contains
 
     use amr_data_module, only : t_new, stepno, dt
     use read_input_module, only : max_step, stop_time, plot_int, heat_solver, do_reflux, solve_heat
-    use plotfile_module, only: writeplotfile, write1dplotfile
-    use energy_module, only: sum_enthalpy
+    use plotfile_module, only: writeplotfile
 
     ! Local variables
     integer :: last_plot_file_step
@@ -35,7 +34,6 @@ contains
     integer :: lev
     integer :: substep
     real(amrex_real) :: cur_time
-    real(amrex_real) :: total_enthalpy
 
     ! Initialize time
     cur_time = t_new(0)
@@ -71,13 +69,6 @@ contains
        else
           call advance_one_timestep(cur_time)
        end if
-          
-       ! Get total enthalpy in the domain
-       if(solve_heat) then
-         call sum_enthalpy(total_enthalpy)
-       else
-         total_enthalpy = 0.0
-       end if
  	
        ! Update time on all levels
        cur_time = cur_time + dt(0)
@@ -87,8 +78,6 @@ contains
 
        ! Print timestep information on screen (end)
        if (amrex_parallel_ioprocessor()) then
-          print *, 'Enthalpy is', total_enthalpy 
-          print *, '' 
           print *, "STEP", step+1, "end. TIME =", cur_time, "DT =", dt(0)
        end if
 
@@ -96,7 +85,6 @@ contains
        if (plot_int .gt. 0 .and. mod(step+1,plot_int) .eq. 0) then
           last_plot_file_step = step+1
           call writeplotfile
-          call write1dplotfile
        end if
 
        ! Stopping criteria
@@ -297,9 +285,9 @@ contains
   ! -----------------------------------------------------------------
   subroutine advance_one_level_subcycling(lev, time, dt, substep)
 
-    use read_input_module, only : solve_sw
+    use read_input_module, only : solve_sw, solve_heat
     use heat_transfer_module, only : advance_heat_solver_explicit_level
-    use domain_module, only : reset_melt_pos
+    use heat_transfer_domain_module, only : reset_melt_pos
     use shallow_water_module, only : advance_SW
 
     ! Input and output variables 
@@ -313,15 +301,18 @@ contains
        call advance_SW    
     end if 
     
-    ! Set melt interface position array equal to free interface position array 
-    ! Since melt layer may span several tile boxes in y-direction (in mfiterator below), we cannot reset within each loop 
-    ! Therefore we reset melt position after solving SW, and before propagating temperature 
-    ! Melt position is then found after heat has been propagated 
-    call reset_melt_pos 
+    if(solve_heat) then
+       
+       ! Set melt interface position array equal to free interface position array 
+       ! The new melt position is then found after heat has been propagated 
+       call reset_melt_pos 
+       
+       ! Advance heat equation
+       call advance_heat_solver_explicit_level(lev, time, dt, substep)
+       
+   end if
 
-    ! Advance heat equation
-    call advance_heat_solver_explicit_level(lev, time, dt, substep)
-
+    
   end subroutine advance_one_level_subcycling
 
   ! -----------------------------------------------------------------
@@ -365,7 +356,7 @@ contains
   subroutine advance_all_levels(time, dt)
 
     use read_input_module, only : solve_sw, solve_heat
-    use domain_module, only : reset_melt_pos
+    use heat_transfer_domain_module, only : reset_melt_pos
     use material_properties_module, only : get_temp
     use shallow_water_module, only : advance_SW
     use heat_transfer_module, only : advance_heat_solver_implicit
@@ -380,14 +371,14 @@ contains
     end if
 
     if(solve_heat) then
+       
       ! Set melt interface position array equal to free interface position array 
-      ! Since melt layer may span several tile boxes in y-direction (in mfiterator below), we cannot reset within each loop 
-      ! Therefore we reset melt position after solving SW, and before propagating temperature 
-      ! Melt position is then found after heat has been propagated 
+      ! The new melt position is then found after heat has been propagated 
       call reset_melt_pos 
       
       ! Advance heat equation
       call advance_heat_solver_implicit(time, dt)
+      
    end if
 
   end subroutine advance_all_levels

@@ -26,39 +26,46 @@ module amr_data_module
   public :: dt
   ! Flux registers
   public :: flux_reg
-  ! Enthalpy in the heat transfer domain (2D)
+  ! Enthalpy in the heat transfer domain
   public :: phi_new
   public :: phi_old
-  ! Temperature in the heat transfer domain (2D)
+  ! Temperature in the heat transfer domain
   public :: temp
   ! Indexes used to label material and background
   public :: idomain
   ! Boundary conditions of the heat transfer domain
   public :: lo_bc
   public :: hi_bc
-  ! Bottom of the melt pool (1D)
+  ! Bottom of the melt pool
   public :: melt_pos
-  ! Top of the melt pool (1D)
+  ! Top of the melt pool
   public :: melt_top
-  ! Melt velocity (1D)
-  public :: melt_vel 
+  ! Melt velocity
+  public :: melt_vel
+  ! Tabulated heat flux from plasma
+  public :: plasma_flux_time_mesh
+  public :: plasma_flux_surf_mesh
+  public :: plasma_flux_side_time_mesh
+  public :: plasma_flux_side_surf_mesh
+  public :: plasma_flux_table
+  public :: plasma_flux_side_table
   ! Resolution of the shallow water grid
   public :: surf_dx
   ! Index of the shallow water grid
   public :: surf_ind
-  ! Coordinates of the bottom left corner of the shallow water grid
+  ! Lower corner of the shallow water domain
   public :: surf_xlo
-  ! Position of the free surface (1D)
+  ! Position of the free surface
   public :: surf_pos 
   ! Position of the free surface in the heat transfer domain
   ! public :: surf_pos_grid
-  ! Temperature on the free surface (1D)
+  ! Temperature on the free surface
   public :: surf_temperature
-  ! Enthalpy on the free surface (1D)
+  ! Enthalpy on the free surface
   public :: surf_enthalpy
-  ! Evaporation flux on the free surface (1D)
+  ! Evaporation flux on the free surface
   public :: surf_evap_flux
-  ! Thermionic current on the free surface (1D)
+  ! Thermionic current on the free surface
   public :: J_th
   ! Time
   public :: t_new
@@ -79,16 +86,22 @@ module amr_data_module
   integer, allocatable, save :: stepno(:)
   integer, save  :: surf_ind(1,2)
   real(amrex_real), allocatable, save :: dt(:)
+  real(amrex_real), allocatable, save :: J_th(:)
   real(amrex_real), allocatable, save :: melt_pos(:)
   real(amrex_real), allocatable, save :: melt_top(:)
   real(amrex_real), allocatable, save :: melt_vel(:,:)
-  real(amrex_real), allocatable, save :: t_new(:)
-  real(amrex_real), allocatable, save :: t_old(:)
+  real(amrex_real), allocatable, save :: plasma_flux_time_mesh(:)
+  real(amrex_real), allocatable, save :: plasma_flux_surf_mesh(:)
+  real(amrex_real), allocatable, save :: plasma_flux_table(:,:)
+  real(amrex_real), allocatable, save :: plasma_flux_side_time_mesh(:)
+  real(amrex_real), allocatable, save :: plasma_flux_side_surf_mesh(:)
+  real(amrex_real), allocatable, save :: plasma_flux_side_table(:,:)
   real(amrex_real), allocatable, save :: surf_enthalpy(:)
   real(amrex_real), allocatable, save :: surf_evap_flux(:)
   real(amrex_real), allocatable, save :: surf_pos(:)
   real(amrex_real), allocatable, save :: surf_pos_grid(:)
-  real(amrex_real), allocatable, save :: J_th(:)
+  real(amrex_real), allocatable, save :: t_new(:)
+  real(amrex_real), allocatable, save :: t_old(:)
   real(amrex_real), save :: surf_dx(1)
   real(amrex_real), allocatable, save :: surf_temperature(:)
   real(amrex_real), save :: surf_xlo(1)
@@ -97,6 +110,7 @@ module amr_data_module
   type(amrex_multifab), allocatable, save :: phi_new(:)
   type(amrex_multifab), allocatable, save :: phi_old(:)
   type(amrex_multifab), allocatable, save :: temp(:)
+
   
 contains
 
@@ -163,7 +177,7 @@ contains
     surf_pos_grid = surf_pos_init
     surf_temperature = 0.0_amrex_real
     J_th = 0.0_amrex_real
-    surf_xlo(1) = amrex_problo(1) 
+    surf_xlo(1) = amrex_problo(1)
     t_new = 0.0_amrex_real
     t_old = -1.0_amrex_real
     stepno = 0 
@@ -182,7 +196,8 @@ contains
     use read_input_module, only : deallocate_input
     
     integer :: lev
-    
+
+    ! Deallocate public variables
     deallocate(dt)
     deallocate(lo_bc)
     deallocate(hi_bc)
@@ -199,7 +214,17 @@ contains
     deallocate(t_old)
     deallocate(stepno)
     deallocate(nsubsteps)
+
+    ! Deallocate public variables that are allocated only for
+    ! certain geometries
+    if (allocated(plasma_flux_time_mesh)) deallocate(plasma_flux_time_mesh)
+    if (allocated(plasma_flux_surf_mesh)) deallocate(plasma_flux_surf_mesh)
+    if (allocated(plasma_flux_table)) deallocate(plasma_flux_table)
+    if (allocated(plasma_flux_side_time_mesh)) deallocate(plasma_flux_side_time_mesh)
+    if (allocated(plasma_flux_side_surf_mesh)) deallocate(plasma_flux_side_surf_mesh)
+    if (allocated(plasma_flux_side_table)) deallocate(plasma_flux_side_table)
     
+    ! Destroy multifabs
     do lev = 0, amrex_max_level
 
        call amrex_multifab_destroy(idomain(lev))
@@ -208,13 +233,14 @@ contains
        call amrex_multifab_destroy(temp(lev))
     
     end do
-    
+
+    ! Destroy flux registers
     do lev = 1, amrex_max_level
        call amrex_fluxregister_destroy(flux_reg(lev))
     end do
 
+    ! Deallocate variables defined in the input module
     call deallocate_input
-
     
   end subroutine amr_data_finalize
   

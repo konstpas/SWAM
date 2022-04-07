@@ -25,42 +25,11 @@ contains
   ! -----------------------------------------------------------------
   subroutine advance_SW()
 
-    use amr_data_module, only : idomain, temp, phi_new, dt
-    use read_input_module, only : solve_sw_momentum, solve_heat
+    use amr_data_module, only : dt
+    use read_input_module, only : solve_sw_momentum
     
-    ! Local variables
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pid
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: penth
-    type(amrex_mfiter) :: mfi
-    type(amrex_box) :: bx
-
-    if(solve_heat) then
-      ! Compute terms that depend on the temperature. Since the temperature
-      ! is a multifab, it must be accessed in blocks according to the rules
-      ! defined by amrex
-      call amrex_mfiter_build(mfi, idomain(amrex_max_level), tiling=.false.)
-      do while(mfi%next())
-
-         ! Box
-         bx = mfi%validbox()   
-         
-         ! Pointers
-         ptemp => temp(amrex_max_level)%dataptr(mfi)
-         penth => phi_new(amrex_max_level)%dataptr(mfi)
-         pid   => idomain(amrex_max_level)%dataptr(mfi)
-         
-         ! Terms that depend on the temperature
-         call compute_SW_temperature_terms(bx%lo, bx%hi, &
-                                          ptemp, lbound(ptemp), ubound(ptemp), &
-                                          pid, lbound(pid), ubound(pid), &
-                                          penth, lbound(penth), ubound(penth))
-         
-      end do
-      call amrex_mfiter_destroy(mfi)   
-   else
-      call compute_SW_temperature_terms_decoupled
-   end if 
+    ! Compute terms that are coupled to the heat response
+    call compute_SW_temperature_terms
 
     ! Advance shallow water equations in time
     if (solve_sw_momentum) then
@@ -70,7 +39,59 @@ contains
     end if
     
   end subroutine advance_SW
-  
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to compute the temperature dependent terms
+  ! in the shallow water equations
+  ! -----------------------------------------------------------------
+  subroutine compute_SW_temperature_terms()
+
+    use amr_data_module, only : phi_new, &
+                                temp, &
+                                idomain
+    use read_input_module, only : solve_heat
+    
+    ! Local variables
+    integer :: lev
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pid
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: penth
+    type(amrex_mfiter) :: mfi
+    type(amrex_box) :: bx
+    
+    ! Current level = maximum level
+    lev = amrex_max_level
+    
+    if (solve_heat) then
+
+       ! Loop through the boxes on the maximum level
+       call amrex_mfiter_build(mfi, idomain(lev), tiling=.false.)
+       do while(mfi%next())
+       
+          ! Box
+          bx = mfi%validbox()   
+          
+          ! Pointers
+          ptemp => temp(lev)%dataptr(mfi)
+          penth => phi_new(lev)%dataptr(mfi)
+          pid   => idomain(lev)%dataptr(mfi)
+          
+          ! Terms that depend on the temperature
+          call SW_temperature_terms(bx%lo, bx%hi, &
+                                    ptemp, lbound(ptemp), ubound(ptemp), &
+                                    pid, lbound(pid), ubound(pid), &
+                                    penth, lbound(penth), ubound(penth))
+          
+       end do
+       call amrex_mfiter_destroy(mfi)
+       
+    else
+       
+       call SW_temperature_terms_decoupled
+
+    end if
+    
+  end subroutine compute_SW_temperature_terms
 
   ! -----------------------------------------------------------------
   ! Subroutine used to advance the shallow water equations in time
@@ -114,10 +135,10 @@ contains
   ! Subroutine used to compute the temperature dependent terms
   ! in the shallow water equations
   ! -----------------------------------------------------------------
-  subroutine compute_SW_temperature_terms(lo, hi, &
-                                          temp, temp_lo, temp_hi, &
-                                          idom, id_lo, id_hi, &
-                                          enth, enth_lo, enth_hi)
+  subroutine SW_temperature_terms(lo, hi, &
+                                  temp, temp_lo, temp_hi, &
+                                  idom, id_lo, id_hi, &
+                                  enth, enth_lo, enth_hi)
     
     use amr_data_module, only : surf_temperature, surf_evap_flux, surf_enthalpy
     use read_input_module, only : cooling_vaporization
@@ -154,29 +175,32 @@ contains
        end do
     end do   
     
-  end subroutine compute_SW_temperature_terms
+  end subroutine SW_temperature_terms
 
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the temperature dependent terms
   ! in the shallow water equations
   ! -----------------------------------------------------------------
-  subroutine compute_SW_temperature_terms_decoupled()
+  subroutine SW_temperature_terms_decoupled()
     
-      use amr_data_module, only : surf_temperature, surf_evap_flux, surf_enthalpy, J_th
-      use material_properties_module, only : get_enthalpy
-      
-      ! Local variables
-      real(amrex_real) :: enth, temp
+    use amr_data_module, only : surf_temperature, surf_evap_flux, surf_enthalpy, J_th
+    use material_properties_module, only : get_enthalpy
+    
+    ! Local variables
+    real(amrex_real) :: enth, temp
 
-      temp = 4000.0
-      surf_evap_flux = 0.0
-      surf_temperature = temp
-      call get_enthalpy(temp, enth)
-      surf_enthalpy = enth
-      j_th = 2e6;
+    ! Do these numbers retain any specific meaning?
+    ! If not, for the temperature can we use the temperature given in input?
+    ! If not, can we set J_th to zero?
+    temp = 4000.0
+    surf_evap_flux = 0.0
+    surf_temperature = temp
+    call get_enthalpy(temp, enth)
+    surf_enthalpy = enth
+    J_th = 2e6;
     
-  end subroutine compute_SW_temperature_terms_decoupled
+  end subroutine SW_temperature_terms_decoupled
   
   
   ! -----------------------------------------------------------------
@@ -224,9 +248,7 @@ contains
                                 surf_evap_flux, &
                                 surf_pos, &
                                 melt_pos, &
-                              !   melt_top, &
-                                melt_vel!, &
-                              !   surf_pos_grid
+                                melt_vel
     
     
     ! Input and output variables
@@ -299,10 +321,7 @@ contains
     do  i = surf_ind(1,1),surf_ind(1,2)
        
        if (melt_height_old(i).eq.0.0_amrex_real .and. melt_height(i).gt.0.0_amrex_real) then
-      ! if (surf_pos_grid(i).lt.surf_pos(i) .and. melt_pos(i).eq.melt_top(i)) then
 
-          ! It is still possible that both conditions are satisfied, in this case it could
-          ! become problematic
           if (melt_vel(i,1).gt.0.0_amrex_real) then
              melt_vel(i+1,1)  = melt_vel(i,1)
           else if (melt_vel(i+1,1).lt.0.0_amrex_real) then
@@ -325,7 +344,6 @@ contains
     use amr_data_module, only : surf_ind, &
                                 surf_dx, &
                                 surf_pos, &
-                              !   surf_pos_grid, &
                                 surf_temperature, &
                                 melt_pos, &
                                 melt_vel, &
@@ -376,7 +394,7 @@ contains
        
     end do
 
-    ! Source term
+    ! Source terms (the friction term is treated implicitly)
     do i = surf_ind(1,1)+1,surf_ind(1,2)
 
        ! Melt thickness
@@ -420,27 +438,26 @@ contains
       call get_mass_density(temp_face,rho)
       
       if (hh.gt.0.0_amrex_real) then
-         if (hh.lt.sw_h_cap) hh = sw_h_cap
+         if (hh.lt.sw_h_cap) hh = sw_h_cap ! Cap the friction term
          melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))/(1+3*visc*dt/(rho*hh**2))
-         ! melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))/(1+3*visc*dt/(rho*(hh + sw_h_cap)**2))
-         ! melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))
       else
           melt_vel(i,1) = 0.0_amrex_real
       endif
-     
+
+      ! Keep track of the maximum velocity to check that the CFL condition is satisfied
       if (ABS(melt_vel(i,1)).gt.ABS(max_vel)) then
          max_vel = melt_vel(i,1)
       end if
       
     end do
-    write(*,*) max_vel
 
     ! Apply boundary conditions
     melt_vel(surf_ind(1,1),1) = melt_vel(surf_ind(1,1)+1,1)
     melt_vel(surf_ind(1,2)+1,1) = melt_vel(surf_ind(1,2),1)
 
+    ! Print on screen if the CFL condition is violated
     if (abs(max_vel)*dt.ge.surf_dx(1)) then
-      write(*,*) 'CFL not satisfied'
+      print *, 'CFL not satisfied'
     end if
    
   end subroutine advance_SW_explicit_momentum
@@ -459,6 +476,7 @@ contains
       real(amrex_real) :: x_phys
       integer :: i
 
+      ! Can we get rid of this hard-coded parameters?
       do i = surf_ind(1,1), surf_ind(1,2)
          x_phys = (i+0.5)*surf_dx(1)
          melt_pos(i) = surf_pos(i) - 200e-6 * EXP(-((x_phys-2e-2)**2)/(0.005**2))

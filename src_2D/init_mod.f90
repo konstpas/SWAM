@@ -31,11 +31,11 @@ contains
                                   plasma_flux_type, &
                                   restart, &
                                   geometry_name, &
-                                  plasma_side_flux_type, &
+                                  plasma_flux_side_type, &
                                   solve_heat 
-    use read_heat_flux_module, only : construct_heat_flux_table
+    use heat_transfer_read_flux_module, only : construct_plasma_flux_table
     use material_properties_module, only : init_mat_prop
-    use heat_flux_module, only : debug_cooling_fluxes
+    use heat_transfer_flux_module, only : debug_cooling_fluxes
     use shallow_water_module, only : init_melt_pos
     use regrid_module, only : averagedown, &
                               my_make_new_level_from_scratch, &
@@ -58,8 +58,8 @@ contains
     if (nint(cooling_debug(1)) .eq. 1) call debug_cooling_fluxes
 
     ! Read in the heat flux file, if necessery
-    if (plasma_flux_type.eq.'Input_file') call construct_heat_flux_table(.false.)
-    if (geometry_name.eq.'West' .and. plasma_side_flux_type.eq.'Input_file') call construct_heat_flux_table(.true.)
+    if (plasma_flux_type.eq.'Input_file') call construct_plasma_flux_table(.false.)
+    if (geometry_name.eq.'West' .and. plasma_flux_side_type.eq.'Input_file') call construct_plasma_flux_table(.true.)
     
     ! Initialize amrex data used in the simulation
     call amr_data_init
