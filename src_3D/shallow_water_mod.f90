@@ -733,10 +733,7 @@ module shallow_water_module
      
      use material_properties_module, only : get_viscosity, get_mass_density
      use read_input_module, only : cooling_vaporization, &
-                                   sw_iter, &
-                                   sw_gravity, &
                                    sw_drytol, &
-                                   sw_jxb, &
                                    sw_Bx, &
                                    sw_Bz, &
                                    sw_h_cap
@@ -745,11 +742,9 @@ module shallow_water_module
      real(amrex_real), intent(in) :: dt
      
      ! Local variables
-     integer :: i,j,m,mw,ibc,jbc
-     real(amrex_real) :: hL,hR,huL,huR,hvL,hvR,bL,bR,pL,pR,uL,vL,phiL,uR,vR,phiR,sL,sR,uhat,chat,sRoe1,sRoe2,sE1,sE2
-     real(amrex_real) :: wall(1:3), sw(1:3), fw(1:3,1:3)
-     real(amrex_real) :: hstar,s1m,s2m,rare1,rare2,hstartest
-     real(amrex_real) , allocatable :: q1d(:,:),s(:,:),qadd(:,:),amdq(:,:),apdq(:,:),fadd(:,:),aux1d(:,:),fwave(:,:,:)
+     integer :: i,j
+     integer :: dim
+     real(amrex_real) ::uL,uR
      real(amrex_real) , dimension(1:3,surf_ind(1,1)-3:surf_ind(1,2)+3,surf_ind(2,1)-3:surf_ind(2,2)+3) :: qold
      real(amrex_real) , dimension(surf_ind(1,1)-3:surf_ind(1,2)+3,surf_ind(2,1)-3:surf_ind(2,2)+3) :: hold,uold,vold,aux
      real(amrex_real) , dimension(1:3,surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2)) :: Srce
@@ -786,503 +781,33 @@ module shallow_water_module
        end do
     end do
      
-     ! Apply boundary conditions 
-     ! Free outflow - No inflow: left
-     do j = surf_ind(2,1) - 3,surf_ind(2,2) + 3
-        do ibc = 1,3
-           do m=1,3
-              qnew(m,surf_ind(1,1)-ibc,j) = qnew(m,surf_ind(1,1)+ibc,j)
-           end do
-        end do
-     end do
-     do j = surf_ind(2,1) - 3,surf_ind(2,2) + 3
-        do ibc = 1,3
-           if (qnew(2,surf_ind(1,1),j).lt.0.0) then
-               qnew(2,surf_ind(1,1)-ibc,j) = qnew(2,surf_ind(1,1),j)
-           else
-               qnew(2,surf_ind(1,1)-ibc,j) = 0.0
-               qnew(1,surf_ind(1,1)-ibc,j) = 0.0
-               qnew(2,surf_ind(1,1),j) = 0.0
-           end if
-           aux(surf_ind(1,1)-ibc,j) = aux(surf_ind(1,1),j)
-        end do
-     end do
+   ! Apply boundary conditions 
+    call apply_BC_geoclaw(aux)
+     
+    ! Initialize solution (fill old solution with new values)
+    qold = qnew
 
-     ! Free outflow - No inflow: right
-     do j = surf_ind(2,1) - 3,surf_ind(2,2) + 3
-        do ibc = 1,3
-           do m=1,3
-              qnew(m,surf_ind(1,2)+ibc,j) = qnew(m,surf_ind(1,2)-ibc,j)
-           end do
-        end do
-     end do
-     do j = surf_ind(2,1) - 3,surf_ind(2,2) + 3
-        do ibc = 1,3
-         if (qnew(2,surf_ind(1,2),j).gt.0) then
-            qnew(2,surf_ind(1,2)+ibc,j) = qnew(2,surf_ind(1,2),j)
-         else
-            qnew(2,surf_ind(1,2)+ibc,j) = 0.0
-            qnew(1,surf_ind(1,2)+ibc,j) = 0.0
-            qnew(2,surf_ind(1,2),j) = 0.0
-         end if
-         !   qnew(2,surf_ind(1,2)+ibc,j) =-qnew(2,surf_ind(1,2)-ibc,j)
-           aux(surf_ind(1,2)+ibc,j) = aux(surf_ind(1,2),j)
-        end do
-     end do
-
-     ! Free outflow - No inflow: bottom
-     do jbc = 1,3
-        do i = surf_ind(1,1) - 3,surf_ind(1,2) + 3
-           do m=1,3
-              qnew(m,i,surf_ind(2,1)-jbc) = qnew(m,i,surf_ind(2,1)+jbc)
-           end do
-        end do
-     end do
-     do jbc = 1,3
-        do i = surf_ind(1,1) - 3,surf_ind(1,2) + 3
-         if (qnew(3,i,surf_ind(2,1)).lt.0.0) then
-            qnew(3,i,surf_ind(2,1)+jbc) = qnew(3,i,surf_ind(2,1))
-         else
-            qnew(3,i,surf_ind(2,1)+jbc) = 0.0
-            qnew(1,i,surf_ind(2,1)+jbc) = 0.0
-            qnew(3,i,surf_ind(2,1)) = 0.0
-         end if
-         !   qnew(3,i,surf_ind(2,1)-jbc) =-qnew(3,i,surf_ind(2,1)+jbc)
-           aux(i,surf_ind(2,1)-jbc) = aux(i,surf_ind(2,1))
-        end do
-     end do
-
-     ! Free outflow - No inflow: top
-     do jbc = 1,3
-        do i = surf_ind(1,1) - 3,surf_ind(1,2) + 3
-           do m=1,3
-              qnew(m,i,surf_ind(2,2)+jbc) = qnew(m,i,surf_ind(2,2)-jbc)
-           end do
-        end do
-     end do
-     do jbc = 1,3
-        do i = surf_ind(1,1) - 3,surf_ind(1,2) + 3
-           if (qnew(3,i,surf_ind(2,2)).gt.0.0) then
-               qnew(3,i,surf_ind(2,2)+jbc) = qnew(3,i,surf_ind(2,2))
-           else
-               qnew(3,i,surf_ind(2,2)+jbc) = 0.0
-               qnew(1,i,surf_ind(2,2)+jbc) = 0.0
-               qnew(3,i,surf_ind(2,2)) = 0.0
-           end if
-         !   qnew(3,i,surf_ind(2,2)+jbc) =-qnew(3,i,surf_ind(2,2)-jbc)
-           aux(i,surf_ind(2,2)+jbc) = aux(i,surf_ind(2,2))
-        end do
-     end do
-     
-     ! Initialize solution (fill old solution with new values)
-     qold = qnew
-     
-     do j = surf_ind(2,1) - 3,surf_ind(2,2) + 3
-        do i = surf_ind(1,1) - 3,surf_ind(1,2) + 3       
-           if (qnew(1,i,j) .gt. sw_drytol) then
-              hold(i,j) = qnew(1,i,j)
-              uold(i,j) = qnew(2,i,j) / qnew(1,i,j)
-              vold(i,j) = qnew(3,i,j) / qnew(1,i,j)
-           else
-              hold(i,j) = 0.  
-              uold(i,j) = 0.  
-              vold(i,j) = 0.  
-           end if
-        end do
-     end do
-     
-     
-     ! Update with fluxes along x direction
-     
-     ! Allocate
-     allocate(  q1d(1:3    ,surf_ind(1,1)-3:surf_ind(1,2)+3)) 
-     allocate(aux1d(1:3    ,surf_ind(1,1)-3:surf_ind(1,2)+3)) 
-     allocate( qadd(1:3    ,surf_ind(1,1)-3:surf_ind(1,2)+3)) 
-     allocate( amdq(1:3    ,surf_ind(1,1)-3:surf_ind(1,2)+3)) 
-     allocate( apdq(1:3    ,surf_ind(1,1)-3:surf_ind(1,2)+3)) 
-     allocate( fadd(1:3    ,surf_ind(1,1)-3:surf_ind(1,2)+3)) 
-     allocate(    s(1:3    ,surf_ind(1,1)-3:surf_ind(1,2)+3)) 
-     allocate(fwave(1:3,1:3,surf_ind(1,1)-3:surf_ind(1,2)+3)) 
-     
-     
-     ! Flux2 for x sweeps
-     do j = surf_ind(2,1) - 3,surf_ind(2,2) + 3
-        
-        do i = surf_ind(1,1) - 3,surf_ind(1,2) + 3
-           do m=1,3 
-              q1d(m,i) = qold(m,i,j)
-              aux1d(1,i) = aux(i,j)
-           end do
-        end do
-        
-        
-        !rpn2
-        do i = surf_ind(1,1) - 2,surf_ind(1,2) + 3
-           
-           do m=1,3
-              if (q1d(1,i-1).lt.0.) then
-                 q1d(m,i-1) = 0.
-              end if
-              if (q1d(1,i).lt.0.) then
-                 q1d(m,i) = 0.
-              end if
-           end do
-           
-           do mw=1,3
-              s(mw,i)=0.
-              fwave(1,mw,i)=0.
-              fwave(2,mw,i)=0.
-              fwave(3,mw,i)=0.
-           end do
-           
-           
-           if ( (q1d(1,i-1) .lt. sw_drytol) .and. (q1d(1,i) .lt. sw_drytol) ) goto 30
-
-           hL = q1d(1,i-1)
-           hR = q1d(1,i)
-           huL = q1d(2,i-1)
-           huR = q1d(2,i)
-           hvL = q1d(3,i-1)
-           hvR = q1d(3,i)
-           bL = aux1d(1,i-1)
-           bR = aux1d(1,i)
-           pL = 0.
-           pR = 0.
-           
-           ! check for wet/dry boundary
-           if (hR .gt. sw_drytol) then
-              uR=huR/hR
-              vR=hvR/hR
-              phiR = 0.5*sw_gravity*hR**2 + huR**2/hR
-           else
-              hR = 0.
-              huR = 0.
-              hvR = 0.
-              uR = 0.
-              vR = 0.
-              phiR = 0.
-           end if
-           
-           if (hL .gt. sw_drytol) then
-              uL=huL/hL
-              vL=hvL/hL
-              phiL = 0.5*sw_gravity*hL**2 + huL**2/hL
-           else
-              hL=0.
-              huL=0.
-              hvL=0.
-              uL=0.
-              vL=0.
-              phiL = 0.
-           end if
-           
-           wall(1:3)=1.
-           
-           if (hR .lt. sw_drytol) then
-              call riemanntype(hL,hL,uL,-uL,1,sw_drytol,sw_gravity,hstar,s1m,s2m,rare1,rare2)
-              hstartest=max(hL,hstar)
-              if ( (hstartest+bL) .lt. bR) then  !right state should become ghost values that mirror left for wall problem
-                 wall(2)=0.
-                 wall(3)=0.
-                 hR=hL
-                 huR=-huL
-                 bR=bL
-                 phiR=phiL
-                 uR=-uL
-                 vR=vL
-              elseif ( (hL+bL) .lt. bR) then
-                 bR=hL+bL
-              end if
-              
-           elseif (hL .lt. sw_drytol) then  ! right surface is lower than left topo
-              call riemanntype(hR,hR,-uR,uR,1,sw_drytol,sw_gravity,hstar,s1m,s2m,rare1,rare2)
-              hstartest=max(hR,hstar)
-              if ( (hstartest+bR) .lt. bL) then !left state should become ghost values that mirror right
-                 wall(1)=0.
-                 wall(2)=0.
-                 hL=hR
-                 huL=-huR
-                 bL=bR
-                 phiL=phiR
-                 uL=-uR
-                 vL=vR
-              elseif ( (hR+bR) .lt. bL) then
-                 bL=hR+bR
-              end if
-              
-           end if
-           
-           !determine wave speeds
-           sL = uL - sqrt(sw_gravity*hL) ! 1 wave speed of left state
-           sR = uR + sqrt(sw_gravity*hR) ! 2 wave speed of right state
-           
-           uhat=(sqrt(sw_gravity*hL)*uL + sqrt(sw_gravity*hR)*uR)/(sqrt(sw_gravity*hR)+sqrt(sw_gravity*hL)) ! Roe average
-           chat=sqrt(sw_gravity*0.5*(hR+hL)) ! Roe average
-           sRoe1=uhat-chat ! Roe wave speed 1 wave
-           sRoe2=uhat+chat ! Roe wave speed 2 wave
-           
-           sE1 = min(sL,sRoe1) ! Eindfeldt speed 1 wave
-           sE2 = max(sR,sRoe2) ! Eindfeldt speed 2 wave
-           
-           call riemann_aug_JCP(sw_iter,3,3,hL,hR,huL,huR,hvL,hvR,bL,bR,uL,uR,vL,&
-                vR,phiL,phiR,pL,pR,sE1,sE2,sw_drytol,sw_gravity,1.d0,sw,fw)
-           
-           ! eliminate ghost fluxes for wall
-           do mw=1,3
-              sw(mw)=sw(mw)*wall(mw)
-              fw(1,mw)=fw(1,mw)*wall(mw)
-              fw(2,mw)=fw(2,mw)*wall(mw)
-              fw(3,mw)=fw(3,mw)*wall(mw)
-           end do
-           
-           do mw=1,3
-              s(mw,i)=sw(mw)
-              fwave(1,mw,i)=fw(1,mw)
-              fwave(2,mw,i)=fw(2,mw)
-              fwave(3,mw,i)=fw(3,mw)
-           end do
-           
-30         continue
-        end do ! i
-        
-        amdq = 0.
-        apdq = 0.
-        do i=surf_ind(1,1)-2,surf_ind(1,2)+3 
-           do  mw=1,3
-              if (s(mw,i) .lt. 0.) then
-                 amdq(1:3,i) = amdq(1:3,i) + fwave(1:3,mw,i)
-              elseif (s(mw,i) .gt. 0.) then
-                 apdq(1:3,i)  = apdq(1:3,i) + fwave(1:3,mw,i)
-              else
-                 amdq(1:3,i) = amdq(1:3,i) + 0.5*fwave(1:3,mw,i)
-                 apdq(1:3,i) = apdq(1:3,i) + 0.5*fwave(1:3,mw,i)
-              end if
-           end do
-        end do
-        
-        
-        qadd = 0.
-        do i = surf_ind(1,1),surf_ind(1,2) 
-           do m = 1,3
-              qadd(m,i-1) = qadd(m,i-1) - dtdx*amdq(m,i)
-           end do
-           do m = 1,3
-              qadd(m,i) = qadd(m,i) - dtdx*apdq(m,i)
-           end do
-        end do
-        
-        
-        ! second order correction terms , with a flux limiter as specified by mthlim.
-        fadd = 0. 
-        
-        call fwave_limiter(surf_ind(1,1),surf_ind(1,2),fwave,s,dtdx,fadd) ! optional
-        
-        do i=surf_ind(1,1),surf_ind(1,2) 
-           do m=1,3
-              qnew(m,i,j) = qnew(m,i,j) + qadd(m,i) - dtdx*(fadd(m,i+1) - fadd(m,i))
-           end do
-        end do
-        
-     end do
-     
-     deallocate(  q1d)
-     deallocate(aux1d)
-     deallocate( qadd)
-     deallocate( amdq)
-     deallocate( apdq)
-     deallocate( fadd)
-     deallocate(    s)
-     deallocate(fwave)
-     
-     ! Update with fluxes along y direction
-     
-     allocate(  q1d(1:3    ,surf_ind(2,1)-3:surf_ind(2,2)+3))
-     allocate(aux1d(1:3    ,surf_ind(2,1)-3:surf_ind(2,2)+3))
-     allocate( qadd(1:3    ,surf_ind(2,1)-3:surf_ind(2,2)+3))
-     allocate( amdq(1:3    ,surf_ind(2,1)-3:surf_ind(2,2)+3))
-     allocate( apdq(1:3    ,surf_ind(2,1)-3:surf_ind(2,2)+3))
-     allocate( fadd(1:3    ,surf_ind(2,1)-3:surf_ind(2,2)+3))
-     allocate(    s(1:3    ,surf_ind(2,1)-3:surf_ind(2,2)+3))
-     allocate(fwave(1:3,1:3,surf_ind(2,1)-3:surf_ind(2,2)+3))
-     
-     
-     do j = surf_ind(1,1) - 3,surf_ind(1,2) + 3
-        
-        do i = surf_ind(2,1) - 3,surf_ind(2,2) + 3
-           do m=1,3
-              q1d(m,i) = qold(m,j,i)
-              aux1d(1,i) = aux(j,i)
-           end do
-        end do
-        
-        
-        do i = surf_ind(2,1) - 2,surf_ind(2,2) + 3
-           
-           do m=1,3
-              if (q1d(1,i-1).lt.0.) then
-                 q1d(m,i-1) = 0.
-              end if
-              if (q1d(1,i).lt.0.) then
-                 q1d(m,i) = 0.
-              end if
-           end do
-           
-           do mw=1,3
-              s(mw,i)=0.
-              fwave(1,mw,i)=0.
-              fwave(2,mw,i)=0.
-              fwave(3,mw,i)=0.
-           end do
-           
-           
-           if ( (q1d(1,i-1) .lt. sw_drytol) .and. (q1d(1,i) .lt. sw_drytol) ) goto 40
-           
-           hL = q1d(1,i-1)
-           hR = q1d(1,i)
-           huL = q1d(3,i-1)
-           huR = q1d(3,i)
-           hvL = q1d(2,i-1)
-           hvR = q1d(2,i)
-           bL = aux1d(1,i-1)
-           bR = aux1d(1,i)
-           pL = 0.
-           pR = 0.
-           
-           ! check for wet/dry boundary
-           if (hR .gt. sw_drytol) then
-              uR=huR/hR
-              vR=hvR/hR
-              phiR = 0.5*sw_gravity*hR**2 + huR**2/hR
-           else
-              hR = 0.
-              huR = 0.
-              hvR = 0.
-              uR = 0.
-              vR = 0.
-              phiR = 0.
-           end if
-           
-           if (hL .gt. sw_drytol) then
-              uL=huL/hL
-              vL=hvL/hL
-              phiL = 0.5*sw_gravity*hL**2 + huL**2/hL
-           else
-              hL=0.
-              huL=0.
-              hvL=0.
-              uL=0.
-              vL=0.
-              phiL = 0.
-           end if
-           
-           
-           wall(1:3)=1.
-           
-           if (hR .lt. sw_drytol) then
-              call riemanntype(hL,hL,uL,-uL,1,sw_drytol,sw_gravity,hstar,s1m,s2m,rare1,rare2)
-              hstartest=max(hL,hstar)
-              if ( (hstartest+bL) .lt. bR) then  !right state should become ghost values that mirror left for wall problem
-                 wall(2)=0.
-                 wall(3)=0.
-                 hR=hL
-                 huR=-huL
-                 bR=bL
-                 phiR=phiL
-                 uR=-uL
-                 vR=vL
-              elseif ( (hL+bL) .lt. bR) then
-                 bR=hL+bL
-              end if
-              
-              
-           elseif (hL .lt. sw_drytol) then  ! right surface is lower than left topo
-              call riemanntype(hR,hR,-uR,uR,1,sw_drytol,sw_gravity,hstar,s1m,s2m,rare1,rare2)
-              hstartest=max(hR,hstar)
-              if ( (hstartest+bR) .lt. bL) then !left state should become ghost values that mirror right
-                 wall(1)=0.
-                 wall(2)=0.
-                 hL=hR
-                 huL=-huR
-                 bL=bR
-                 phiL=phiR
-                 uL=-uR
-                 vL=vR
-              elseif ( (hR+bR) .lt. bL) then
-                 bL=hR+bR
-              end if
-           end if
-           
-           !determine wave speeds
-           sL = uL - sqrt(sw_gravity*hL) ! 1 wave speed of left state
-           sR = uR + sqrt(sw_gravity*hR) ! 2 wave speed of right state
-           
-           uhat=(sqrt(sw_gravity*hL)*uL + sqrt(sw_gravity*hR)*uR)/(sqrt(sw_gravity*hR)+sqrt(sw_gravity*hL)) ! Roe average
-           chat=sqrt(sw_gravity*0.5*(hR+hL)) ! Roe average
-           sRoe1=uhat-chat ! Roe wave speed 1 wave
-           sRoe2=uhat+chat ! Roe wave speed 2 wave
-           
-           sE1 = min(sL,sRoe1) ! Eindfeldt speed 1 wave
-           sE2 = max(sR,sRoe2) ! Eindfeldt speed 2 wave
-           
-           call riemann_aug_JCP(sw_iter,3,3,hL,hR,huL,huR,hvL,hvR,bL,bR,uL,uR,vL,&
-                vR,phiL,phiR,pL,pR,sE1,sE2,sw_drytol,sw_gravity,1.d0,sw,fw)
-          
-           ! eliminate ghost fluxes for wall
-           do mw=1,3
-              sw(mw)=sw(mw)*wall(mw)
-              fw(1,mw)=fw(1,mw)*wall(mw)
-              fw(2,mw)=fw(2,mw)*wall(mw)
-              fw(3,mw)=fw(3,mw)*wall(mw)
-           end do
-           
-           do mw=1,3
-              s(mw,i)=sw(mw)
-              fwave(1,mw,i)=fw(1,mw)
-              fwave(2,mw,i)=fw(2,mw)
-              fwave(3,mw,i)=fw(3,mw)
-           end do
-           
-40         continue
-        end do ! i
-        
-        amdq = 0.
-        apdq = 0.
-        do i=surf_ind(2,1)-2,surf_ind(2,2)+3
-           do  mw=1,3
-              if (s(mw,i) .lt. 0.) then
-                 amdq(1:3,i) = amdq(1:3,i) + fwave(1:3,mw,i)
-              elseif (s(mw,i) .gt. 0.) then
-                 apdq(1:3,i)  = apdq(1:3,i) + fwave(1:3,mw,i)
-              else
-                 amdq(1:3,i) = amdq(1:3,i) + 0.5*fwave(1:3,mw,i)
-                 apdq(1:3,i) = apdq(1:3,i) + 0.5*fwave(1:3,mw,i)
-              end if
-           end do
-        end do
-        
-        qadd = 0.
-        do i = surf_ind(2,1),surf_ind(2,2)
-           do m = 1,3
-              qadd(m,i-1) = qadd(m,i-1) - dtdy*amdq(m,i)
-           end do
-           do m = 1,3
-              qadd(m,i) = qadd(m,i) - dtdy*apdq(m,i)
-           end do
+    do j = surf_ind(2,1) - 3,surf_ind(2,2) + 3
+       do i = surf_ind(1,1) - 3,surf_ind(1,2) + 3       
+          if (qnew(1,i,j) .gt. sw_drytol) then
+             hold(i,j) = qnew(1,i,j)
+             uold(i,j) = qnew(2,i,j) / qnew(1,i,j)
+             vold(i,j) = qnew(3,i,j) / qnew(1,i,j)
+          else
+             hold(i,j) = 0.  
+             uold(i,j) = 0.  
+             vold(i,j) = 0.  
+          end if
        end do
-       
-       
-       ! second order correction terms , with a flux limiter as specified by mthlim.
-       fadd = 0.
-       
-       call fwave_limiter(surf_ind(2,1),surf_ind(2,2),fwave,s,dtdy,fadd) ! optional
-       
-       do i=surf_ind(2,1),surf_ind(2,2)
-          do m=1,3
-             qnew(m,j,i) = qnew(m,j,i) + qadd(m,i) - dtdy*(fadd(m,i+1) - fadd(m,i))
-          end do
-       end do
-       
     end do
+
+    ! Update with fluxes along x direction
+    dim = 2
+    call geoclaw_update(dim, dtdx, qold, aux)
+          
+    ! Update with fluxes along z direction
+    dim = 3
+    call geoclaw_update(dim, dtdy, qold, aux)
     
    
      ! Update with source terms
@@ -1337,162 +862,16 @@ module shallow_water_module
       end do
     end do
     
-   !  ! Apply boundary conditions to updated solution before passing results to heat solver
-     ! Apply boundary conditions 
-     ! solid wall (assumes 2'nd component is velocity or momentum in x): left
-    do j = surf_ind(2,1) - 3,surf_ind(2,2) + 3
-      do ibc = 1,3
-         do m=1,3
-            qnew(m,surf_ind(1,1)-ibc,j) = qnew(m,surf_ind(1,1)+ibc,j)
-         end do
-      end do
-   end do
-   do j = surf_ind(2,1) - 3,surf_ind(2,2) + 3
-      do ibc = 1,3
-       !   qnew(2,surf_ind(1,1)-ibc,j) =-qnew(2,surf_ind(1,1)+ibc,j)
-         if (qnew(2,surf_ind(1,1),j).lt.0.0) then
-             qnew(2,surf_ind(1,1)-ibc,j) = qnew(2,surf_ind(1,1),j)
-         else
-             qnew(2,surf_ind(1,1)-ibc,j) = 0.0
-             qnew(1,surf_ind(1,1)-ibc,j) = 0.0
-             qnew(2,surf_ind(1,1),j) = 0.0
-         end if
-         aux(surf_ind(1,1)-ibc,j) = aux(surf_ind(1,1),j)
-      end do
-   end do
-
-   ! solid wall (assumes 2'nd component is velocity or momentum in x): right
-   do j = surf_ind(2,1) - 3,surf_ind(2,2) + 3
-      do ibc = 1,3
-         do m=1,3
-            qnew(m,surf_ind(1,2)+ibc,j) = qnew(m,surf_ind(1,2)-ibc,j)
-         end do
-      end do
-   end do
-   do j = surf_ind(2,1) - 3,surf_ind(2,2) + 3
-      do ibc = 1,3
-       if (qnew(2,surf_ind(1,2),j).gt.0) then
-          qnew(2,surf_ind(1,2)+ibc,j) = qnew(2,surf_ind(1,2),j)
-       else
-          qnew(2,surf_ind(1,2)+ibc,j) = 0.0
-          qnew(1,surf_ind(1,2)+ibc,j) = 0.0
-          qnew(2,surf_ind(1,2),j) = 0.0
-       end if
-       !   qnew(2,surf_ind(1,2)+ibc,j) =-qnew(2,surf_ind(1,2)-ibc,j)
-         aux(surf_ind(1,2)+ibc,j) = aux(surf_ind(1,2),j)
-      end do
-   end do
-
-   ! solid wall (assumes 3'rd component is velocity or momentum in y): bottom
-   do jbc = 1,3
-      do i = surf_ind(1,1) - 3,surf_ind(1,2) + 3
-         do m=1,3
-            qnew(m,i,surf_ind(2,1)-jbc) = qnew(m,i,surf_ind(2,1)+jbc)
-         end do
-      end do
-   end do
-   do jbc = 1,3
-      do i = surf_ind(1,1) - 3,surf_ind(1,2) + 3
-       if (qnew(3,i,surf_ind(2,1)).lt.0.0) then
-          qnew(3,i,surf_ind(2,1)+jbc) = qnew(3,i,surf_ind(2,1))
-       else
-          qnew(3,i,surf_ind(2,1)+jbc) = 0.0
-          qnew(1,i,surf_ind(2,1)+jbc) = 0.0
-          qnew(3,i,surf_ind(2,1)) = 0.0
-       end if
-       !   qnew(3,i,surf_ind(2,1)-jbc) =-qnew(3,i,surf_ind(2,1)+jbc)
-         aux(i,surf_ind(2,1)-jbc) = aux(i,surf_ind(2,1))
-      end do
-   end do
-
-   ! solid wall (assumes 3'rd component is velocity or momentum in y): top
-   do jbc = 1,3
-      do i = surf_ind(1,1) - 3,surf_ind(1,2) + 3
-         do m=1,3
-            qnew(m,i,surf_ind(2,2)+jbc) = qnew(m,i,surf_ind(2,2)-jbc)
-         end do
-      end do
-   end do
-   do jbc = 1,3
-      do i = surf_ind(1,1) - 3,surf_ind(1,2) + 3
-         if (qnew(3,i,surf_ind(2,2)).gt.0.0) then
-             qnew(3,i,surf_ind(2,2)+jbc) = qnew(3,i,surf_ind(2,2))
-         else
-             qnew(3,i,surf_ind(2,2)+jbc) = 0.0
-             qnew(1,i,surf_ind(2,2)+jbc) = 0.0
-             qnew(3,i,surf_ind(2,2)) = 0.0
-         end if
-       !   qnew(3,i,surf_ind(2,2)+jbc) =-qnew(3,i,surf_ind(2,2)-jbc)
-         aux(i,surf_ind(2,2)+jbc) = aux(i,surf_ind(2,2))
-      end do
-   end do
-
-   !  ! solid wall (assumes 2'nd component is velocity or momentum in x): left
-   !  do j = surf_ind(2,1) - 3,surf_ind(2,2) + 3
-   !     do ibc = 1,3
-   !        do m=1,3
-   !           qnew(m,surf_ind(1,1)-ibc,j) = qnew(m,surf_ind(1,1)+ibc,j)
-   !        end do
-   !     end do
-   !  end do
-   !  do j = surf_ind(2,1) - 3,surf_ind(2,2) + 3
-   !     do ibc = 1,3
-   !        qnew(2,surf_ind(1,1)-ibc,j) =-qnew(2,surf_ind(1,1)+ibc,j)
-   !        aux(surf_ind(1,1)-ibc,j) = aux(surf_ind(1,1),j)
-   !     end do
-   !  end do
-   !  ! solid wall (assumes 2'nd component is velocity or momentum in x): right
-   !  do j = surf_ind(2,1) - 3,surf_ind(2,2) + 3
-   !     do ibc = 1,3
-   !        do m=1,3
-   !           qnew(m,surf_ind(1,2)+ibc,j) = qnew(m,surf_ind(1,2)-ibc,j)
-   !        end do
-   !     end do
-   !  end do
-   !  do j = surf_ind(2,1) - 3,surf_ind(2,2) + 3
-   !     do ibc = 1,3
-   !        qnew(2,surf_ind(1,2)+ibc,j) =-qnew(2,surf_ind(1,2)-ibc,j)
-   !        aux(surf_ind(1,2)+ibc,j) = aux(surf_ind(1,2),j)
-   !     end do
-   !  end do
-   ! !  ! solid wall (assumes 3'rd component is velocity or momentum in y): bottom
-   ! !  do jbc = 1,3
-   ! !     do i = surf_ind(1,1) - 3,surf_ind(1,2) + 3
-   ! !        do m=1,3
-   ! !           qnew(m,i,surf_ind(2,1)-jbc) = qnew(m,i,surf_ind(2,1)+jbc)
-   ! !        end do
-   ! !     end do
-   ! !  end do
-   ! !  do jbc = 1,3
-   ! !     do i = surf_ind(1,1) - 3,surf_ind(1,2) + 3
-   ! !        qnew(3,i,surf_ind(2,1)-jbc) =-qnew(3,i,surf_ind(2,1)+jbc)
-   ! !        aux(i,surf_ind(2,1)-jbc) = aux(i,surf_ind(2,1))
-   ! !     end do
-   ! !  end do
-   ! !  ! solid wall (assumes 3'rd component is velocity or momentum in y): top
-   ! !  do jbc = 1,3
-   ! !     do i = surf_ind(1,1) - 3,surf_ind(1,2) + 3
-   ! !        do m=1,3
-   ! !           qnew(m,i,surf_ind(2,2)+jbc) = qnew(m,i,surf_ind(2,2)-jbc)
-   ! !        end do
-   ! !     end do
-   ! !  end do
-   ! !  do jbc = 1,3
-   ! !     do i = surf_ind(1,1) - 3,surf_ind(1,2) + 3
-   ! !        qnew(3,i,surf_ind(2,2)+jbc) =-qnew(3,i,surf_ind(2,2)-jbc)
-   ! !        aux(i,surf_ind(2,2)+jbc) = aux(i,surf_ind(2,2))
-   ! !     end do
-   ! !  end do
+    ! Apply boundary conditions to updated solution before passing results to heat solver
+    call apply_BC_geoclaw(aux)
 
     ! Update surface position
     do j=surf_ind(2,1),surf_ind(2,2)
        do i=surf_ind(1,1),surf_ind(1,2)
-         !  if (qnew(1,i,j).gt.sw_drytol) then
-             surf_pos(i,j) = melt_pos(i,j) + qnew(1,i,j)
-         !  end if
-             if (surf_pos(i,j).ge.domain_top) then
-               write(*,*) 'WARNING: Bore reached the top of the simulation box.'
-             end if
+         surf_pos(i,j) = melt_pos(i,j) + qnew(1,i,j)
+         if (surf_pos(i,j).ge.domain_top) then
+            write(*,*) 'WARNING: Bore reached the top of the simulation box.'
+         end if
        end do
     end do
 
@@ -1537,42 +916,6 @@ module shallow_water_module
 
     write(*,*) max_vel_x
     write(*,*) max_vel_z
-
-    ! Update melt velocity along x
-   !  do j=surf_ind(2,1),surf_ind(2,2)
-   !     do i=surf_ind(1,1),surf_ind(1,2)+1
-         ! uL = (qnew(2,i,j)/qnew(1,i,j)+qnew(2,i-1,j)/qnew(1,i-1,j))/2.0
-         !  if ((qnew(1,i-1,j).gt.sw_drytol .and. uL.gt.0) .or. (qnew(1,i,j).gt.sw_drytol .and. uL.lt.0)) then
-            !  melt_vel(i,j,1) = uL
-         !  end if
-   !     end do
-   !  end do
-
-    ! Update melt velocity along z
-   !  do j=surf_ind(2,1),surf_ind(2,2)+1
-   !     do i=surf_ind(1,1),surf_ind(1,2)
-         !  uL = (qnew(3,i,j)/qnew(1,i,j)+qnew(3,i,j-1)/qnew(1,i,j-1))/2.0
-         !  if ((qnew(1,i,j-1).gt.sw_drytol .and. uL.gt.0) .or. (qnew(1,i,j).gt.sw_drytol .and. uL.lt.0)) then
-            !  melt_vel(i,j,2) = uL
-         !  end if
-   !     end do
-   !  end do
-
-   !  ! Rescale qnew(2,:,:) and qnew(3,:,:) from fluxes to velocities
-   !  do j=surf_ind(2,1),surf_ind(2,2)+1
-   !    do i=surf_ind(1,1),surf_ind(1,2)
-   !       if (qnew(1,i,j).gt.sw_drytol) then
-   !          ! write(*,*) 'didnt reset'
-   !          qnew(2,i,j) = qnew(2,i,j)/qnew(1,i,j)
-   !          qnew(3,i,j) = qnew(3,i,j)/qnew(1,i,j)
-   !       else
-   !          qnew(2,i,j) = 0.0
-   !          qnew(3,i,j) = 0.0
-   !       endif
-
-   !    end do
-   ! end do    
-    
     
   end subroutine advance_SW_geoclaw
 
@@ -1660,14 +1003,14 @@ module shallow_water_module
 
 
 
- subroutine riemann_aug_JCP(maxiter,meqn,mwaves,hL,hR,huL,huR,hvL,hvR,bL,bR,uL,uR,vL,vR,phiL,phiR,pL,pR,sE1,sE2,drytol,g,rho,sw,fw)
+ subroutine riemann_aug_JCP(maxiter,meqn,mwaves,hL,hR,huL,huR,bL,bR,uL,uR,vL,vR,phiL,phiR,pL,pR,sE1,sE2,drytol,g,rho,sw,fw)
 
    integer, intent(in) :: maxiter,meqn,mwaves
-   real(amrex_real), intent(in) :: hL,hR,huL,huR,hvL,hvR,bL,bR,uL,uR,vL,vR,phiL,phiR,pL,pR,drytol,g,rho
+   real(amrex_real), intent(in) :: hL,hR,huL,huR,bL,bR,uL,uR,vL,vR,phiL,phiR,pL,pR,drytol,g,rho
    real(amrex_real), intent(inout) :: sE1,sE2
    real(amrex_real), intent(out) :: sw(1:mwaves),fw(1:meqn,1:mwaves)
    real(amrex_real) :: A(1:3,1:3),r(1:3,1:3),lambda(1:3),del(1:3),beta(1:3)
-   real(amrex_real) :: delh,delhu,delphi,delb,delnorm,rare1st,rare2st,sdelta,raremin,raremax,criticaltol,convergencetol,raretol
+   real(amrex_real) :: delh,delhu,delphi,delb,delnorm,rare1st,rare2st,sdelta,raremin,raremax,criticaltol,convergencetol
    real(amrex_real) :: criticaltol_2, hustar_interface,s1s2bar,s1s2tilde,hbar,hLstar,hRstar,s1m,s2m,hm
    real(amrex_real) :: huRstar,huLstar,uRstar,uLstar,hstarHLL,deldelh,deldelphi,delP,det1,det2,det3,determinant
    real(amrex_real) :: rare1,rare2,rarecorrector,rarecorrectortest,sonic
@@ -2031,5 +1374,350 @@ module shallow_water_module
 
    end subroutine init_melt_pos
    
+
+   ! -----------------------------------------------------------------
+   ! Subroutine used to apply the free out-flow boundary condition
+   ! no in-flow boudnary condition for the geoclaw solver.   
+   ! ----------------------------------------------------------------- 
+   subroutine apply_BC_geoclaw(aux)
+
+      use amr_data_module, only : surf_ind, &
+                                  qnew
+
+      ! Input and output variables
+      real(amrex_real), dimension(surf_ind(1,1)-3:surf_ind(1,2)+3,surf_ind(2,1)-3:surf_ind(2,2)+3), &
+          intent(inout) :: aux
+
+      ! Local variables
+      integer :: i, j, ibc, jbc, m
+
+      ! Free outflow - No inflow: left
+      do j = surf_ind(2,1) - 3,surf_ind(2,2) + 3
+         do ibc = 1,3
+            do m=1,3
+               qnew(m,surf_ind(1,1)-ibc,j) = qnew(m,surf_ind(1,1)+ibc,j)
+            end do
+         end do
+      end do
+      do j = surf_ind(2,1) - 3,surf_ind(2,2) + 3
+         do ibc = 1,3
+            if (qnew(2,surf_ind(1,1),j).lt.0.0) then
+               qnew(2,surf_ind(1,1)-ibc,j) = qnew(2,surf_ind(1,1),j)
+            else
+               qnew(2,surf_ind(1,1)-ibc,j) = 0.0
+               qnew(1,surf_ind(1,1)-ibc,j) = 0.0
+               qnew(2,surf_ind(1,1),j) = 0.0
+            end if
+            aux(surf_ind(1,1)-ibc,j) = aux(surf_ind(1,1),j)
+         end do
+      end do
+
+      ! Free outflow - No inflow: right
+      do j = surf_ind(2,1) - 3,surf_ind(2,2) + 3
+         do ibc = 1,3
+            do m=1,3
+               qnew(m,surf_ind(1,2)+ibc,j) = qnew(m,surf_ind(1,2)-ibc,j)
+            end do
+         end do
+      end do
+      do j = surf_ind(2,1) - 3,surf_ind(2,2) + 3
+         do ibc = 1,3
+         if (qnew(2,surf_ind(1,2),j).gt.0) then
+            qnew(2,surf_ind(1,2)+ibc,j) = qnew(2,surf_ind(1,2),j)
+         else
+            qnew(2,surf_ind(1,2)+ibc,j) = 0.0
+            qnew(1,surf_ind(1,2)+ibc,j) = 0.0
+            qnew(2,surf_ind(1,2),j) = 0.0
+         end if
+         aux(surf_ind(1,2)+ibc,j) = aux(surf_ind(1,2),j)
+         end do
+      end do
+
+      ! Free outflow - No inflow: bottom
+      do jbc = 1,3
+         do i = surf_ind(1,1) - 3,surf_ind(1,2) + 3
+            do m=1,3
+               qnew(m,i,surf_ind(2,1)-jbc) = qnew(m,i,surf_ind(2,1)+jbc)
+            end do
+         end do
+      end do
+      do jbc = 1,3
+         do i = surf_ind(1,1) - 3,surf_ind(1,2) + 3
+         if (qnew(3,i,surf_ind(2,1)).lt.0.0) then
+            qnew(3,i,surf_ind(2,1)+jbc) = qnew(3,i,surf_ind(2,1))
+         else
+            qnew(3,i,surf_ind(2,1)+jbc) = 0.0
+            qnew(1,i,surf_ind(2,1)+jbc) = 0.0
+            qnew(3,i,surf_ind(2,1)) = 0.0
+         end if
+         aux(i,surf_ind(2,1)-jbc) = aux(i,surf_ind(2,1))
+         end do
+      end do
+
+      ! Free outflow - No inflow: top
+      do jbc = 1,3
+         do i = surf_ind(1,1) - 3,surf_ind(1,2) + 3
+            do m=1,3
+               qnew(m,i,surf_ind(2,2)+jbc) = qnew(m,i,surf_ind(2,2)-jbc)
+            end do
+         end do
+      end do
+      do jbc = 1,3
+         do i = surf_ind(1,1) - 3,surf_ind(1,2) + 3
+            if (qnew(3,i,surf_ind(2,2)).gt.0.0) then
+               qnew(3,i,surf_ind(2,2)+jbc) = qnew(3,i,surf_ind(2,2))
+            else
+               qnew(3,i,surf_ind(2,2)+jbc) = 0.0
+               qnew(1,i,surf_ind(2,2)+jbc) = 0.0
+               qnew(3,i,surf_ind(2,2)) = 0.0
+            end if
+            aux(i,surf_ind(2,2)+jbc) = aux(i,surf_ind(2,2))
+         end do
+      end do
+   end subroutine apply_BC_geoclaw
+
+
+
+   ! -----------------------------------------------------------------
+   ! Subroutine used to update the solution of the column height and
+   ! height flux with the geoclaw solver in the x direction for dim=2
+   ! and in the z direction for dim=3. 
+   ! ----------------------------------------------------------------- 
+   subroutine geoclaw_update(dim, dtdx, qold, aux)
+      use amr_data_module, only : surf_ind, &
+                                  qnew
+
+      use read_input_module, only : sw_drytol, &
+                                    sw_gravity, &
+                                    sw_iter
+
+      ! Input and out variables
+      integer, intent(in) :: dim
+      real(amrex_real), intent(in) :: dtdx
+      real(amrex_real), intent(in), dimension(1:3,surf_ind(1,1)-3:surf_ind(1,2)+3,surf_ind(2,1)-3:surf_ind(2,2)+3) :: qold
+      real(amrex_real), intent(in), dimension(surf_ind(1,1)-3:surf_ind(1,2)+3,surf_ind(2,1)-3:surf_ind(2,2)+3) :: aux
+
+      ! Local variables
+      integer :: other_dim
+      integer :: lo_tang, lo_norm, hi_tang, hi_norm
+      integer :: i,j,m,mw
+      real(amrex_real) :: hL,hR,huL,huR,hvL,hvR,bL,bR,pL,pR,uL,vL,phiL,uR,vR,phiR,sL,sR,uhat,chat,sRoe1,sRoe2,sE1,sE2
+      real(amrex_real) :: wall(1:3), sw(1:3), fw(1:3,1:3)
+      real(amrex_real) :: hstar,s1m,s2m,rare1,rare2,hstartest
+      real(amrex_real) , allocatable :: q1d(:,:),s(:,:),qadd(:,:),amdq(:,:),apdq(:,:),fadd(:,:),aux1d(:,:),fwave(:,:,:)
+      
+      if (dim.eq.2) then
+         lo_tang = surf_ind(1,1)
+         hi_tang = surf_ind(1,2)
+         lo_norm = surf_ind(2,1)
+         hi_norm = surf_ind(2,2)
+         other_dim = 3
+      else
+         lo_tang = surf_ind(2,1)
+         hi_tang = surf_ind(2,2)
+         lo_norm = surf_ind(1,1)
+         hi_norm = surf_ind(1,2)
+         other_dim = 2
+      end if
+
+      allocate(  q1d(1:3    ,lo_tang-3:hi_tang+3)) 
+      allocate(aux1d(1:3    ,lo_tang-3:hi_tang+3)) 
+      allocate( qadd(1:3    ,lo_tang-3:hi_tang+3)) 
+      allocate( amdq(1:3    ,lo_tang-3:hi_tang+3)) 
+      allocate( apdq(1:3    ,lo_tang-3:hi_tang+3)) 
+      allocate( fadd(1:3    ,lo_tang-3:hi_tang+3)) 
+      allocate(    s(1:3    ,lo_tang-3:hi_tang+3)) 
+      allocate(fwave(1:3,1:3,lo_tang-3:hi_tang+3)) 
+
+     ! Flux2 for x sweeps
+      do j = lo_norm - 3,hi_norm + 3
+        
+         do i = lo_tang - 3,hi_tang + 3
+            do m=1,3 
+               if (dim.eq.2) then
+                  q1d(m,i) = qold(m,i,j)
+                  aux1d(1,i) = aux(i,j)
+               else
+                  q1d(m,i) = qold(m, j, i)
+                  aux1d(1,i) = aux(j, i)
+               end if
+            end do
+         end do
+         
+         
+         !rpn2
+         do i = lo_tang - 2,hi_tang + 3
+            
+            do m=1,3
+               if (q1d(1,i-1).lt.0.) then
+                  q1d(m,i-1) = 0.
+               end if
+               if (q1d(1,i).lt.0.) then
+                  q1d(m,i) = 0.
+               end if
+            end do
+            
+            do mw=1,3
+               s(mw,i)=0.
+               fwave(1,mw,i)=0.
+               fwave(2,mw,i)=0.
+               fwave(3,mw,i)=0.
+            end do
+            
+            
+            if ( (q1d(1,i-1) .lt. sw_drytol) .and. (q1d(1,i) .lt. sw_drytol) ) goto 30
+ 
+            hL = q1d(1,i-1)
+            hR = q1d(1,i)
+            huL = q1d(dim,i-1)
+            huR = q1d(dim,i)
+            hvL = q1d(other_dim,i-1)
+            hvR = q1d(other_dim,i)
+            bL = aux1d(1,i-1)
+            bR = aux1d(1,i)
+            pL = 0.
+            pR = 0.
+            
+            ! check for wet/dry boundary
+            if (hR .gt. sw_drytol) then
+               uR=huR/hR
+               vR=hvR/hR
+               phiR = 0.5*sw_gravity*hR**2 + huR**2/hR
+            else
+               hR = 0.
+               huR = 0.
+               hvR = 0.
+               uR = 0.
+               vR = 0.
+               phiR = 0.
+            end if
+            
+            if (hL .gt. sw_drytol) then
+               uL=huL/hL
+               vL=hvL/hL
+               phiL = 0.5*sw_gravity*hL**2 + huL**2/hL
+            else
+               hL=0.
+               huL=0.
+               hvL=0.
+               uL=0.
+               vL=0.
+               phiL = 0.
+            end if
+            
+            wall(1:3)=1.
+            
+            if (hR .lt. sw_drytol) then
+               call riemanntype(hL,hL,uL,-uL,1,sw_drytol,sw_gravity,hstar,s1m,s2m,rare1,rare2)
+               hstartest=max(hL,hstar)
+               if ( (hstartest+bL) .lt. bR) then  !right state should become ghost values that mirror left for wall problem
+                  wall(2)=0.
+                  wall(3)=0.
+                  hR=hL
+                  huR=-huL
+                  bR=bL
+                  phiR=phiL
+                  uR=-uL
+                  vR=vL
+               elseif ( (hL+bL) .lt. bR) then
+                  bR=hL+bL
+               end if
+               
+            elseif (hL .lt. sw_drytol) then  ! right surface is lower than left topo
+               call riemanntype(hR,hR,-uR,uR,1,sw_drytol,sw_gravity,hstar,s1m,s2m,rare1,rare2)
+               hstartest=max(hR,hstar)
+               if ( (hstartest+bR) .lt. bL) then !left state should become ghost values that mirror right
+                  wall(1)=0.
+                  wall(2)=0.
+                  hL=hR
+                  huL=-huR
+                  bL=bR
+                  phiL=phiR
+                  uL=-uR
+                  vL=vR
+               elseif ( (hR+bR) .lt. bL) then
+                  bL=hR+bR
+               end if
+               
+            end if
+            
+            !determine wave speeds
+            sL = uL - sqrt(sw_gravity*hL) ! 1 wave speed of left state
+            sR = uR + sqrt(sw_gravity*hR) ! 2 wave speed of right state
+            
+            uhat=(sqrt(sw_gravity*hL)*uL + sqrt(sw_gravity*hR)*uR)/(sqrt(sw_gravity*hR)+sqrt(sw_gravity*hL)) ! Roe average
+            chat=sqrt(sw_gravity*0.5*(hR+hL)) ! Roe average
+            sRoe1=uhat-chat ! Roe wave speed 1 wave
+            sRoe2=uhat+chat ! Roe wave speed 2 wave
+            
+            sE1 = min(sL,sRoe1) ! Eindfeldt speed 1 wave
+            sE2 = max(sR,sRoe2) ! Eindfeldt speed 2 wave
+            
+            call riemann_aug_JCP(sw_iter,3,3,hL,hR,huL,huR,bL,bR,uL,uR,vL,&
+                 vR,phiL,phiR,pL,pR,sE1,sE2,sw_drytol,sw_gravity,1.d0,sw,fw)
+            
+            ! eliminate ghost fluxes for wall
+            do mw=1,3
+               sw(mw)=sw(mw)*wall(mw)
+               fw(1,mw)=fw(1,mw)*wall(mw)
+               fw(2,mw)=fw(2,mw)*wall(mw)
+               fw(3,mw)=fw(3,mw)*wall(mw)
+            end do
+            
+            do mw=1,3
+               s(mw,i)=sw(mw)
+               fwave(1,mw,i)=fw(1,mw)
+               fwave(2,mw,i)=fw(2,mw)
+               fwave(3,mw,i)=fw(3,mw)
+            end do
+            
+ 30         continue
+         end do ! i
+         
+         amdq = 0.
+         apdq = 0.
+         do i=lo_tang-2,hi_tang+3 
+            do  mw=1,3
+               if (s(mw,i) .lt. 0.) then
+                  amdq(1:3,i) = amdq(1:3,i) + fwave(1:3,mw,i)
+               elseif (s(mw,i) .gt. 0.) then
+                  apdq(1:3,i)  = apdq(1:3,i) + fwave(1:3,mw,i)
+               else
+                  amdq(1:3,i) = amdq(1:3,i) + 0.5*fwave(1:3,mw,i)
+                  apdq(1:3,i) = apdq(1:3,i) + 0.5*fwave(1:3,mw,i)
+               end if
+            end do
+         end do
+         
+         
+         qadd = 0.
+         do i = lo_tang,hi_tang 
+            do m = 1,3
+               qadd(m,i-1) = qadd(m,i-1) - dtdx*amdq(m,i)
+            end do
+            do m = 1,3
+               qadd(m,i) = qadd(m,i) - dtdx*apdq(m,i)
+            end do
+         end do
+         
+         
+         ! second order correction terms , with a flux limiter as specified by mthlim.
+         fadd = 0. 
+         
+         call fwave_limiter(lo_tang,hi_tang,fwave,s,dtdx,fadd) ! optional
+         
+         do i=lo_tang,hi_tang 
+            do m=1,3
+               if (dim.eq.2) then
+                  qnew(m,i,j) = qnew(m,i,j) + qadd(m,i) - dtdx*(fadd(m,i+1) - fadd(m,i))
+               else
+                  qnew(m, j, i) = qnew(m, j, i) + qadd(m,i) - dtdx*(fadd(m,i+1) - fadd(m,i))
+               end if
+            end do
+         end do
+         
+      end do
+
+   end subroutine geoclaw_update
  end module shallow_water_module
  
