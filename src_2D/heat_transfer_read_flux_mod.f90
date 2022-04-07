@@ -1,4 +1,4 @@
-module read_heat_flux_module
+module heat_transfer_read_flux_module
   
    ! -----------------------------------------------------------------
    ! This module is used to read a file that descibes the heat flux 
@@ -972,4 +972,4 @@ contains
     
   end subroutine ch_cap
   
-end module read_heat_flux_module
+end module heat_transfer_read_flux_module

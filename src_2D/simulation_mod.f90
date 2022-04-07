@@ -287,7 +287,7 @@ contains
 
     use read_input_module, only : solve_sw
     use heat_transfer_module, only : advance_heat_solver_explicit_level
-    use domain_module, only : reset_melt_pos
+    use heat_transfer_domain_module, only : reset_melt_pos
     use shallow_water_module, only : advance_SW
 
     ! Input and output variables 
@@ -353,7 +353,7 @@ contains
   subroutine advance_all_levels(time, dt)
 
     use read_input_module, only : solve_sw, solve_heat
-    use domain_module, only : reset_melt_pos
+    use heat_transfer_domain_module, only : reset_melt_pos
     use material_properties_module, only : get_temp
     use shallow_water_module, only : advance_SW
     use heat_transfer_module, only : advance_heat_solver_implicit

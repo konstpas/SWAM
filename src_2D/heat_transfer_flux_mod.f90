@@ -1,4 +1,4 @@
-module heat_flux_module
+module heat_transfer_flux_module
   
   ! -----------------------------------------------------------------
   ! This module is used to compute the heat flux imposed on the free
@@ -835,5 +835,5 @@ contains
   end subroutine lin_intrp
 
     
- end module heat_flux_module
+end module heat_transfer_flux_module
  

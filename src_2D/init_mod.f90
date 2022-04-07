@@ -33,9 +33,9 @@ contains
                                   geometry_name, &
                                   plasma_flux_side_type, &
                                   solve_heat 
-    use read_heat_flux_module, only : construct_plasma_flux_table
+    use heat_transfer_read_flux_module, only : construct_plasma_flux_table
     use material_properties_module, only : init_mat_prop
-    use heat_flux_module, only : debug_cooling_fluxes
+    use heat_transfer_flux_module, only : debug_cooling_fluxes
     use shallow_water_module, only : init_melt_pos
     use regrid_module, only : averagedown, &
                               my_make_new_level_from_scratch, &
