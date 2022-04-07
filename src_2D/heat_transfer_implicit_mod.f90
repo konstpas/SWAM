@@ -113,7 +113,6 @@ contains
     end do
     
   end subroutine init_tmp_multifab
-
   
   ! -----------------------------------------------------------------
   ! Subroutine used to advance of one time step the conduction part
@@ -121,12 +120,6 @@ contains
   ! -----------------------------------------------------------------
   subroutine advance_conduction(time, dt, phi_tmp, temp_tmp, idomain_tmp)
     
-    use amr_data_module, only : phi_new, &
-                                phi_old, &
-                                temp, &
-                                idomain
-    use heat_transfer_domain_module, only : get_idomain
-
     ! Input and output variables
     real(amrex_real), intent(in) :: dt
     real(amrex_real), intent(in) :: time
@@ -135,9 +128,6 @@ contains
     type(amrex_multifab), intent(inout) :: idomain_tmp(0:amrex_max_level) 
     
     ! Local variables
-    logical :: nodal(2)
-    integer, parameter :: nghost = 1 ! number of ghost points in each spatial direction 
-    integer :: ncomp, srccmp, dstcmp
     integer :: idim
     integer :: ilev
     type(amrex_multifab) :: phi_tmp2(0:amrex_max_level) ! Enthalpy multifab with two ghost points
@@ -147,11 +137,64 @@ contains
     type(amrex_multifab) :: beta(amrex_spacedim,0:amrex_max_level) ! multifab for the second term on the left hand side of the linear system of equations
     type(amrex_boxarray) :: ba(0:amrex_max_level) ! Box array
     type(amrex_distromap):: dm(0:amrex_max_level) ! Distribution mapping
+
+    ! Initialize temporary multifabs
+    call conduction_init_tmp_multifab(ba, dm, phi_tmp2, temp_tmp2, alpha, beta, rhs)
+
+    ! Predictor step on all levels
+    call conduction_predict(time, dt, phi_tmp, temp_tmp, idomain_tmp, alpha, &
+                            beta, rhs, phi_tmp2, temp_tmp2)    
+    
+    ! New temperature via implicit update
+    call conduction_get_temperature(ba, dm, dt, alpha, beta, rhs, temp_tmp)
+    
+    ! Corrector step on all levels
+    call conduction_correct(phi_tmp, temp_tmp, alpha)
+
+    ! Synchronize idomains
+    call conduction_synch_idomain(temp_tmp)
+
+    ! Clean memory
+    do ilev = 0, amrex_max_level
+       call amrex_multifab_destroy(phi_tmp2(ilev))
+       call amrex_multifab_destroy(temp_tmp2(ilev))
+       call amrex_multifab_destroy(rhs(ilev))
+       call amrex_multifab_destroy(alpha(ilev))
+       do idim = 1, amrex_spacedim
+          call amrex_multifab_destroy(beta(idim,ilev))
+       end do
+       call amrex_distromap_destroy(dm(ilev))
+    end do
+   
+  end subroutine advance_conduction
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to initialize the multifabs used in the
+  ! update of the conductive part of the heat equation
+  ! -----------------------------------------------------------------
+  subroutine conduction_init_tmp_multifab(ba, dm, phi_tmp2, temp_tmp2, &
+                                          alpha, beta, rhs)
+    
+    use amr_data_module, only : phi_new, &
+                                phi_old, &
+                                temp
+
+    ! Input and output variables
+    type(amrex_multifab), intent(out) :: phi_tmp2(0:amrex_max_level)
+    type(amrex_multifab), intent(out) :: temp_tmp2(0:amrex_max_level)
+    type(amrex_multifab), intent(out) :: rhs(0:amrex_max_level)
+    type(amrex_multifab), intent(out) :: alpha(0:amrex_max_level)
+    type(amrex_multifab), intent(out) :: beta(amrex_spacedim,0:amrex_max_level)
+    type(amrex_boxarray), intent(out) :: ba(0:amrex_max_level)
+    type(amrex_distromap), intent(out) :: dm(0:amrex_max_level)
+    
+    ! Local variables
+    logical :: nodal(2)
+    integer, parameter :: nghost = 2 ! number of ghost points in each spatial direction 
+    integer :: ncomp, srccmp, dstcmp
+    integer :: idim
+    integer :: ilev
     type(amrex_geometry) :: geom
-    type(amrex_mfiter) :: mfi
-    type(amrex_box) :: bx
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidom
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp_tmp
 
     ! Initialize temporary multifabs
     do ilev = 0, amrex_max_level
@@ -167,15 +210,15 @@ contains
        geom = amrex_geom(ilev)
        
        ! Enthalpy and temperature multifabs with ghost points
-       call amrex_multifab_build(phi_tmp2(ilev), ba(ilev), dm(ilev), ncomp, nghost+1) 
-       call amrex_multifab_build(temp_tmp2(ilev), ba(ilev), dm(ilev), ncomp, nghost+1)
+       call amrex_multifab_build(phi_tmp2(ilev), ba(ilev), dm(ilev), ncomp, nghost) 
+       call amrex_multifab_build(temp_tmp2(ilev), ba(ilev), dm(ilev), ncomp, nghost)
   
        ! Fill in the temperature and enthalpy ultifabs with 2 ghost points from previous solution   
        srccmp = 1
        dstcmp = 1
-       call temp_tmp2(ilev)%copy(temp(ilev), srccmp, dstcmp, ncomp, nghost+1)
+       call temp_tmp2(ilev)%copy(temp(ilev), srccmp, dstcmp, ncomp, nghost)
        call temp_tmp2(ilev)%fill_boundary(geom)
-       call phi_tmp2(ilev)%copy(phi_old(ilev), srccmp, dstcmp, ncomp, nghost+1)
+       call phi_tmp2(ilev)%copy(phi_old(ilev), srccmp, dstcmp, ncomp, nghost)
        call phi_tmp2(ilev)%fill_boundary(geom)
 
        ! Multifabs for the linear solver
@@ -188,10 +231,43 @@ contains
        end do
 
     end do
+    
+  end subroutine conduction_init_tmp_multifab
+
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to compute the predictor step of the conductive
+  ! part of the heat transfer equation
+  ! -----------------------------------------------------------------
+  subroutine conduction_predict(time, dt, phi_tmp, temp_tmp, &
+                                idomain_tmp, alpha, beta, rhs, &
+                                phi_tmp2, temp_tmp2)
+    
+    use amr_data_module, only : phi_new
+    
+    ! Input and output variables
+    real(amrex_real), intent(in) :: dt
+    real(amrex_real), intent(in) :: time
+    type(amrex_multifab), intent(inout) :: phi_tmp(0:amrex_max_level)
+    type(amrex_multifab), intent(inout) :: temp_tmp(0:amrex_max_level)
+    type(amrex_multifab), intent(inout) :: idomain_tmp(0:amrex_max_level) 
+    type(amrex_multifab), intent(inout) :: phi_tmp2(0:amrex_max_level)
+    type(amrex_multifab), intent(inout) :: temp_tmp2(0:amrex_max_level)
+    type(amrex_multifab), intent(inout) :: rhs(0:amrex_max_level)
+    type(amrex_multifab), intent(inout) :: alpha(0:amrex_max_level)
+    type(amrex_multifab), intent(inout) :: beta(amrex_spacedim,0:amrex_max_level)
+    
+    ! Local variables
+    integer :: ilev
+    type(amrex_geometry) :: geom
+    type(amrex_mfiter) :: mfi
 
     ! Predictor step on all levels
     do ilev = 0, amrex_max_level
 
+       ! Geometry
+       geom = amrex_geom(ilev)
+       
        !$omp parallel private(mfi)
        call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)
        do while(mfi%next())
@@ -205,66 +281,9 @@ contains
        !$omp end parallel
 
     end do
-
-    ! New temperature via explicit update
-    call conduction_get_temperature(ba, dm, dt, alpha, beta, rhs, temp_tmp)
-    
-    ! Corrector step on all levels
-    do ilev = 0, amrex_max_level
-       
-       geom = amrex_geom(ilev)
-       
-       !$omp parallel private(mfi)
-       call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)
-       do while(mfi%next())
-          call conduction_correct_box(ilev, mfi, &
-                                      phi_tmp(ilev), temp_tmp(ilev), alpha(ilev))
-          
-       end do
-       call amrex_mfiter_destroy(mfi)
-       !$omp end parallel
-       
-       call temp_tmp(ilev)%fill_boundary(geom)
-       
-    end do
-
-    ! Synchronize idomains
-    do ilev = 0, amrex_max_level
-
-      geom = amrex_geom(ilev)
-      
-      !$omp parallel private(mfi, bx, pidom, ptemp_tmp)
-      call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)
-      do while(mfi%next())
-         bx = mfi%validbox()
-         pidom  => idomain(ilev)%dataptr(mfi)
-         ptemp_tmp   => temp_tmp(ilev)%dataptr(mfi)
-         call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
-                          bx%lo, bx%hi, &
-                          pidom, lbound(pidom), ubound(pidom), &
-                          ptemp_tmp, lbound(ptemp_tmp), ubound(ptemp_tmp))
-         
-      end do
-      call amrex_mfiter_destroy(mfi)   
-      !$omp end parallel
-      
-   end do
-
-   ! Clean memory
-    do ilev = 0, amrex_max_level
-       call amrex_multifab_destroy(phi_tmp2(ilev))
-       call amrex_multifab_destroy(temp_tmp2(ilev))
-       call amrex_multifab_destroy(rhs(ilev))
-       call amrex_multifab_destroy(alpha(ilev))
-       do idim = 1, amrex_spacedim
-          call amrex_multifab_destroy(beta(idim,ilev))
-       end do
-       call amrex_distromap_destroy(dm(ilev))
-    end do
-   
-  end subroutine advance_conduction
-
-
+ 
+  end subroutine conduction_predict
+  
   ! -----------------------------------------------------------------
   ! Subroutine used to perform the prediction step for the implicit
   ! enthalpy update at a given box on a given level 
@@ -516,7 +535,46 @@ contains
     end if
   end subroutine conduction_get_temperature
 
+  ! -----------------------------------------------------------------
+  ! Subroutine used to compute the correction step of the conductive
+  ! part of the heat transfer equation
+  ! -----------------------------------------------------------------
+  subroutine conduction_correct(phi_tmp, temp_tmp, alpha)
+    
+    use amr_data_module, only : phi_new
+    
+    ! Input and output variables
+    type(amrex_multifab), intent(inout) :: phi_tmp(0:amrex_max_level)
+    type(amrex_multifab), intent(inout) :: temp_tmp(0:amrex_max_level)
+    type(amrex_multifab), intent(inout) :: alpha(0:amrex_max_level)
+    
+    ! Local variables
+    integer :: ilev
+    type(amrex_geometry) :: geom
+    type(amrex_mfiter) :: mfi
 
+    ! Corrector step on all levels
+    do ilev = 0, amrex_max_level
+
+       ! Geometry
+       geom = amrex_geom(ilev)
+       
+       !$omp parallel private(mfi)
+       call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)
+       do while(mfi%next())
+          call conduction_correct_box(ilev, mfi, phi_tmp(ilev), &
+                                      temp_tmp(ilev), alpha(ilev))
+          
+       end do
+       call amrex_mfiter_destroy(mfi)
+       !$omp end parallel
+       
+       call temp_tmp(ilev)%fill_boundary(geom)
+       
+    end do
+    
+  end subroutine conduction_correct
+  
   ! -----------------------------------------------------------------
   ! Subroutine used to perform the correction step for the implicit
   ! enthalpy update at a given box on a given level 
@@ -570,6 +628,50 @@ contains
 
   end subroutine conduction_correct_box
 
+  ! -----------------------------------------------------------------
+  ! Subroutine used to synchronize the idomains in the conduction 
+  ! part of the heat transfer equation
+  ! -----------------------------------------------------------------
+  subroutine conduction_synch_idomain(temp_tmp)
+    
+    use amr_data_module, only : phi_new, &
+                                idomain
+    use heat_transfer_domain_module, only : get_idomain
+        
+    ! Input and output variables
+    type(amrex_multifab), intent(inout) :: temp_tmp(0:amrex_max_level)
+    
+    ! Local variables
+    integer :: ilev
+    type(amrex_geometry) :: geom
+    type(amrex_mfiter) :: mfi
+    type(amrex_box) :: bx
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidom
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp_tmp
+    
+    do ilev = 0, amrex_max_level
+
+       ! Geometry
+       geom = amrex_geom(ilev)
+       
+       !$omp parallel private(mfi, bx, pidom, ptemp_tmp)
+       call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)
+       do while(mfi%next())
+          bx = mfi%validbox()
+          pidom  => idomain(ilev)%dataptr(mfi)
+          ptemp_tmp   => temp_tmp(ilev)%dataptr(mfi)
+          call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
+                           bx%lo, bx%hi, &
+                           pidom, lbound(pidom), ubound(pidom), &
+                           ptemp_tmp, lbound(ptemp_tmp), ubound(ptemp_tmp))
+          
+       end do
+       call amrex_mfiter_destroy(mfi)   
+       !$omp end parallel
+       
+    end do
+    
+  end subroutine conduction_synch_idomain
   
   ! -----------------------------------------------------------------
   ! Subroutine used to fill the alpha matrix for the linear solver
