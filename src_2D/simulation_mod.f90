@@ -62,14 +62,18 @@ contains
        call compute_dt
 		 
        ! Advance all levels of one time step
-       if (heat_solver.eq."explicit" .and. solve_heat) then
-          lev = 0
-          substep = 1
-          call advance_one_timestep_subcycling(lev, cur_time, substep)
-       else
-          call advance_one_timestep(cur_time)
+       if (solve_heat) then
+          if (heat_solver.eq."explicit") then
+             lev = 0
+             substep = 1
+             call advance_one_timestep_subcycling(lev, cur_time, substep)
+          else if (heat_solver.eq."implicit") then
+             call advance_one_timestep(cur_time)
+          else
+             STOP "Unknown heat solver prescribed in input"
+          end if
        end if
- 	
+       
        ! Update time on all levels
        cur_time = cur_time + dt(0)
        do lev = 0, amrex_max_level
@@ -115,7 +119,7 @@ contains
 
     ! Estimate timestep in order to avoid instabilities
     do lev = 0, nlevs-1
-       call est_timestep(lev, dt_tmp(lev))
+       call check_timestep_stability(lev, dt_tmp(lev))
     end do
     call amrex_parallel_reduce_min(dt_tmp, nlevs)
 
@@ -149,9 +153,10 @@ contains
   ! Subroutine used to estimate the timestep based on the stability
   ! criteria for the solver of the heat equation
   ! -----------------------------------------------------------------
-  subroutine est_timestep(lev, dt)
+  subroutine check_timestep_stability(lev, dt)
 
-    use read_input_module, only : cfl, heat_solver, solve_heat
+    use amr_data_module, only : max_melt_vel
+    use read_input_module, only : cfl, heat_solver, solve_heat, in_dt
     use material_properties_module, only : max_diffus 
 
     ! Input and output variables 
@@ -160,31 +165,28 @@ contains
 
     ! Local variables 
     real(amrex_real) :: dxsqr
+    real(amrex_real) :: dx
+    real(amrex_real) :: dy
 
+    ! Grid resolutions
+    dx = amrex_geom(lev)%dx(1)
+    dy = amrex_geom(lev)%dx(2)
+    
+    ! Von Neumann stability condition (enforced)
     if (heat_solver.eq."explicit" .and. solve_heat) then
-
-       ! Fully explicit solver
-       
-       ! NOTE: There are two stability criteria to take into
-       ! account, the von Neumann stability and the CFL
-       ! condition. The CFL condition is not yet implemented
-       
-       ! Von Neumann stability criterion 
-       dxsqr= (1/amrex_geom(lev)%dx(1)**2 + &
-            1/amrex_geom(lev)%dx(2)**2) 
+       dxsqr= (1.0/dx**2 + 1.0/dy**2) 
        dt = 0.5/(dxsqr*max_diffus)
        dt = dt * cfl
-
     else
-
-       ! Implicit diffusion, explicit advection
-
-       ! NOTE: The CFL condition is not yet implemented
-       dt = 1.0e100_amrex_real
-       
+       dt = in_dt
     end if
-       
-  end subroutine est_timestep
+
+    ! CFL stability condition (only checked)
+    if (max_melt_vel*dt.ge.dx) then
+       print *, "CFL stability condition is not satisfied"
+    end if
+    
+  end subroutine check_timestep_stability
 
   
   ! -----------------------------------------------------------------

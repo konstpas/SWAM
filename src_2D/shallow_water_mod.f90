@@ -16,7 +16,7 @@ module shallow_water_module
   ! -----------------------------------------------------------------
   public :: advance_SW
   public :: init_melt_pos
-  
+
 contains 
 
   ! -----------------------------------------------------------------
@@ -265,7 +265,6 @@ contains
     
     ! Compute old column height (input from heat solver)
     melt_height_old = surf_pos - melt_pos 
-   !  melt_height_old = surf_pos_grid - melt_pos 
 
     ! Height fluxes along the x direction
     do  i = surf_ind(1,1),surf_ind(1,2)+1
@@ -347,6 +346,7 @@ contains
                                 surf_temperature, &
                                 melt_pos, &
                                 melt_vel, &
+                                max_melt_vel, &
                                 J_th
     
     use read_input_module, only : sw_magnetic, sw_h_cap
@@ -367,10 +367,12 @@ contains
     real(amrex_real) :: temp_face
     real(amrex_real) :: visc
     real(amrex_real) :: rho
-    real(amrex_real) :: max_vel
     real(amrex_real) :: J_face
     real(amrex_real) :: laplacian_term
     integer :: adv_flag1, adv_flag2
+
+    ! Reset maximum melt velocity
+    max_melt_vel = 0.0
     
     ! Initialize advective and source terms
     adv_term = 0.0_amrex_real
@@ -427,7 +429,6 @@ contains
        
     end do
 
-    max_vel = 0.0
     ! Update momentum equation
     do  i = surf_ind(1,1)+1,surf_ind(1,2)
        
@@ -445,8 +446,8 @@ contains
       endif
 
       ! Keep track of the maximum velocity to check that the CFL condition is satisfied
-      if (ABS(melt_vel(i,1)).gt.ABS(max_vel)) then
-         max_vel = melt_vel(i,1)
+      if (ABS(melt_vel(i,1)).gt.max_melt_vel) then
+         max_melt_vel = ABS(melt_vel(i,1))
       end if
       
     end do
@@ -455,11 +456,6 @@ contains
     melt_vel(surf_ind(1,1),1) = melt_vel(surf_ind(1,1)+1,1)
     melt_vel(surf_ind(1,2)+1,1) = melt_vel(surf_ind(1,2),1)
 
-    ! Print on screen if the CFL condition is violated
-    if (abs(max_vel)*dt.ge.surf_dx(1)) then
-      print *, 'CFL not satisfied'
-    end if
-   
   end subroutine advance_SW_explicit_momentum
 
   ! -----------------------------------------------------------------

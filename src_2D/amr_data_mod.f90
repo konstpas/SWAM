@@ -42,6 +42,8 @@ module amr_data_module
   public :: melt_top
   ! Melt velocity
   public :: melt_vel
+  ! Maximum melt velocity (absolute value)
+  public :: max_melt_vel
   ! Tabulated heat flux from plasma
   public :: plasma_flux_time_mesh
   public :: plasma_flux_surf_mesh
@@ -89,6 +91,7 @@ module amr_data_module
   real(amrex_real), allocatable, save :: J_th(:)
   real(amrex_real), allocatable, save :: melt_pos(:)
   real(amrex_real), allocatable, save :: melt_top(:)
+  real(amrex_real), save :: max_melt_vel
   real(amrex_real), allocatable, save :: melt_vel(:,:)
   real(amrex_real), allocatable, save :: plasma_flux_time_mesh(:)
   real(amrex_real), allocatable, save :: plasma_flux_surf_mesh(:)
@@ -167,6 +170,7 @@ contains
     ! simulation (melt_pos = surf_pos)
     melt_pos = surf_pos_init
     melt_top = surf_pos_init
+    max_melt_vel = 0.0_amrex_real
     melt_vel = 0.0_amrex_real
     surf_dx(1) = amrex_geom(amrex_max_level)%dx(1)
     surf_ind(1,1) = lo_x

@@ -53,6 +53,7 @@ module read_input_module
   public :: dt_change_max
   public :: heat_solver
   public :: in_dt
+  public :: ls_accuracy
   public :: ls_composite_solve
   public :: ls_verbose
   public :: ls_bottom_verbose
@@ -103,7 +104,7 @@ module read_input_module
   public :: read_input_file, deallocate_input
 
   ! -----------------------------------------------------------------
-  ! Default values of public variables
+  ! Declare public variables
   ! -----------------------------------------------------------------
   character(len=:), allocatable, save :: check_file
   character(len=:), allocatable, save :: material
@@ -144,6 +145,7 @@ module read_input_module
   real(amrex_real), save :: dt_change_max
   real(amrex_real), save :: in_dt  
   real(amrex_real), save :: fixed_melt_velocity
+  real(amrex_real), save :: ls_accuracy
   real(amrex_real), save :: phiT_table_max_T
   real(amrex_real), save :: stop_time
   real(amrex_real), save :: surf_pos_init
@@ -247,7 +249,6 @@ contains
     call pp%queryarr("cool_pipe_cntr",cool_pipe_cntr)
     call pp%query("cool_pipe_radius", cool_pipe_radius)
     call amrex_parmparse_destroy(pp)
-
     
     ! Parameters for the numerics
     call amrex_parmparse_build(pp, "numerics")
@@ -258,6 +259,7 @@ contains
 
     ! Parameters for the linear solver used for the implicit solution of the heat equation
     call amrex_parmparse_build(pp, "linear_solver")
+    call pp%query("accuracy", ls_accuracy)
     call pp%query("composite_solve", ls_composite_solve)
     call pp%query("verbose", ls_verbose)
     call pp%query("bottom_verbose_ls", ls_bottom_verbose)
@@ -310,6 +312,7 @@ contains
     in_dt = 0.0001
     fixed_melt_velocity = 0.0_amrex_real
     heat_solver = "explicit"
+    ls_accuracy = 10e-10
     ls_composite_solve = .true.
     ls_verbose = 1
     ls_bottom_verbose = 0

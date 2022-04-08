@@ -379,7 +379,8 @@ contains
   ! ----------------------------------------------------------------------------------- 
   subroutine conduction_get_temperature(ba, dm, dt, alpha, beta, rhs, sol)
 
-    use read_input_module, only : ls_composite_solve, &
+    use read_input_module, only : ls_accuracy, &
+                                  ls_composite_solve, &
                                   ls_agglomeration, &
                                   ls_consolidation, &
                                   ls_max_coarsening_level, &
@@ -446,7 +447,7 @@ contains
        call multigrid%set_bottom_solver(ls_bottom_solver)
        
        ! Solve the linear system
-       err = multigrid%solve(sol, rhs, 5.e-12_amrex_real, 0.0_amrex_real)
+       err = multigrid%solve(sol, rhs, ls_accuracy, 0.0_amrex_real)
        
        ! Clean memory
        call amrex_abeclaplacian_destroy(abeclap)
@@ -490,7 +491,7 @@ contains
           call multigrid%set_bottom_solver(ls_bottom_solver)
         
           ! Solve the linear system
-          err = multigrid%solve([sol(ilev)], [rhs(ilev)], 1.e-10_amrex_real, 0.0_amrex_real)
+          err = multigrid%solve([sol(ilev)], [rhs(ilev)], ls_accuracy, 0.0_amrex_real)
        
           ! Clean memory
           call amrex_abeclaplacian_destroy(abeclap)
