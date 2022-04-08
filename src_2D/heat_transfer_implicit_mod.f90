@@ -130,8 +130,6 @@ contains
     ! Local variables
     integer :: idim
     integer :: ilev
-    type(amrex_multifab) :: phi_tmp2(0:amrex_max_level) ! Enthalpy multifab with two ghost points
-    type(amrex_multifab) :: temp_tmp2(0:amrex_max_level) ! Temperature multifab with two ghost points
     type(amrex_multifab) :: rhs(0:amrex_max_level) ! multifab for the right hand side of the linear system of equations
     type(amrex_multifab) :: alpha(0:amrex_max_level) ! multifab for the first term on the left hand side of the linear system of equations
     type(amrex_multifab) :: beta(amrex_spacedim,0:amrex_max_level) ! multifab for the second term on the left hand side of the linear system of equations
@@ -139,11 +137,11 @@ contains
     type(amrex_distromap):: dm(0:amrex_max_level) ! Distribution mapping
 
     ! Initialize temporary multifabs
-    call conduction_init_tmp_multifab(ba, dm, phi_tmp2, temp_tmp2, alpha, beta, rhs)
+    call conduction_init_tmp_multifab(ba, dm, alpha, beta, rhs)
 
     ! Predictor step on all levels
     call conduction_predict(time, dt, phi_tmp, temp_tmp, idomain_tmp, alpha, &
-                            beta, rhs, phi_tmp2, temp_tmp2)    
+                            beta, rhs)    
     
     ! New temperature via implicit update
     call conduction_get_temperature(ba, dm, dt, alpha, beta, rhs, temp_tmp)
@@ -156,8 +154,6 @@ contains
 
     ! Clean memory
     do ilev = 0, amrex_max_level
-       call amrex_multifab_destroy(phi_tmp2(ilev))
-       call amrex_multifab_destroy(temp_tmp2(ilev))
        call amrex_multifab_destroy(rhs(ilev))
        call amrex_multifab_destroy(alpha(ilev))
        do idim = 1, amrex_spacedim
@@ -172,16 +168,11 @@ contains
   ! Subroutine used to initialize the multifabs used in the
   ! update of the conductive part of the heat equation
   ! -----------------------------------------------------------------
-  subroutine conduction_init_tmp_multifab(ba, dm, phi_tmp2, temp_tmp2, &
-                                          alpha, beta, rhs)
+  subroutine conduction_init_tmp_multifab(ba, dm, alpha, beta, rhs)
     
-    use amr_data_module, only : phi_new, &
-                                phi_old, &
-                                temp
+    use amr_data_module, only : phi_new
 
     ! Input and output variables
-    type(amrex_multifab), intent(out) :: phi_tmp2(0:amrex_max_level)
-    type(amrex_multifab), intent(out) :: temp_tmp2(0:amrex_max_level)
     type(amrex_multifab), intent(out) :: rhs(0:amrex_max_level)
     type(amrex_multifab), intent(out) :: alpha(0:amrex_max_level)
     type(amrex_multifab), intent(out) :: beta(amrex_spacedim,0:amrex_max_level)
@@ -190,10 +181,9 @@ contains
     
     ! Local variables
     logical :: nodal(2)
-    integer, parameter :: nghost = 2 ! number of ghost points in each spatial direction 
-    integer :: ncomp, srccmp, dstcmp
     integer :: idim
     integer :: ilev
+    integer :: ncomp
     type(amrex_geometry) :: geom
 
     ! Initialize temporary multifabs
@@ -208,18 +198,6 @@ contains
 
        ! Geometry
        geom = amrex_geom(ilev)
-       
-       ! Enthalpy and temperature multifabs with ghost points
-       call amrex_multifab_build(phi_tmp2(ilev), ba(ilev), dm(ilev), ncomp, nghost) 
-       call amrex_multifab_build(temp_tmp2(ilev), ba(ilev), dm(ilev), ncomp, nghost)
-  
-       ! Fill in the temperature and enthalpy ultifabs with 2 ghost points from previous solution   
-       srccmp = 1
-       dstcmp = 1
-       call temp_tmp2(ilev)%copy(temp(ilev), srccmp, dstcmp, ncomp, nghost)
-       call temp_tmp2(ilev)%fill_boundary(geom)
-       call phi_tmp2(ilev)%copy(phi_old(ilev), srccmp, dstcmp, ncomp, nghost)
-       call phi_tmp2(ilev)%fill_boundary(geom)
 
        ! Multifabs for the linear solver
        call amrex_multifab_build(rhs(ilev), ba(ilev), dm(ilev), ncomp, 0)
@@ -240,8 +218,7 @@ contains
   ! part of the heat transfer equation
   ! -----------------------------------------------------------------
   subroutine conduction_predict(time, dt, phi_tmp, temp_tmp, &
-                                idomain_tmp, alpha, beta, rhs, &
-                                phi_tmp2, temp_tmp2)
+                                idomain_tmp, alpha, beta, rhs)
     
     use amr_data_module, only : phi_new
     
@@ -251,8 +228,6 @@ contains
     type(amrex_multifab), intent(inout) :: phi_tmp(0:amrex_max_level)
     type(amrex_multifab), intent(inout) :: temp_tmp(0:amrex_max_level)
     type(amrex_multifab), intent(inout) :: idomain_tmp(0:amrex_max_level) 
-    type(amrex_multifab), intent(inout) :: phi_tmp2(0:amrex_max_level)
-    type(amrex_multifab), intent(inout) :: temp_tmp2(0:amrex_max_level)
     type(amrex_multifab), intent(inout) :: rhs(0:amrex_max_level)
     type(amrex_multifab), intent(inout) :: alpha(0:amrex_max_level)
     type(amrex_multifab), intent(inout) :: beta(amrex_spacedim,0:amrex_max_level)
@@ -274,7 +249,7 @@ contains
           call conduction_predict_box(ilev, time, dt, mfi, &
                                       geom, phi_tmp(ilev), temp_tmp(ilev), &
                                       idomain_tmp(ilev), alpha(ilev), beta(:,ilev), &
-                                      rhs(ilev), phi_tmp2(ilev), temp_tmp2(ilev))
+                                      rhs(ilev))
 
        end do
        call amrex_mfiter_destroy(mfi)
@@ -291,7 +266,7 @@ contains
   subroutine conduction_predict_box(lev, time, dt, mfi, &
                                     geom, phi_tmp, temp_tmp, &
                                     idomain_tmp, alpha, beta, &
-                                    rhs, phi_tmp2, temp_tmp2)
+                                    rhs)
 
     use read_input_module, only : temp_fs
     use amr_data_module, only : phi_new, temp, idomain
@@ -311,17 +286,12 @@ contains
     type(amrex_multifab), intent(inout) :: alpha
     type(amrex_multifab), intent(inout) :: beta(amrex_spacedim)
     type(amrex_multifab), intent(inout) :: rhs
-    ! type(amrex_fab), intent(inout) :: flux(amrex_spacedim)
-    type(amrex_multifab), intent(in) :: phi_tmp2
-    type(amrex_multifab), intent(in) :: temp_tmp2
 
     ! Local variables
     integer :: idim
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin2
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pout
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptempin
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptempin2
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidin
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidout
@@ -335,11 +305,9 @@ contains
           
     ! Pointers
     pin     => phi_tmp%dataptr(mfi)
-    pin2     => phi_tmp2%dataptr(mfi)
     pout    => phi_new(lev)%dataptr(mfi)
     ptemp   => temp(lev)%dataptr(mfi)
     ptempin => temp_tmp%dataptr(mfi)
-    ptempin2 => temp_tmp2%dataptr(mfi)
     pidin   => idomain_tmp%dataptr(mfi)
     pidout  => idomain(lev)%dataptr(mfi)
     pac     => alpha%dataptr(mfi)
@@ -362,9 +330,7 @@ contains
                                pidin, lbound(pidin), ubound(pidin), &
                                pidout, lbound(pidout), ubound(pidout), &
                                pin, lbound(pin), ubound(pin), &
-                               ptempin, lbound(ptempin), ubound(ptempin), &
-                               pin2, lbound(pin2), ubound(pin2), &
-                               ptempin2, lbound(ptempin2), ubound(ptempin2))
+                               ptempin, lbound(ptempin), ubound(ptempin))
     
     ! Additional call to update the temperature without the ghost points
     ! the temperature with ghost points is already updated in the

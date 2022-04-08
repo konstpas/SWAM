@@ -33,18 +33,16 @@ contains
     ! Local variables
     type(amrex_multifab) :: phi_tmp ! Enthalpy multifab with ghost points
     type(amrex_multifab) :: temp_tmp ! Temperature multifab with ghost points
-    type(amrex_multifab) :: phi_tmp2 ! Enthalpy multifab with 2 ghost points
-    type(amrex_multifab) :: temp_tmp2 ! Temperature multifab with 2 ghost points
     type(amrex_multifab) :: idomain_tmp ! Idomain multifab to distinguish material and background
     type(amrex_multifab) :: fluxes(amrex_spacedim)
 
     ! Initialize temporary multifabs and fluxes
-    call init_tmp_multifab(lev, time, phi_tmp, temp_tmp, phi_tmp2, temp_tmp2, &
+    call init_tmp_multifab(lev, time, phi_tmp, temp_tmp, &
                            idomain_tmp, fluxes)
 
     ! Advance heat transfer equation of one timestep
     call advance(lev, time, dt, substep, phi_tmp, temp_tmp, &
-                 idomain_tmp, fluxes, phi_tmp2, temp_tmp2)
+                 idomain_tmp, fluxes)
 
     ! Update flux registers (fluxes have already been scaled by dt and area
     ! in the advance_heat_solver_box subroutine)
@@ -53,8 +51,6 @@ contains
     ! Clean memory
     call amrex_multifab_destroy(phi_tmp)
     call amrex_multifab_destroy(temp_tmp)
-    call amrex_multifab_destroy(phi_tmp2)
-    call amrex_multifab_destroy(temp_tmp2)
     call amrex_multifab_destroy(idomain_tmp)
     
   end subroutine advance_heat_solver_explicit_level
@@ -64,13 +60,12 @@ contains
   ! Subroutine used to initialize the multifabs and fluxes used in the
   ! update of the heat equation
   ! -----------------------------------------------------------------
-  subroutine init_tmp_multifab(lev, time, phi_tmp, temp_tmp, phi_tmp2, &
-                               temp_tmp2, idomain_tmp, fluxes)
+  subroutine init_tmp_multifab(lev, time, phi_tmp, temp_tmp, &
+                               idomain_tmp, fluxes)
 
     use read_input_module, only : do_reflux
     use amr_data_module, only : phi_new, &
                                 phi_old, &
-                                temp, &
                                 idomain 
     use regrid_module, only : fillpatch
     
@@ -79,16 +74,12 @@ contains
     real(amrex_real), intent(in) :: time
     type(amrex_multifab), intent(out) :: phi_tmp
     type(amrex_multifab), intent(out) :: temp_tmp
-    type(amrex_multifab), intent(out) :: phi_tmp2
-    type(amrex_multifab), intent(out) :: temp_tmp2
     type(amrex_multifab), intent(out) :: idomain_tmp
     type(amrex_multifab), intent(out) :: fluxes(amrex_spacedim)
     
     ! Local variables
     integer, parameter :: nghost = 1 ! number of ghost points in each spatial direction 
     integer :: ncomp
-    integer :: srccmp
-    integer :: dstcmp
     integer :: idim
     logical :: nodal(2) 
     type(amrex_geometry) :: geom
@@ -111,21 +102,11 @@ contains
     ! Build enthalpy and temperature multifabs with ghost points
     call amrex_multifab_build(phi_tmp, ba, dm, ncomp, nghost) 
     call amrex_multifab_build(temp_tmp, ba, dm, ncomp, nghost)
-    call amrex_multifab_build(phi_tmp2, ba, dm, ncomp, nghost+1) 
-    call amrex_multifab_build(temp_tmp2, ba, dm, ncomp, nghost+1)
     call fillpatch(lev, time, phi_tmp)
 
     ! Build temporary idomain multifab to store the domain configuration before SW deformation
     call amrex_multifab_build(idomain_tmp, ba, dm, ncomp, nghost)
     call amrex_multifab_swap(idomain_tmp, idomain(lev))
-
-    ! Fill in multifabs with two ghost points
-    srccmp = 1
-    dstcmp = 1
-    call temp_tmp2%copy(temp(lev), srccmp, dstcmp, ncomp, nghost+1)
-    call temp_tmp2%fill_boundary(geom)
-    call phi_tmp2%copy(phi_old(lev), srccmp, dstcmp, ncomp, nghost+1)
-    call phi_tmp2%fill_boundary(geom)
 
     ! Initialize fluxes  
     if (do_reflux) then
@@ -147,7 +128,7 @@ contains
   ! synchronization is performed
   ! -----------------------------------------------------------------
   subroutine advance(lev, time, dt, substep, phi_tmp, temp_tmp, &
-                     idomain_tmp, fluxes, phi_tmp2, temp_tmp2)
+                     idomain_tmp, fluxes)
 
     use amr_data_module, only : phi_new
     
@@ -158,8 +139,6 @@ contains
     real(amrex_real), intent(in) :: dt
     type(amrex_multifab), intent(inout) :: phi_tmp
     type(amrex_multifab), intent(inout) :: temp_tmp
-    type(amrex_multifab), intent(inout) :: phi_tmp2
-    type(amrex_multifab), intent(inout) :: temp_tmp2
     type(amrex_multifab), intent(inout) :: idomain_tmp
     type(amrex_multifab), intent(inout) :: fluxes(amrex_spacedim)
     
@@ -186,7 +165,7 @@ contains
     do while(mfi%next())
        call advance_box(lev, time, dt, substep, mfi, &
                         geom, ncomp, phi_tmp, temp_tmp, &
-                        idomain_tmp, flux, fluxes, phi_tmp2, temp_tmp2)
+                        idomain_tmp, flux, fluxes)
     end do
     call amrex_mfiter_destroy(mfi)
     
@@ -240,10 +219,9 @@ contains
   ! a given box on a given level via an explicit update
   ! -----------------------------------------------------------------
   subroutine advance_box(lev, time, dt, substep, mfi, &
-                                              geom, ncomp, phi_tmp, temp_tmp, &
-                                              idomain_tmp, flux, fluxes, &
-                                              phi_tmp2, temp_tmp2)
-
+                         geom, ncomp, phi_tmp, temp_tmp, &
+                         idomain_tmp, flux, fluxes)
+    
     use amr_data_module, only : phi_new, &
                                 temp, &
                                 idomain
@@ -264,8 +242,6 @@ contains
     type(amrex_geometry), intent(in) :: geom
     type(amrex_multifab), intent(inout) :: phi_tmp
     type(amrex_multifab), intent(inout) :: temp_tmp
-    type(amrex_multifab), intent(in) :: phi_tmp2
-    type(amrex_multifab), intent(in) :: temp_tmp2
     type(amrex_multifab), intent(inout) :: idomain_tmp
     type(amrex_fab), intent(inout) :: flux(amrex_spacedim)
     type(amrex_multifab), intent(inout) :: fluxes(amrex_spacedim)
@@ -273,10 +249,8 @@ contains
     ! Local variables
     integer :: idim
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin2
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pout
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptempin
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptempin2
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pfx
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pfy
@@ -292,10 +266,8 @@ contains
     
     ! Pointers
     pin     => phi_tmp%dataptr(mfi)
-    pin2     => phi_tmp2%dataptr(mfi)
     pout    => phi_new(lev)%dataptr(mfi)
     ptempin => temp_tmp%dataptr(mfi)
-    ptempin2 => temp_tmp2%dataptr(mfi)
     ptemp   => temp(lev)%dataptr(mfi)
     pidin   => idomain_tmp%dataptr(mfi)
     pidout  => idomain(lev)%dataptr(mfi)   
@@ -327,9 +299,7 @@ contains
                                pidin, lbound(pidin), ubound(pidin), &
                                pidout, lbound(pidout), ubound(pidout), &
                                pin, lbound(pin), ubound(pin), &
-                               ptempin, lbound(ptempin), ubound(ptempin), &
-                               pin2, lbound(pin2), ubound(pin2), &
-                               ptempin2, lbound(ptempin2), ubound(ptempin2))
+                               ptempin, lbound(ptempin), ubound(ptempin))
     
     ! Increment enthalpy at given box depending on the condition of the free surface
     if (temp_fs.gt.0) then

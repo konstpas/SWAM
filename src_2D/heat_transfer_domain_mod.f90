@@ -453,9 +453,7 @@ contains
                                    idom_old, ido_lo, ido_hi, &
                                    idom_new, idn_lo, idn_hi, &
                                    u_in, u_lo, u_hi, &
-                                   temp, t_lo, t_hi, &
-                                   u_in2, u2_lo, u2_hi, &
-                                   temp2, t2_lo, t2_hi)
+                                   temp, t_lo, t_hi)
 
     use material_properties_module, only : temp_melt
     use amr_data_module, only : surf_temperature, &
@@ -464,19 +462,15 @@ contains
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) ! bounds of current tile box
     integer, intent(in) :: u_lo(2), u_hi(2) ! bounds of input enthalpy box 
-    integer, intent(in) :: u2_lo(2), u2_hi(2) ! bounds of input enthalpy box with 2 ghost points
     integer, intent(in) :: ido_lo(2), ido_hi(2) ! bounds of the input idomain box
     integer, intent(in) :: idn_lo(2), idn_hi(2) ! bounds of the output idomain box
     integer, intent(in) :: t_lo(2), t_hi(2) ! bounds of the temperature box
-    integer, intent(in) :: t2_lo(2), t2_hi(2) ! bounds of the temperature box with 2 ghost points
     real(amrex_real), intent(in) :: xlo(2) ! Physical location of box boundaries
     real(amrex_real), intent(in) :: dx(2) ! Grid size
     real(amrex_real), intent(inout) :: u_in(u_lo(1):u_hi(1),u_lo(2):u_hi(2)) ! Input enthalpy 
     real(amrex_real), intent(in) :: idom_old(ido_lo(1):ido_hi(1),ido_lo(2):ido_hi(2))
     real(amrex_real), intent(inout) :: idom_new(idn_lo(1):idn_hi(1),idn_lo(2):idn_hi(2))
     real(amrex_real), intent(inout) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2))
-    real(amrex_real), intent(in) :: u_in2(u2_lo(1):u2_hi(1),u2_lo(2):u2_hi(2))
-    real(amrex_real), intent(in) :: temp2(t2_lo(1):t2_hi(1),t2_lo(2):t2_hi(2))
      
     ! Local variables
     integer :: i,j
@@ -488,40 +482,24 @@ contains
           ! Points added to the domain
           if (nint(idom_old(i,j)).eq.0 .and. nint(idom_new(i,j)).ne.0) then
 
-             ! Points added on top of melt
-             if (temp2(i,j-1).gt.temp_melt) then
+             ! Index of free surface element
+             call interp_to_max_lev(lo, xlo, dx, i, xind)
 
-                ! Update properties
-                u_in(i,j) = u_in2(i,j-1)
-                temp(i,j) = temp2(i,j-1)
-                idom_new(i,j) = 3
-
-             ! Points added on top of mushy
-             elseif (temp2(i,j-1).eq.temp_melt) then
-
-               ! Update properties
-               u_in(i,j) = u_in2(i,j-1)
-               temp(i,j) = temp2(i,j-1)
-               idom_new(i,j) = 2
-
-             ! Points added on top of solid
-             else
-
-                ! Index of upwind column
+             ! Get data from upwind column for points added on top of solid
+             if (surf_temperature(xind).lt.temp_melt) then 
                 call get_upwind_column_xind(lo, xlo, dx, i, xind)
-                
-                ! Update properties
-                u_in(i,j) = surf_enthalpy(xind)
-                temp(i,j) = surf_temperature(xind)
-                if (temp(i,j).gt.temp_melt) then
-                   idom_new(i,j) = 3
-                else if (temp(i,j).eq.temp_melt) then
-                   idom_new(i,j) = 2
-                else
-                   ! Add warning here, this should not happen
-                   idom_new(i,j) = 1
-                end if
-                
+             end if
+
+             ! Update properties
+             u_in(i,j) = surf_enthalpy(xind)
+             temp(i,j) = surf_temperature(xind)
+             if (temp(i,j).gt.temp_melt) then
+                idom_new(i,j) = 3
+             else if (temp(i,j).eq.temp_melt) then
+                idom_new(i,j) = 2
+             else
+                ! Add warning here, this should not happen
+                idom_new(i,j) = 1
              end if
              
           ! Points removed from the domain
