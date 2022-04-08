@@ -289,7 +289,6 @@ contains
 
     use read_input_module, only : solve_sw, solve_heat
     use heat_transfer_module, only : advance_heat_solver_explicit_level
-    use heat_transfer_domain_module, only : reset_melt_pos
     use shallow_water_module, only : advance_SW
 
     ! Input and output variables 
@@ -302,17 +301,11 @@ contains
     if (solve_sw .and. lev.eq.amrex_max_level) then
        call advance_SW    
     end if 
-    
+
+    ! Advance heat equation
     if(solve_heat) then
-       
-       ! Set melt interface position array equal to free interface position array 
-       ! The new melt position is then found after heat has been propagated 
-       call reset_melt_pos 
-       
-       ! Advance heat equation
        call advance_heat_solver_explicit_level(lev, time, dt, substep)
-       
-   end if
+    end if
 
     
   end subroutine advance_one_level_subcycling
@@ -358,7 +351,6 @@ contains
   subroutine advance_all_levels(time, dt)
 
     use read_input_module, only : solve_sw, solve_heat
-    use heat_transfer_domain_module, only : reset_melt_pos
     use material_properties_module, only : get_temp
     use shallow_water_module, only : advance_SW
     use heat_transfer_module, only : advance_heat_solver_implicit
@@ -367,21 +359,15 @@ contains
     real(amrex_real), intent(in) :: dt
     real(amrex_real), intent(in) :: time
 
-    ! Propagate SW equations (only at max level)
+    ! Advance SW equations (only at max level)
     if (solve_sw) then
        call advance_SW    
     end if
 
+    ! Advance heat equation
     if(solve_heat) then
-       
-      ! Set melt interface position array equal to free interface position array 
-      ! The new melt position is then found after heat has been propagated 
-      call reset_melt_pos 
-      
-      ! Advance heat equation
-      call advance_heat_solver_implicit(time, dt)
-      
-   end if
+       call advance_heat_solver_implicit(time, dt)
+    end if
 
   end subroutine advance_all_levels
 

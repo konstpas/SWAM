@@ -23,6 +23,8 @@ contains
   ! all levels via an implicit update.
   ! -----------------------------------------------------------------
   subroutine advance_heat_solver_implicit(time, dt)
+
+    use heat_transfer_domain_module, only : reset_melt_pos
     
     ! Input and output variables
     real(amrex_real), intent(in) :: dt
@@ -37,14 +39,17 @@ contains
     ! Initialize temporary multifabs
     call init_tmp_multifab(time, phi_tmp, temp_tmp, idomain_tmp)
 
+    ! Reset melt position (to properly treat resolidification)
+    call reset_melt_pos
+    
     ! Advance the conductive part of the heat equation
     call advance_conduction(time, dt, phi_tmp, temp_tmp, idomain_tmp)
 
     ! Advance the advective part of the heat equation
     call advance_advection(dt, temp_tmp)
 
-    ! Update position of the melt bottom
-    call get_melt_pool_bottom   
+    ! Update melt position
+    call update_melt_pos   
     
     ! Clean memory
     do ilev = 0, amrex_max_level
@@ -1025,7 +1030,7 @@ contains
   ! Subroutine used to update the position of the bottom of the
   ! melt pool
   ! -----------------------------------------------------------------
-  subroutine get_melt_pool_bottom()
+  subroutine update_melt_pos()
     
     use amr_data_module, only : phi_new,&
                                 idomain
@@ -1060,6 +1065,6 @@ contains
     !$omp end parallel   
 
     
-  end subroutine get_melt_pool_bottom
+  end subroutine update_melt_pos
   
 end module heat_transfer_implicit_module

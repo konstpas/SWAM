@@ -405,7 +405,8 @@ contains
   subroutine get_melt_pos(lo, hi, idom, id_lo, id_hi, geom)
        
     use amr_data_module, only : melt_pos, &
-                                melt_top
+                                melt_top, &
+                                surf_pos
    
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) 
@@ -420,7 +421,7 @@ contains
 
     do j = lo(2), hi(2)        
        do i = lo(1), hi(1)  
-
+          
           ! Positon of the melt bottom
           if (nint(idom(i,j)).ge.2 .and. nint(idom(i,j-1)).lt.2) then
              
