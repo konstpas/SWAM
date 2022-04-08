@@ -185,7 +185,7 @@ contains
     call amrex_parmparse_build(pp, "grid")
     call pp%query("regrid_int", regrid_int)
     call pp%query("max_grid_size_1d", max_grid_size_1d)
-    call pp%getarr("surfdist", surfdist)
+    call pp%queryarr("surfdist", surfdist)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the output
@@ -212,16 +212,16 @@ contains
     call pp%query("temp_init", temp_init)
     call pp%query("phase_init", phase_init)
     call pp%query("plasma_flux_type", plasma_flux_type) 
-    call pp%getarr("plasma_flux_params", plasma_flux_params)
+    call pp%queryarr("plasma_flux_params", plasma_flux_params)
     call pp%query("plasma_side_flux_type", plasma_flux_side_type) 
-    call pp%getarr("plasma_side_flux_params", plasma_flux_side_params)
+    call pp%queryarr("plasma_side_flux_params", plasma_flux_side_params)
     call pp%query("plasma_flux_input_file", plasma_flux_input_file)
     call pp%query("plasma_side_flux_input_file", plasma_flux_side_input_file)
     call pp%query("temp_free_surface", temp_fs)
     call pp%query("cooling_thermionic",cooling_thermionic)
     call pp%query("cooling_vaporization",cooling_vaporization)
     call pp%query("cooling_radiation",cooling_radiation)
-    call pp%getarr("cooling_debug",cooling_debug)
+    call pp%queryarr("cooling_debug",cooling_debug)
     call pp%query("thermionic_alpha",thermionic_alpha)
     call pp%query("heat_solver",heat_solver)
     call amrex_parmparse_destroy(pp)
@@ -244,7 +244,7 @@ contains
     ! Parameters for the geometry
     call amrex_parmparse_build(pp, "geometry")
     call pp%query("geometry_name", geometry_name)
-    call pp%getarr("cool_pipe_cntr",cool_pipe_cntr)
+    call pp%queryarr("cool_pipe_cntr",cool_pipe_cntr)
     call pp%query("cool_pipe_radius", cool_pipe_radius)
     call amrex_parmparse_destroy(pp)
 
