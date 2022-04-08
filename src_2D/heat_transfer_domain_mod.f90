@@ -405,8 +405,7 @@ contains
   subroutine get_melt_pos(lo, hi, idom, id_lo, id_hi, geom)
        
     use amr_data_module, only : melt_pos, &
-                                melt_top, &
-                                surf_pos
+                                melt_top
    
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) 
@@ -542,9 +541,7 @@ contains
     if (melt_vel(xind,1).gt.0_amrex_real) then
        xind = xind - 1
        found_upwind = .true.
-    end if
-    
-    if (melt_vel(xind+1,1).lt.0_amrex_real) then
+    else if (melt_vel(xind+1,1).lt.0_amrex_real) then
        xind = xind + 1
        found_upwind = .true.
     end if

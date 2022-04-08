@@ -47,7 +47,7 @@ contains
     ! Initialize amrex
     call amrex_init 
     call amrex_amrcore_init
-
+    
     ! Read input file
     call read_input_file
 
@@ -57,9 +57,14 @@ contains
     ! Print cooling fluxes to table if debug is on
     if (nint(cooling_debug(1)) .eq. 1) call debug_cooling_fluxes
 
-    ! Read in the heat flux file, if necessery
-    if (plasma_flux_type.eq.'Input_file') call construct_plasma_flux_table(.false.)
-    if (geometry_name.eq.'West' .and. plasma_flux_side_type.eq.'Input_file') call construct_plasma_flux_table(.true.)
+    ! Read heat flux from file
+    if (plasma_flux_type.eq.'Input_file') then
+       call construct_plasma_flux_table(.false.)
+    end if
+    if (geometry_name.eq.'West' .and. &
+        plasma_flux_side_type.eq.'Input_file') then
+       call construct_plasma_flux_table(.true.)
+    end if
     
     ! Initialize amrex data used in the simulation
     call amr_data_init
