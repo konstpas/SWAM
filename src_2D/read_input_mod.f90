@@ -86,16 +86,19 @@ module read_input_module
   public :: restart
   public :: solve_sw
   public :: solve_heat
-  public :: solve_sw_momentum
+  public :: sw_solve_momentum
   public :: sw_magnetic
-  public :: sw_h_cap
+  public :: sw_captol
+  public :: sw_drytol
+  public :: sw_current
+  public :: sw_pool_params
   public :: stop_time
   public :: surfdist
   public :: surf_pos_init
   public :: sample_edge
   public :: temp_fs
   public :: temp_init
-  public :: thermionic_alpha
+  public :: magnetic_inclination
   public :: verbose
   
   ! -----------------------------------------------------------------
@@ -140,27 +143,30 @@ module read_input_module
   logical, save :: ls_consolidation
   logical, save :: solve_sw
   logical, save :: solve_heat
-  logical, save :: solve_sw_momentum
+  logical, save :: sw_solve_momentum
   real(amrex_real), save :: cfl
+  real(amrex_real), save :: cool_pipe_radius
   real(amrex_real), save :: dt_change_max
   real(amrex_real), save :: in_dt  
   real(amrex_real), save :: fixed_melt_velocity
   real(amrex_real), save :: ls_accuracy
+  real(amrex_real), save :: magnetic_inclination
   real(amrex_real), save :: phiT_table_max_T
   real(amrex_real), save :: stop_time
   real(amrex_real), save :: surf_pos_init
   real(amrex_real), save :: sample_edge
-  real(amrex_real), save :: cool_pipe_radius
+  real(amrex_real), save :: sw_captol
+  real(amrex_real), save :: sw_drytol
   real(amrex_real), save :: sw_magnetic
-  real(amrex_real), save :: sw_h_cap
   real(amrex_real), save :: temp_fs
   real(amrex_real), save :: temp_init
-  real(amrex_real), save :: thermionic_alpha
   real(amrex_real), allocatable, save :: cooling_debug(:)
   real(amrex_real), allocatable, save :: cool_pipe_cntr(:)
-  real(amrex_real), allocatable, save :: surfdist(:)
   real(amrex_real), allocatable, save :: plasma_flux_params(:)
   real(amrex_real), allocatable, save :: plasma_flux_side_params(:)
+  real(amrex_real), allocatable, save :: surfdist(:)
+  real(amrex_real), allocatable, save :: sw_current(:)
+  real(amrex_real), allocatable, save :: sw_pool_params(:)
   
 contains
 
@@ -224,16 +230,19 @@ contains
     call pp%query("cooling_vaporization",cooling_vaporization)
     call pp%query("cooling_radiation",cooling_radiation)
     call pp%queryarr("cooling_debug",cooling_debug)
-    call pp%query("thermionic_alpha",thermionic_alpha)
+    call pp%query("magnetic_inclination",magnetic_inclination)
     call pp%query("heat_solver",heat_solver)
     call amrex_parmparse_destroy(pp)
     
     ! Parameters for the shallow water solver
     call amrex_parmparse_build(pp, "sw")
     call pp%query("solve", solve_sw)
-    call pp%query("solve_momentum", solve_sw_momentum)
+    call pp%query("solve_momentum", sw_solve_momentum)
     call pp%query("magnetic", sw_magnetic)
-    call pp%query("h_cap", sw_h_cap)
+    call pp%query("captol", sw_captol)
+    call pp%query("drytol", sw_drytol)
+    call pp%queryarr("current", sw_current)
+    call pp%queryarr("pool_params", sw_pool_params)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the material
@@ -287,15 +296,17 @@ contains
     allocate(character(len=25)::plasma_flux_side_input_file)
     allocate(character(len=8)::material)
     allocate(character(len=4)::geometry_name)
-    allocate(cool_pipe_cntr(2))
     allocate(character(len=9)::phase_init)
     allocate(character(len=3)::plot_file)
     allocate(character(len=0)::restart)
-    allocate(cooling_debug(5))    
-    allocate(surfdist(0:amrex_max_level))
+    allocate(cooling_debug(5))
+    allocate(cool_pipe_cntr(2))
     allocate(plasma_flux_params(100))
     allocate(plasma_flux_side_params(100))
-
+    allocate(surfdist(0:amrex_max_level))
+    allocate(sw_current(3))
+    allocate(sw_pool_params(3))
+    
     cfl = 0.70
     check_file = "chk"
     check_int = -1
@@ -310,7 +321,7 @@ contains
     do_reflux = .true.
     dt_change_max = 1.1
     in_dt = 0.0001
-    fixed_melt_velocity = 0.0_amrex_real
+    fixed_melt_velocity = 0.0
     heat_solver = "explicit"
     ls_accuracy = 10e-10
     ls_composite_solve = .true.
@@ -327,7 +338,7 @@ contains
     geometry_name = "Slab"
     cool_pipe_cntr(1) = 0.01
     cool_pipe_cntr(2) = 0.005
-    cool_pipe_radius = 0_amrex_real
+    cool_pipe_radius = 0.0
     max_grid_size_1d = 16
     max_step = 10000
     phase_init = "undefined"
@@ -352,16 +363,21 @@ contains
     regrid_int = 2
     solve_heat = .false.
     solve_sw = .true.
-    solve_sw_momentum = .true.
-    sw_magnetic = 0.0_amrex_real
-    sw_h_cap = 0.0_amrex_real
+    sw_solve_momentum = .true.
+    sw_magnetic = 0.0
+    sw_captol = 0.0
+    sw_current = 0.0
+    sw_drytol = 0.0
+    sw_pool_params(1) = 0.0
+    sw_pool_params(2) = 0.0
+    sw_pool_params(3) = 1.0
     stop_time = 1.0
     do i = 0, amrex_max_level
        surfdist(i) = 0.0
     end do
     surf_pos_init = 0.020
     sample_edge = 0.020
-    thermionic_alpha = 90.0
+    magnetic_inclination = 90.0
     temp_fs = -1.0
     verbose = 0
     
@@ -385,7 +401,9 @@ contains
     deallocate(plot_file)
     deallocate(restart)
     deallocate(surfdist)
-
+    deallocate(sw_current)
+    deallocate(sw_pool_params)
+    
   end subroutine deallocate_input
     
 end module read_input_module

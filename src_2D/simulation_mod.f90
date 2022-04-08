@@ -61,7 +61,7 @@ contains
        ! Compute time step size
        call compute_dt
 		 
-       ! Advance all levels of one time step
+       ! Advance all levels of one time step (with or withouth subcycling)
        if (solve_heat) then
           if (heat_solver.eq."explicit") then
              lev = 0
@@ -72,6 +72,8 @@ contains
           else
              STOP "Unknown heat solver prescribed in input"
           end if
+       else
+          call advance_one_timestep(cur_time)
        end if
        
        ! Update time on all levels
@@ -299,7 +301,7 @@ contains
 
     ! Advance shallow-water equations (only at max level)
     if (solve_sw .and. lev.eq.amrex_max_level) then
-       call advance_SW    
+       call advance_SW(time)    
     end if 
 
     ! Advance heat equation
@@ -361,7 +363,7 @@ contains
 
     ! Advance SW equations (only at max level)
     if (solve_sw) then
-       call advance_SW    
+       call advance_SW(time)    
     end if
 
     ! Advance heat equation

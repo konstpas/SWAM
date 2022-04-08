@@ -23,16 +23,19 @@ contains
   ! Subroutine used to advance the shallow water equations in time
   ! for the entire maximum level  
   ! -----------------------------------------------------------------
-  subroutine advance_SW()
+  subroutine advance_SW(time)
 
     use amr_data_module, only : dt
-    use read_input_module, only : solve_sw_momentum
+    use read_input_module, only : sw_solve_momentum
+
+    ! Input and output variables
+    real(amrex_real), intent(in) :: time
     
     ! Compute terms that are coupled to the heat response
-    call compute_SW_temperature_terms
+    call compute_SW_temperature_terms(time)
 
     ! Advance shallow water equations in time
-    if (solve_sw_momentum) then
+    if (sw_solve_momentum) then
        call advance_SW_explicit(dt(amrex_max_level))
     else
        call advance_SW_fixed_velocity(dt(amrex_max_level))
@@ -44,12 +47,15 @@ contains
   ! Subroutine used to compute the temperature dependent terms
   ! in the shallow water equations
   ! -----------------------------------------------------------------
-  subroutine compute_SW_temperature_terms()
+  subroutine compute_SW_temperature_terms(time)
 
     use amr_data_module, only : phi_new, &
                                 temp, &
                                 idomain
     use read_input_module, only : solve_heat
+
+    ! Input and output variables
+    real(amrex_real), intent(in) :: time
     
     ! Local variables
     integer :: lev
@@ -87,7 +93,7 @@ contains
        
     else
        
-       call SW_temperature_terms_decoupled
+       call SW_temperature_terms_decoupled(time)
 
     end if
     
@@ -182,24 +188,38 @@ contains
   ! Subroutine used to compute the temperature dependent terms
   ! in the shallow water equations
   ! -----------------------------------------------------------------
-  subroutine SW_temperature_terms_decoupled()
+  subroutine SW_temperature_terms_decoupled(time)
     
-    use amr_data_module, only : surf_temperature, surf_evap_flux, surf_enthalpy, J_th
+    use amr_data_module, only : surf_temperature, &
+                                surf_evap_flux, &
+                                surf_enthalpy, &
+                                surf_current
+    use read_input_module, only : temp_init, &
+                                  sw_current
     use material_properties_module, only : get_enthalpy
+
+    ! Input and output variables
+    real(amrex_real), intent(in) :: time
     
     ! Local variables
-    real(amrex_real) :: enth, temp
+    real(amrex_real) :: enth
 
-    ! Do these numbers retain any specific meaning?
-    ! If not, for the temperature can we use the temperature given in input?
-    ! If not, can we set J_th to zero?
-    temp = 4000.0
-    surf_evap_flux = 0.0
-    surf_temperature = temp
-    call get_enthalpy(temp, enth)
+    ! Set temperature
+    surf_temperature = temp_init
+
+    ! Surface enthalpy
+    call get_enthalpy(temp_init, enth)
     surf_enthalpy = enth
-    J_th = 2e6;
+
+    ! Surface evaporation flux
+    surf_evap_flux = 0.0
     
+    ! Set thermionic current
+    if (time.ge.sw_current(2) .and. &
+        time.le.sw_current(3)) then 
+       surf_current = sw_current(1);
+    end if
+
   end subroutine SW_temperature_terms_decoupled
   
   
@@ -344,12 +364,12 @@ contains
                                 surf_dx, &
                                 surf_pos, &
                                 surf_temperature, &
+                                surf_current, &
                                 melt_pos, &
                                 melt_vel, &
-                                max_melt_vel, &
-                                J_th
-    
-    use read_input_module, only : sw_magnetic, sw_h_cap
+                                max_melt_vel
+                                
+    use read_input_module, only : sw_magnetic, sw_captol
 
     use material_properties_module, only : get_mass_density, &
                                            get_viscosity
@@ -409,17 +429,20 @@ contains
           ! Material properties
           call get_viscosity(temp_face,visc)
           call get_mass_density(temp_face,rho)
-          
-          J_face = (J_th(i-1)+J_th(i))/2
+
+          ! Thermionic current on the face
+          J_face = (surf_current(i-1) + surf_current(i))/2.0
           
           ! Calculate the laplacian term only in points inside the melt pool - not on its edges
           if (melt_vel(i-1, 1).ne.0.0 .and. melt_vel(i+1, 1).ne.0.0) then
-            laplacian_term = visc * (melt_vel(i+1,1)-2*melt_vel(i,1)+melt_vel(i-1,1))/surf_dx(1)**2
+             laplacian_term = visc * (melt_vel(i+1,1) - 2.0*melt_vel(i,1) + &
+                                      melt_vel(i-1,1))/surf_dx(1)**2
           else
             laplacian_term = 0.0
-          end if
+         end if
+         
           ! Update source term
-          src_term(i) =  sw_magnetic*J_face/4 & ! Lorentz force
+          src_term(i) =  sw_magnetic * J_face/4.0 & ! Lorentz force
                          + laplacian_term
           
           ! Fix dimensionality
@@ -439,7 +462,7 @@ contains
       call get_mass_density(temp_face,rho)
       
       if (hh.gt.0.0_amrex_real) then
-         if (hh.lt.sw_h_cap) hh = sw_h_cap ! Cap the friction term
+         if (hh.lt.sw_captol) hh = sw_captol ! Cap the friction term
          melt_vel(i,1) = (melt_vel(i,1) + dt * (src_term(i) - adv_term(i)))/(1+3*visc*dt/(rho*hh**2))
       else
           melt_vel(i,1) = 0.0_amrex_real
@@ -463,24 +486,34 @@ contains
   ! in not calculated.
   ! -----------------------------------------------------------------
   subroutine init_melt_pos()
+    
     use amr_data_module, only : melt_pos, &
                                 surf_pos, &
                                 surf_dx, &
                                 surf_ind
+    use read_input_module, only : sw_drytol, &
+                                  sw_pool_params
 
-      ! Local variables
-      real(amrex_real) :: x_phys
-      integer :: i
+    ! Local variables
+    real(amrex_real) :: x_phys
+    integer :: i
+    
+    do i = surf_ind(1,1), surf_ind(1,2)
+       
+       x_phys = (i + 0.5) * surf_dx(1)
 
-      ! Can we get rid of this hard-coded parameters?
-      do i = surf_ind(1,1), surf_ind(1,2)
-         x_phys = (i+0.5)*surf_dx(1)
-         melt_pos(i) = surf_pos(i) - 200e-6 * EXP(-((x_phys-2e-2)**2)/(0.005**2))
-         if (surf_pos(i)-melt_pos(i).lt.3e-6) then
-            melt_pos(i) = surf_pos(i)
-         end if
-      end do
+       ! Position of the bottom of the melt pool
+       melt_pos(i) = surf_pos(i) - sw_pool_params(1) &
+                     * EXP(-((x_phys - sw_pool_params(2))**2) &
+                             /(sw_pool_params(3)**2))
 
+       ! Set to zero for melt pools smaller than the dry tolerance 
+       if (surf_pos(i) - melt_pos(i).lt.sw_drytol) then
+          melt_pos(i) = surf_pos(i)
+       end if
+       
+    end do
+    
   end subroutine init_melt_pos
 
   

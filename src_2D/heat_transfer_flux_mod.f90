@@ -93,7 +93,7 @@ contains
                                   cooling_vaporization, &
                                   cooling_radiation, &
                                   cooling_radiation
-    use amr_data_module, only : J_th
+    use amr_data_module, only : surf_current
     
     
     ! Input and output variables
@@ -153,7 +153,7 @@ contains
              ! value of the thermionic current needed in the shallow water solver)
              if (cooling_thermionic) then
                 if(lev.eq.amrex_max_level) then
-                   call thermionic_cooling(temp(i,j), q_plasma, q_therm, J_th(i))
+                   call thermionic_cooling(temp(i,j), q_plasma, q_therm, surf_current(i))
                 else
                    call thermionic_cooling(temp(i,j), q_plasma, q_therm)
                 end if
@@ -571,7 +571,7 @@ contains
     use material_properties_module, only : get_work_function, &
                                            get_Richardson
     
-    use read_input_module, only : thermionic_alpha
+    use read_input_module, only : magnetic_inclination
     
     ! Input and output variables                                       
     real(amrex_real), intent(in) :: Ts        ! Temperature at the center of cells adjacent to the free surface [K]
@@ -596,7 +596,7 @@ contains
     Jth_nom = Aeff*EXP(-Wf/(kb*Ts))*Ts**2
     
     ! Space-charge limited current (semi-empirical expression)
-    Jth_lim = 1.51e4 * q_plasma**(1.0/3.0) * (SIN(thermionic_alpha/180*pi))**2
+    Jth_lim = 1.51e4 * q_plasma**(1.0/3.0) * (SIN(magnetic_inclination/180*pi))**2
     
     ! Minimum between nominal and space-charge limited
     J = MIN(Jth_lim, Jth_nom)
@@ -723,7 +723,7 @@ contains
   subroutine debug_cooling_fluxes() 
     
     use read_input_module, only : cooling_debug, &
-                                  thermionic_alpha
+                                  magnetic_inclination
     
     integer :: i
     real(amrex_real) :: dT
@@ -736,7 +736,7 @@ contains
     temp = cooling_debug(2)
     
     open (2, file = 'cooling_fluxes.dat', status = 'unknown')
-    write(2, *) '# plasma flux and magnetic inclination: ', cooling_debug(5), thermionic_alpha
+    write(2, *) '# plasma flux and magnetic inclination: ', cooling_debug(5), magnetic_inclination
     write(2, *) '# Temperature[K], Thermionic flux [W/m^2], Radiative flux [W/m^2], Vaporization flux [W/m^2]'
     do i = 0,nint(cooling_debug(4)) 
        call thermionic_cooling(temp, cooling_debug(5), q_therm)

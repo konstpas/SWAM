@@ -68,7 +68,7 @@ module amr_data_module
   ! Evaporation flux on the free surface
   public :: surf_evap_flux
   ! Thermionic current on the free surface
-  public :: J_th
+  public :: surf_current
   ! Time
   public :: t_new
   public :: t_old
@@ -88,7 +88,6 @@ module amr_data_module
   integer, allocatable, save :: stepno(:)
   integer, save  :: surf_ind(1,2)
   real(amrex_real), allocatable, save :: dt(:)
-  real(amrex_real), allocatable, save :: J_th(:)
   real(amrex_real), allocatable, save :: melt_pos(:)
   real(amrex_real), allocatable, save :: melt_top(:)
   real(amrex_real), save :: max_melt_vel
@@ -99,6 +98,7 @@ module amr_data_module
   real(amrex_real), allocatable, save :: plasma_flux_side_time_mesh(:)
   real(amrex_real), allocatable, save :: plasma_flux_side_surf_mesh(:)
   real(amrex_real), allocatable, save :: plasma_flux_side_table(:,:)
+  real(amrex_real), allocatable, save :: surf_current(:)
   real(amrex_real), allocatable, save :: surf_enthalpy(:)
   real(amrex_real), allocatable, save :: surf_evap_flux(:)
   real(amrex_real), allocatable, save :: surf_pos(:)
@@ -127,7 +127,7 @@ contains
   subroutine amr_data_init()
     
     use read_input_module, only : surf_pos_init
-  
+                                 
     integer ::  lev
     integer ::  lo_x
     integer ::  hi_x
@@ -147,11 +147,11 @@ contains
     allocate(melt_vel(lo_x:hi_x+1, 1:amrex_spacedim-1))
     allocate(phi_new(0:amrex_max_level))
     allocate(phi_old(0:amrex_max_level))
+    allocate(surf_current(lo_x:hi_x))
     allocate(surf_enthalpy(lo_x:hi_x))
     allocate(surf_evap_flux(lo_x:hi_x))
     allocate(surf_pos(lo_x:hi_x))
     allocate(surf_pos_grid(lo_x:hi_x))
-    allocate(J_th(lo_x:hi_x))
     allocate(surf_temperature(lo_x:hi_x))
     allocate(temp(0:amrex_max_level))
     allocate(t_new(0:amrex_max_level))
@@ -175,12 +175,12 @@ contains
     surf_dx(1) = amrex_geom(amrex_max_level)%dx(1)
     surf_ind(1,1) = lo_x
     surf_ind(1,2) = hi_x
+    surf_current = 0.0_amrex_real
     surf_enthalpy = 0.0_amrex_real
     surf_evap_flux = 0.0_amrex_real
     surf_pos = surf_pos_init
     surf_pos_grid = surf_pos_init
     surf_temperature = 0.0_amrex_real
-    J_th = 0.0_amrex_real
     surf_xlo(1) = amrex_problo(1)
     t_new = 0.0_amrex_real
     t_old = -1.0_amrex_real
@@ -208,19 +208,18 @@ contains
     deallocate(last_regrid_step)
     deallocate(melt_pos)
     deallocate(melt_vel)
+    deallocate(surf_current)
     deallocate(surf_enthalpy)
     deallocate(surf_evap_flux)
     deallocate(surf_pos)
     deallocate(surf_pos_grid)
     deallocate(surf_temperature)
-    deallocate(J_th)
     deallocate(t_new)
     deallocate(t_old)
     deallocate(stepno)
     deallocate(nsubsteps)
 
-    ! Deallocate public variables that are allocated only for
-    ! certain geometries
+    ! Deallocate public variables allocated only for certain geometries
     if (allocated(plasma_flux_time_mesh)) deallocate(plasma_flux_time_mesh)
     if (allocated(plasma_flux_surf_mesh)) deallocate(plasma_flux_surf_mesh)
     if (allocated(plasma_flux_table)) deallocate(plasma_flux_table)

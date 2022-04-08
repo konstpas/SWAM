@@ -716,6 +716,7 @@ contains
     real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))
     real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2))
     real(amrex_real), intent(out) :: qvol(lo(1):hi(1),lo(2):hi(2))
+
     ! Local variables
     integer :: i,j
     integer :: fx_lo(2), fx_hi(2)
