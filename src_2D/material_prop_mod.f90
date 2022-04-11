@@ -770,7 +770,7 @@ module material_properties_module
   ! ------------------------------------------------------------------ 
   subroutine get_enthalpy(temp,enth) 
 
-    use read_input_module, only : phase_init
+    use read_input_module, only : heat_phase_init
     
     ! Input and output variables
     real(amrex_real), intent(in) :: temp
@@ -800,9 +800,9 @@ module material_properties_module
     ! it should be specified if the system is to be considered solid or liquid
     if (temp .eq. temp_melt) then
        
-       if (phase_init .eq. "solid") then
+       if (heat_phase_init .eq. "solid") then
           enth = enth_table(idx)
-       else if (phase_init .eq. "liquid") then
+       else if (heat_phase_init .eq. "liquid") then
           enth = enth_table(idx+1)
        else
           STOP "get_enthalpy: For systems at the melting temperature the phase (liquid or solid) should be specified"

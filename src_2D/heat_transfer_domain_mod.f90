@@ -151,7 +151,7 @@ contains
                               temp, t_lo, t_hi)
   
     use material_properties_module, only : temp_melt  
-    use read_input_module, only : sample_edge, &
+    use read_input_module, only : heat_sample_edge, &
                                   geom_cool_pipe_cntr, &
                                   geom_cool_pipe_radius  
     
@@ -211,7 +211,7 @@ contains
 
           ! Set flags
           if (j .le. surf_ind_heat_domain .and. &
-               xpos .le. sample_edge .and. &
+               xpos .le. heat_sample_edge .and. &
                (.not.pipe_flag)) then             
              if (find_liquid) then
                 if (temp(i,j).gt.temp_melt) then
@@ -247,7 +247,7 @@ contains
                                           temp, t_lo, t_hi)
     
     use material_properties_module, only : temp_melt  
-    use read_input_module, only : sample_edge, &
+    use read_input_module, only : heat_sample_edge, &
          geom_cool_pipe_cntr, &
          geom_cool_pipe_radius  
     
@@ -309,7 +309,7 @@ contains
 
           ! Set flags
           if (j .le. surf_ind_heat_domain .and. &
-               xpos .le. sample_edge .and. &
+               xpos .le. heat_sample_edge .and. &
                (.not.pipe_flag)) then
              if (find_liquid) then
                 if (temp(i,j).gt.temp_melt) then

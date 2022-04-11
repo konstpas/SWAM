@@ -48,11 +48,11 @@ module read_input_module
   ! --- Variables that control the length of the simulation ---
 
   ! Time step [s]
-  public :: in_dt
+  public :: time_dt
   ! Maximum number of time steps
-  public :: max_step  
+  public :: time_step_max  
   ! Maximum simulated time [s]
-  public :: stop_time
+  public :: time_max
 
 
   ! --- Variables for the geometry of the heat transfer domain ---
@@ -79,20 +79,20 @@ module read_input_module
   ! with 1 = on and 0 = off, 2) minimum temperature
   ! 3) maximum temperature, 4) temperature resolution
   ! 5) incoming heat flux
-  public :: cooling_debug
+  public :: heat_cooling_debug
   ! Activate or deactivate thermionic cooling (1 = on, 0 = off)
-  public :: cooling_thermionic
+  public :: heat_cooling_thermionic
   ! Activate or deactivate vaporization cooling (1 = on, 0 = off)
-  public :: cooling_vaporization
+  public :: heat_cooling_vaporization
   ! Activate or deactivate radiative cooling (1 = on, 0 = off)
-  public :: cooling_radiation
+  public :: heat_cooling_radiation
   ! Solver for the heat equation (explicit or implicit)
   public :: heat_solver
   ! Initial phase of the sample (solid, liquid). Relevant only
   ! if the sample is initialized at the melting temperature
-  public :: phase_init
+  public :: heat_phase_init
   ! Type of plasma heat flux (Gaussian, Uniform, Input_file)
-  public :: plasma_flux_type
+  public :: heat_plasma_flux_type
   ! Parameters for the plasma heat flux. An array with 5 parameters
   ! whose content depends on the type of plasma heat flux
   !  a) Gaussian heat flux, array with 5 elements: 1) switching on,
@@ -101,28 +101,28 @@ module read_input_module
   !  b) Uniform heat flux, array with 5 elements: 1) switching on
   !     time [s], 2) switching off time [s], 3) magnitude [W/m^2],
   !     4) minimum x coordinate [m], 5) maximum x coordinate [m]
-  public :: plasma_flux_params
+  public :: heat_plasma_flux_params
   ! Name of file containing the plasma flux (used only if the plasma
   ! heat flux is of type Input_file)
-  public :: plasma_flux_input_file
+  public :: heat_plasma_flux_file
   ! Type of plasma heat flux on the second exposed side for the
   ! West geometry (Gaussian, Uniform, Input_file)
-  public :: plasma_flux_side_type
+  public :: heat_plasma_flux_side_type
   ! Parameters for the plasma heat flux on the second exposed side
-  ! for the West geometry. Analogous to plasma_flux_parameters
-  public :: plasma_flux_side_params
+  ! for the West geometry. Analogous to heat_plasma_flux_parameters
+  public :: heat_plasma_flux_side_params
   ! Name of file containing the plasma flux on the second exposed
   ! side for the West geometry (Used only if the plasma
   ! heat flux is of type Input_file)
-  public :: plasma_flux_side_input_file
+  public :: heat_plasma_flux_side_file
   ! Edge of the simulation domain along the x direction [m]
-  public :: sample_edge
+  public :: heat_sample_edge
   ! Solve the heat equation (1 = yes, 0 = no) 
-  public :: solve_heat
+  public :: heat_solve
   ! Impose temperature on the free surface (only used if positive) [K]
-  public :: temp_fs
+  public :: heat_temp_surf
   ! Initial uniform temperature of the sample [K]
-  public :: temp_init
+  public :: heat_temp_init
 
 
   ! --- Variables for the linear solvers ---
@@ -229,11 +229,11 @@ module read_input_module
   character(len=:), allocatable, save :: material
   character(len=:), allocatable, save :: geom_name
   character(len=:), allocatable, save :: heat_solver
-  character(len=:), allocatable, save :: plasma_flux_type
-  character(len=:), allocatable, save :: plasma_flux_input_file
-  character(len=:), allocatable, save :: plasma_flux_side_type
-  character(len=:), allocatable, save :: plasma_flux_side_input_file
-  character(len=:), allocatable, save :: phase_init
+  character(len=:), allocatable, save :: heat_plasma_flux_type
+  character(len=:), allocatable, save :: heat_plasma_flux_file
+  character(len=:), allocatable, save :: heat_plasma_flux_side_type
+  character(len=:), allocatable, save :: heat_plasma_flux_side_file
+  character(len=:), allocatable, save :: heat_phase_init
   character(len=:), allocatable, save :: plot_file
   character(len=:), allocatable, save :: restart   
   integer, save :: check_int
@@ -244,41 +244,41 @@ module read_input_module
   integer, save :: ls_bottom_solver
   integer, save :: ls_linop_maxorder
   integer, save :: ls_max_coarsening_level
-  integer, save :: max_step
+  integer, save :: time_step_max
   integer, save :: phiT_table_n_points
   integer, save :: plot_int
   integer, save :: regrid_int
   integer, save :: verbose
-  logical, save :: cooling_thermionic
-  logical, save :: cooling_vaporization
-  logical, save :: cooling_radiation
+  logical, save :: heat_cooling_thermionic
+  logical, save :: heat_cooling_vaporization
+  logical, save :: heat_cooling_radiation
   logical, save :: do_reflux
   logical, save :: ls_composite_solve  
   logical, save :: ls_agglomeration
   logical, save :: ls_consolidation
-  logical, save :: solve_heat
+  logical, save :: heat_solve
   logical, save :: sw_solve
   logical, save :: sw_solve_momentum
   real(amrex_real), save :: cfl
   real(amrex_real), save :: geom_cool_pipe_radius
   real(amrex_real), save :: dt_change_max
-  real(amrex_real), save :: in_dt  
+  real(amrex_real), save :: time_dt  
   real(amrex_real), save :: ls_accuracy
   real(amrex_real), save :: phiT_table_max_T
-  real(amrex_real), save :: stop_time
-  real(amrex_real), save :: sample_edge
+  real(amrex_real), save :: time_max
+  real(amrex_real), save :: heat_sample_edge
   real(amrex_real), save :: sw_captol
   real(amrex_real), save :: sw_drytol
   real(amrex_real), save :: sw_magnetic_inclination
   real(amrex_real), save :: sw_magnetic_magnitude
   real(amrex_real), save :: sw_melt_velocity
   real(amrex_real), save :: sw_surf_pos_init
-  real(amrex_real), save :: temp_fs
-  real(amrex_real), save :: temp_init
-  real(amrex_real), allocatable, save :: cooling_debug(:)
+  real(amrex_real), save :: heat_temp_surf
+  real(amrex_real), save :: heat_temp_init
+  real(amrex_real), allocatable, save :: heat_cooling_debug(:)
   real(amrex_real), allocatable, save :: geom_cool_pipe_cntr(:)
-  real(amrex_real), allocatable, save :: plasma_flux_params(:)
-  real(amrex_real), allocatable, save :: plasma_flux_side_params(:)
+  real(amrex_real), allocatable, save :: heat_plasma_flux_params(:)
+  real(amrex_real), allocatable, save :: heat_plasma_flux_side_params(:)
   real(amrex_real), allocatable, save :: regrid_dist(:)
   real(amrex_real), allocatable, save :: sw_current(:)
   real(amrex_real), allocatable, save :: sw_pool_params(:)
@@ -299,9 +299,9 @@ contains
 
     ! Parameters for the simulation length and timestep
     call amrex_parmparse_build(pp, "length")
-    call pp%query("max_step", max_step)
-    call pp%query("stop_time", stop_time)
-    call pp%query("dt", in_dt)
+    call pp%query("max_step", time_step_max)
+    call pp%query("stop_time", time_max)
+    call pp%query("dt", time_dt)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the grid control
@@ -326,22 +326,22 @@ contains
    
     ! Parameters for the heat solver
     call amrex_parmparse_build(pp, "heat")
-    call pp%query("solve", solve_heat)  
-    call pp%query("sample_edge", sample_edge) 
-    call pp%query("temp_init", temp_init)
-    call pp%query("phase_init", phase_init)
-    call pp%query("plasma_flux_type", plasma_flux_type) 
-    call pp%queryarr("plasma_flux_params", plasma_flux_params)
-    call pp%query("plasma_side_flux_type", plasma_flux_side_type) 
-    call pp%queryarr("plasma_side_flux_params", plasma_flux_side_params)
-    call pp%query("plasma_flux_input_file", plasma_flux_input_file)
-    call pp%query("plasma_side_flux_input_file", plasma_flux_side_input_file)
-    call pp%query("temp_free_surface", temp_fs)
-    call pp%query("cooling_thermionic",cooling_thermionic)
-    call pp%query("cooling_vaporization",cooling_vaporization)
-    call pp%query("cooling_radiation",cooling_radiation)
-    call pp%queryarr("cooling_debug",cooling_debug)
-    call pp%query("heat_solver",heat_solver)
+    call pp%query("solve", heat_solve)  
+    call pp%query("sample_edge", heat_sample_edge) 
+    call pp%query("temp_init", heat_temp_init)
+    call pp%query("phase_init", heat_phase_init)
+    call pp%query("plasma_flux_type", heat_plasma_flux_type) 
+    call pp%queryarr("plasma_flux_params", heat_plasma_flux_params)
+    call pp%query("plasma_side_flux_type", heat_plasma_flux_side_type) 
+    call pp%queryarr("plasma_side_flux_params", heat_plasma_flux_side_params)
+    call pp%query("plasma_flux_file", heat_plasma_flux_file)
+    call pp%query("plasma_side_flux_file", heat_plasma_flux_side_file)
+    call pp%query("temp_free_surface", heat_temp_surf)
+    call pp%query("cooling_thermionic",heat_cooling_thermionic)
+    call pp%query("cooling_vaporization",heat_cooling_vaporization)
+    call pp%query("cooling_radiation",heat_cooling_radiation)
+    call pp%queryarr("cooling_debug",heat_cooling_debug)
+    call pp%query("solver",heat_solver)
     call amrex_parmparse_destroy(pp)
     
     ! Parameters for the shallow water solver
@@ -403,19 +403,19 @@ contains
         
     allocate(character(len=3)::check_file)
     allocate(character(len=8)::heat_solver)
-    allocate(character(len=8)::plasma_flux_type)
-    allocate(character(len=8)::plasma_flux_side_type)
-    allocate(character(len=25)::plasma_flux_input_file)
-    allocate(character(len=25)::plasma_flux_side_input_file)
+    allocate(character(len=8)::heat_plasma_flux_type)
+    allocate(character(len=8)::heat_plasma_flux_side_type)
+    allocate(character(len=25)::heat_plasma_flux_file)
+    allocate(character(len=25)::heat_plasma_flux_side_file)
     allocate(character(len=8)::material)
     allocate(character(len=4)::geom_name)
-    allocate(character(len=9)::phase_init)
+    allocate(character(len=9)::heat_phase_init)
     allocate(character(len=3)::plot_file)
     allocate(character(len=0)::restart)
-    allocate(cooling_debug(5))
+    allocate(heat_cooling_debug(5))
     allocate(geom_cool_pipe_cntr(2))
-    allocate(plasma_flux_params(100))
-    allocate(plasma_flux_side_params(100))
+    allocate(heat_plasma_flux_params(100))
+    allocate(heat_plasma_flux_side_params(100))
     allocate(regrid_dist(0:amrex_max_level))
     allocate(sw_current(3))
     allocate(sw_pool_params(3))
@@ -423,17 +423,17 @@ contains
     cfl = 0.70
     check_file = "chk"
     check_int = -1
-    cooling_debug(1) = 0
-    cooling_debug(2) = 300
-    cooling_debug(3) = 301
-    cooling_debug(4) = 1
-    cooling_debug(5) = 1e6
-    cooling_thermionic = .true.
-    cooling_vaporization = .true.
-    cooling_radiation = .true.
+    heat_cooling_debug(1) = 0
+    heat_cooling_debug(2) = 300
+    heat_cooling_debug(3) = 301
+    heat_cooling_debug(4) = 1
+    heat_cooling_debug(5) = 1e6
+    heat_cooling_thermionic = .true.
+    heat_cooling_vaporization = .true.
+    heat_cooling_radiation = .true.
     do_reflux = .true.
     dt_change_max = 1.1
-    in_dt = 0.0001
+    time_dt = 0.0001
     sw_melt_velocity = 0.0
     heat_solver = "explicit"
     ls_accuracy = 10e-10
@@ -452,28 +452,28 @@ contains
     geom_cool_pipe_cntr(1) = 0.01
     geom_cool_pipe_cntr(2) = 0.005
     geom_cool_pipe_radius = 0.0
-    max_step = 10000
-    phase_init = "undefined"
+    time_step_max = 10000
+    heat_phase_init = "undefined"
     phiT_table_max_T = 10000.0
     phiT_table_n_points = 10000
-    plasma_flux_params(1) = 0.0
-    plasma_flux_params(2) = 1.0
-    plasma_flux_params(3) = 300e6
-    plasma_flux_params(4) = 0.0
-    plasma_flux_params(5) = 0.01
-    plasma_flux_side_params(1) = 0.0
-    plasma_flux_side_params(2) = 1.0
-    plasma_flux_side_params(3) = 300e6
-    plasma_flux_side_params(4) = 0.0
-    plasma_flux_side_params(5) = 0.01
-    plasma_flux_type = "Gaussian"
-    plasma_flux_side_type = "Gaussian"
-    plasma_flux_input_file = "plasma_flux.dat"
-    plasma_flux_side_input_file = "plasma_side_flux.dat"
+    heat_plasma_flux_params(1) = 0.0
+    heat_plasma_flux_params(2) = 1.0
+    heat_plasma_flux_params(3) = 300e6
+    heat_plasma_flux_params(4) = 0.0
+    heat_plasma_flux_params(5) = 0.01
+    heat_plasma_flux_side_params(1) = 0.0
+    heat_plasma_flux_side_params(2) = 1.0
+    heat_plasma_flux_side_params(3) = 300e6
+    heat_plasma_flux_side_params(4) = 0.0
+    heat_plasma_flux_side_params(5) = 0.01
+    heat_plasma_flux_type = "Gaussian"
+    heat_plasma_flux_side_type = "Gaussian"
+    heat_plasma_flux_file = "plasma_flux.dat"
+    heat_plasma_flux_side_file = "plasma_side_flux.dat"
     plot_file = "plt"
     plot_int = -1
     regrid_int = 2
-    solve_heat = .false.
+    heat_solve = .true.
     sw_solve = .true.
     sw_solve_momentum = .true.
     sw_magnetic_magnitude = 0.0
@@ -483,14 +483,14 @@ contains
     sw_pool_params(1) = 0.0
     sw_pool_params(2) = 0.0
     sw_pool_params(3) = 1.0
-    stop_time = 1.0
+    time_max = 1.0
     do i = 0, amrex_max_level
        regrid_dist(i) = 0.0
     end do
     sw_surf_pos_init = 0.020
-    sample_edge = 0.020
+    heat_sample_edge = 0.020
     sw_magnetic_inclination = 90.0
-    temp_fs = -1.0
+    heat_temp_surf = -1.0
     verbose = 0
     
   end subroutine set_default_values
@@ -504,12 +504,12 @@ contains
     deallocate(heat_solver)
     deallocate(material)
     deallocate(geom_name)
-    deallocate(phase_init)
-    deallocate(plasma_flux_params)
-    deallocate(plasma_flux_type)
-    deallocate(plasma_flux_side_type)
-    deallocate(plasma_flux_input_file)
-    deallocate(plasma_flux_side_input_file)
+    deallocate(heat_phase_init)
+    deallocate(heat_plasma_flux_params)
+    deallocate(heat_plasma_flux_type)
+    deallocate(heat_plasma_flux_side_type)
+    deallocate(heat_plasma_flux_file)
+    deallocate(heat_plasma_flux_side_file)
     deallocate(plot_file)
     deallocate(restart)
     deallocate(regrid_dist)

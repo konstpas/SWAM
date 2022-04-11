@@ -24,8 +24,15 @@ contains
   ! -----------------------------------------------------------------
   subroutine run_simulation()
 
-    use amr_data_module, only : t_new, stepno, dt
-    use read_input_module, only : max_step, stop_time, plot_int, heat_solver, do_reflux, solve_heat
+    use amr_data_module, only : t_new, &
+                                stepno, &
+                                dt
+    use read_input_module, only : time_step_max, &
+                                  time_max, &
+                                  plot_int, &
+                                  heat_solver, &
+                                  do_reflux, &
+                                  heat_solve
     use plotfile_module, only: writeplotfile
 
     ! Local variables
@@ -33,16 +40,16 @@ contains
     integer :: step
     integer :: lev
     integer :: substep
-    real(amrex_real) :: cur_time
+    real(amrex_real) :: time
 
     ! Initialize time
-    cur_time = t_new(0)
+    time = t_new(0)
 
     ! Initialize counter for output
     last_plot_file_step = 0;
 
     ! Automatically disable reflux if the heat equation is not solved explicitly
-    if (heat_solver.ne."explicit" .or. .not.solve_heat) then
+    if (heat_solver.ne."explicit" .or. .not.heat_solve) then
        do_reflux = .false.
     end if
     
@@ -50,7 +57,7 @@ contains
     if (plot_int .gt. 0) call writeplotfile
 
     ! Loop over time-steps
-    do step = stepno(0), max_step-1
+    do step = stepno(0), time_step_max - 1
 
        ! Print timestep information on screen (start)
        if (amrex_parallel_ioprocessor()) then
@@ -62,29 +69,29 @@ contains
        call compute_dt
 		 
        ! Advance all levels of one time step (with or withouth subcycling)
-       if (solve_heat) then
+       if (heat_solve) then
           if (heat_solver.eq."explicit") then
              lev = 0
              substep = 1
-             call advance_one_timestep_subcycling(lev, cur_time, substep)
+             call advance_one_timestep_subcycling(lev, time, substep)
           else if (heat_solver.eq."implicit") then
-             call advance_one_timestep(cur_time)
+             call advance_one_timestep(time)
           else
              STOP "Unknown heat solver prescribed in input"
           end if
        else
-          call advance_one_timestep(cur_time)
+          call advance_one_timestep(time)
        end if
        
        ! Update time on all levels
-       cur_time = cur_time + dt(0)
+       time = time + dt(0)
        do lev = 0, amrex_max_level
-          t_new(lev) = cur_time
+          t_new(lev) = time
        end do
 
        ! Print timestep information on screen (end)
        if (amrex_parallel_ioprocessor()) then
-          print *, "STEP", step+1, "end. TIME =", cur_time, "DT =", dt(0)
+          print *, "STEP", step+1, "end. TIME =", time, "DT =", dt(0)
        end if
 
        ! Print output to file
@@ -94,7 +101,7 @@ contains
        end if
 
        ! Stopping criteria
-       if (cur_time .ge. stop_time) exit
+       if (time .ge. time_max) exit
 
     end do
     
@@ -105,8 +112,11 @@ contains
   ! -----------------------------------------------------------------
   subroutine compute_dt()
     
-    use amr_data_module, only : dt, nsubsteps
-    use read_input_module, only : dt_change_max, in_dt, heat_solver
+    use amr_data_module, only : dt, &
+                                nsubsteps
+    use read_input_module, only : dt_change_max, &
+                                  time_dt, &
+                                  heat_solver
 
     ! Local variables
     integer :: lev
@@ -135,7 +145,7 @@ contains
        n_factor = n_factor * nsubsteps(lev)
        dt_0 = min(dt_0, n_factor*dt_tmp(lev))
        ! Cap the timestep to the value prescribed in input
-       dt_0 = min(dt_0, in_dt)
+       dt_0 = min(dt_0, time_dt)
     end do
 
     ! Compute timestep for all levels
@@ -158,7 +168,10 @@ contains
   subroutine check_timestep_stability(lev, dt)
 
     use amr_data_module, only : max_melt_vel
-    use read_input_module, only : cfl, heat_solver, solve_heat, in_dt
+    use read_input_module, only : cfl, &
+                                  heat_solver, &
+                                  heat_solve, &
+                                  time_dt
     use material_properties_module, only : max_diffus 
 
     ! Input and output variables 
@@ -175,12 +188,12 @@ contains
     dy = amrex_geom(lev)%dx(2)
     
     ! Von Neumann stability condition (enforced)
-    if (heat_solver.eq."explicit" .and. solve_heat) then
+    if (heat_solver.eq."explicit" .and. heat_solve) then
        dxsqr= (1.0/dx**2 + 1.0/dy**2) 
        dt = 0.5/(dxsqr*max_diffus)
        dt = dt * cfl
     else
-       dt = in_dt
+       dt = time_dt
     end if
 
     ! CFL stability condition (only checked)
@@ -199,7 +212,13 @@ contains
   recursive subroutine advance_one_timestep_subcycling(lev, time, substep)
 
     use read_input_module, only : do_reflux
-    use amr_data_module, only : t_old, t_new, phi_new, flux_reg, stepno, nsubsteps, dt  
+    use amr_data_module, only : t_old, &
+                                t_new, &
+                                phi_new, &
+                                flux_reg, &
+                                stepno, &
+                                nsubsteps, &
+                                dt  
     use regrid_module, only : averagedownto
 
     ! Input and output variables
@@ -289,7 +308,8 @@ contains
   ! -----------------------------------------------------------------
   subroutine advance_one_level_subcycling(lev, time, dt, substep)
 
-    use read_input_module, only : sw_solve, solve_heat
+    use read_input_module, only : sw_solve, &
+                                  heat_solve
     use heat_transfer_module, only : advance_heat_solver_explicit_level
     use shallow_water_module, only : advance_SW
 
@@ -305,7 +325,7 @@ contains
     end if 
 
     ! Advance heat equation
-    if(solve_heat) then
+    if(heat_solve) then
        call advance_heat_solver_explicit_level(lev, time, dt, substep)
     end if
 
@@ -352,7 +372,8 @@ contains
   ! -----------------------------------------------------------------
   subroutine advance_all_levels(time, dt)
 
-    use read_input_module, only : sw_solve, solve_heat
+    use read_input_module, only : sw_solve, &
+                                  heat_solve
     use material_properties_module, only : get_temp
     use shallow_water_module, only : advance_SW
     use heat_transfer_module, only : advance_heat_solver_implicit
@@ -367,7 +388,7 @@ contains
     end if
 
     ! Advance heat equation
-    if(solve_heat) then
+    if(heat_solve) then
        call advance_heat_solver_implicit(time, dt)
     end if
 

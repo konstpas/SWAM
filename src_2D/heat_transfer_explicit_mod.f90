@@ -234,7 +234,7 @@ contains
                                 temp, &
                                 idomain
     use read_input_module, only : do_reflux, &
-                                  temp_fs
+                                  heat_temp_surf
     use heat_transfer_domain_module, only : get_idomain, &
                                             get_melt_pos, &
                                             revaluate_heat_domain
@@ -310,7 +310,7 @@ contains
                                ptempin, lbound(ptempin), ubound(ptempin))
     
     ! Increment enthalpy at given box depending on the condition of the free surface
-    if (temp_fs.gt.0) then
+    if (heat_temp_surf.gt.0) then
        call get_enthalpy_fixT(bx%lo, bx%hi, &
                               pin, lbound(pin), ubound(pin),     &
                               pout,    lbound(pout), ubound(pout),    &
@@ -464,7 +464,7 @@ contains
                                         geom, dt)
     
     use material_properties_module, only : get_enthalpy
-    use read_input_module, only : temp_fs
+    use read_input_module, only : heat_temp_surf
 
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) ! bounds of current tile box
@@ -490,7 +490,7 @@ contains
     real(amrex_real) :: lo_phys(2) ! Physical location of the lowest corner of the tile box
 
     ! Enthalpy at the free surface
-    call get_enthalpy(temp_fs, u_fs)
+    call get_enthalpy(heat_temp_surf, u_fs)
     
     ! Get grid size
     dx = geom%dx(1:2) ! grid width at level 

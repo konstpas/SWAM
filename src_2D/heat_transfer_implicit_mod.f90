@@ -273,7 +273,7 @@ contains
                                     idomain_tmp, alpha, beta, &
                                     rhs)
 
-    use read_input_module, only : temp_fs
+    use read_input_module, only : heat_temp_surf
     use amr_data_module, only : phi_new, temp, idomain
     use heat_transfer_domain_module, only : get_idomain, &
                                             revaluate_heat_domain
@@ -361,7 +361,7 @@ contains
     end do
     
     ! Get right hand for the linear solver
-    if (temp_fs.gt.0) then
+    if (heat_temp_surf.gt.0) then
        call get_rhs_fixT(bx%lo, bx%hi, &
                          ptempin, lbound(ptempin), ubound(ptempin), &
                          pac, lbound(pac), ubound(pac), &                      
@@ -557,7 +557,7 @@ contains
     use amr_data_module, only : phi_new, temp, idomain
     use heat_transfer_domain_module, only : get_melt_pos, get_idomain
     use material_properties_module, only : get_temp
-    use read_input_module, only : temp_fs
+    use read_input_module, only : heat_temp_surf
     
     ! Input and output variables
     integer, intent(in) :: lev
@@ -587,7 +587,7 @@ contains
     pac => alpha%dataptr(mfi)
     
     ! Get corrected enthalpy
-    if (temp_fs.gt.0) then
+    if (heat_temp_surf.gt.0) then
       STOP 'The implicit solver cannot be used to solve problems with a fixed temperature on the free surface'
     else
        call get_enthalpy_implicit(bx%lo, bx%hi, &

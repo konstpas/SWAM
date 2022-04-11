@@ -127,7 +127,7 @@ contains
   subroutine init_phi(lo, hi, &
                       phi, phi_lo, phi_hi)
 
-    use read_input_module, only : temp_init
+    use read_input_module, only : heat_temp_init
     use material_properties_module, only : get_enthalpy
 
     ! Input and output variables
@@ -140,7 +140,7 @@ contains
     real(amrex_real) :: enth_init
 
     ! Get enthalpy consistent with the initialization temperature
-    call get_enthalpy(temp_init,enth_init)
+    call get_enthalpy(heat_temp_init, enth_init)
 
     do j=lo(2),hi(2)
        do i=lo(1),hi(1)

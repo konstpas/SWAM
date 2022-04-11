@@ -52,7 +52,7 @@ contains
     use amr_data_module, only : phi_new, &
                                 temp, &
                                 idomain
-    use read_input_module, only : solve_heat
+    use read_input_module, only : heat_solve
 
     ! Input and output variables
     real(amrex_real), intent(in) :: time
@@ -68,7 +68,7 @@ contains
     ! Current level = maximum level
     lev = amrex_max_level
     
-    if (solve_heat) then
+    if (heat_solve) then
 
        ! Loop through the boxes on the maximum level
        call amrex_mfiter_build(mfi, idomain(lev), tiling=.false.)
@@ -147,7 +147,7 @@ contains
                                   enth, enth_lo, enth_hi)
     
     use amr_data_module, only : surf_temperature, surf_evap_flux, surf_enthalpy
-    use read_input_module, only : cooling_vaporization
+    use read_input_module, only : heat_cooling_vaporization
     
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) ! Bounds of the current tile box
@@ -167,7 +167,7 @@ contains
           if(nint(idom(i,j)).ne.0 .and. nint(idom(i,j+1)).eq.0) then
              
              ! Evaporation flux
-             if (cooling_vaporization) then
+             if (heat_cooling_vaporization) then
                 call get_evaporation_flux(temp(i,j), surf_evap_flux(i))
              end if
              
@@ -194,7 +194,7 @@ contains
                                 surf_evap_flux, &
                                 surf_enthalpy, &
                                 surf_current
-    use read_input_module, only : temp_init, &
+    use read_input_module, only : heat_temp_init, &
                                   sw_current
     use material_properties_module, only : get_enthalpy
 
@@ -205,10 +205,10 @@ contains
     real(amrex_real) :: enth
 
     ! Set temperature
-    surf_temperature = temp_init
+    surf_temperature = heat_temp_init
 
     ! Surface enthalpy
-    call get_enthalpy(temp_init, enth)
+    call get_enthalpy(heat_temp_init, enth)
     surf_enthalpy = enth
 
     ! Surface evaporation flux
