@@ -311,11 +311,11 @@ contains
     call set_default_values
 
     ! Parameters for the simulation length
-    call amrex_parmparse_build(pp, "length")
+    call amrex_parmparse_build(pp, "time")
     call pp%query("max_step", time_step_max)
     call pp%query("stop_time", time_max)
     call pp%query("dt", time_dt)
-    call pp%query("time_change_max", time_ddt_max)
+    call pp%query("dt_change_max", time_ddt_max)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the geometry
@@ -326,7 +326,7 @@ contains
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the grid
-    call amrex_parmparse_build(pp, "grid")
+    call amrex_parmparse_build(pp, "regrid")
     call pp%query("interval", regrid_int)
     call pp%queryarr("distance", regrid_dist)
     call amrex_parmparse_destroy(pp)
@@ -355,10 +355,10 @@ contains
     ! Parameters for the shallow water solver
     call amrex_parmparse_build(pp, "sw")
     call pp%query("melt_velocity", sw_melt_velocity)  
-    call pp%query("surf_pos", sw_surf_pos_init) 
+    call pp%query("surf_pos_init", sw_surf_pos_init) 
     call pp%query("solve", sw_solve)
     call pp%query("solve_momentum", sw_solve_momentum)
-    call pp%query("magnetic", sw_magnetic_magnitude)
+    call pp%query("magnetic_magnitude", sw_magnetic_magnitude)
     call pp%query("magnetic_inclination", sw_magnetic_inclination)
     call pp%query("captol", sw_captol)
     call pp%query("drytol", sw_drytol)
@@ -371,7 +371,7 @@ contains
     call pp%query("cfl", num_cfl)
     call pp%query("accuracy", num_accuracy)
     call pp%query("composite_solve", num_composite_solve)
-    call pp%query("io_verbose", num_verbose)
+    call pp%query("verbose", num_verbose)
     call pp%query("bottom_verbose", num_bottom_verbose)
     call pp%query("max_iter", num_max_iter)
     call pp%query("max_fmg_iter", num_max_fmg_iter)
@@ -384,7 +384,7 @@ contains
 
     ! Parameters for the material
     call amrex_parmparse_build(pp, "material")
-    call pp%query("material", material_name)
+    call pp%query("name", material_name)
     call pp%query("max_temperature", material_maxT)
     call pp%query("points", material_nPoints)
     call amrex_parmparse_destroy(pp)
@@ -517,7 +517,7 @@ contains
     num_cfl = 0.70
     num_accuracy = 10e-10
     num_composite_solve = .true.
-    num_verbose = 1
+    num_verbose = 0
     num_bottom_verbose = 0
     num_max_iter = 100
     num_max_fmg_iter = 0
