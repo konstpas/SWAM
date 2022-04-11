@@ -265,7 +265,7 @@ contains
                                   cooling_vaporization, &
                                   cooling_radiation, &
                                   sample_edge, &
-                                  geometry_name, & 
+                                  geom_name, & 
                                   cooling_radiation
     
     
@@ -295,7 +295,7 @@ contains
     qb = 0.0
 
     ! Return immediately if the geometry does not include a second exposed side
-    if (geometry_name .ne. "West" .and. geometry_name .ne. "West_rectangular") return
+    if (geom_name .ne. "West" .and. geom_name .ne. "West_rectangular") return
 
     do j = lo(2), hi(2)
        do i = lo(1), hi(1)
@@ -571,7 +571,7 @@ contains
     use material_properties_module, only : get_work_function, &
                                            get_Richardson
     
-    use read_input_module, only : magnetic_inclination
+    use read_input_module, only : sw_magnetic_inclination
     
     ! Input and output variables                                       
     real(amrex_real), intent(in) :: Ts        ! Temperature at the center of cells adjacent to the free surface [K]
@@ -596,7 +596,7 @@ contains
     Jth_nom = Aeff*EXP(-Wf/(kb*Ts))*Ts**2
     
     ! Space-charge limited current (semi-empirical expression)
-    Jth_lim = 1.51e4 * q_plasma**(1.0/3.0) * (SIN(magnetic_inclination/180*pi))**2
+    Jth_lim = 1.51e4 * q_plasma**(1.0/3.0) * (SIN(sw_magnetic_inclination/180*pi))**2
     
     ! Minimum between nominal and space-charge limited
     J = MIN(Jth_lim, Jth_nom)
@@ -723,7 +723,7 @@ contains
   subroutine debug_cooling_fluxes() 
     
     use read_input_module, only : cooling_debug, &
-                                  magnetic_inclination
+                                  sw_magnetic_inclination
     
     integer :: i
     real(amrex_real) :: dT
@@ -736,7 +736,7 @@ contains
     temp = cooling_debug(2)
     
     open (2, file = 'cooling_fluxes.dat', status = 'unknown')
-    write(2, *) '# plasma flux and magnetic inclination: ', cooling_debug(5), magnetic_inclination
+    write(2, *) '# plasma flux and magnetic inclination: ', cooling_debug(5), sw_magnetic_inclination
     write(2, *) '# Temperature[K], Thermionic flux [W/m^2], Radiative flux [W/m^2], Vaporization flux [W/m^2]'
     do i = 0,nint(cooling_debug(4)) 
        call thermionic_cooling(temp, cooling_debug(5), q_therm)

@@ -126,7 +126,7 @@ contains
   ! ------------------------------------------------------------------ 
   subroutine amr_data_init()
     
-    use read_input_module, only : surf_pos_init
+    use read_input_module, only : sw_surf_pos_init
                                  
     integer ::  lev
     integer ::  lo_x
@@ -168,8 +168,8 @@ contains
     last_regrid_step = 0
     ! It is assumed that there is no melting pool at the beginning of the
     ! simulation (melt_pos = surf_pos)
-    melt_pos = surf_pos_init
-    melt_top = surf_pos_init
+    melt_pos = sw_surf_pos_init
+    melt_top = sw_surf_pos_init
     max_melt_vel = 0.0_amrex_real
     melt_vel = 0.0_amrex_real
     surf_dx(1) = amrex_geom(amrex_max_level)%dx(1)
@@ -178,8 +178,8 @@ contains
     surf_current = 0.0_amrex_real
     surf_enthalpy = 0.0_amrex_real
     surf_evap_flux = 0.0_amrex_real
-    surf_pos = surf_pos_init
-    surf_pos_grid = surf_pos_init
+    surf_pos = sw_surf_pos_init
+    surf_pos_grid = sw_surf_pos_init
     surf_temperature = 0.0_amrex_real
     surf_xlo(1) = amrex_problo(1)
     t_new = 0.0_amrex_real

@@ -32,7 +32,7 @@ contains
                          idom, id_lo, id_hi, &
                          temp, t_lo, t_hi)
 
-    use read_input_module, only : geometry_name 
+    use read_input_module, only : geom_name 
     
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)
@@ -44,19 +44,19 @@ contains
     real(amrex_real), intent(in) :: xlo(2)
 
     ! Define idomains depending on the geometry specified in input
-    if (geometry_name .eq. "Slab") then
+    if (geom_name .eq. "Slab") then
        
        call get_slab_idomain(xlo, dx, lo, hi, &
                              idom, id_lo, id_hi, &
                              temp, t_lo, t_hi)
        
-    elseif (geometry_name .eq. "West") then
+    elseif (geom_name .eq. "West") then
       
        call get_west_idomain(xlo, dx, lo, hi, &
                              idom, id_lo, id_hi, &
                              temp, t_lo, t_hi)
        
-    elseif (geometry_name .eq. "West_rectangular") then
+    elseif (geom_name .eq. "West_rectangular") then
        
        call get_west_rectangular_idomain(xlo, dx, lo, hi, &
                                          idom, id_lo, id_hi, &
@@ -152,8 +152,8 @@ contains
   
     use material_properties_module, only : temp_melt  
     use read_input_module, only : sample_edge, &
-                                  cool_pipe_cntr, &
-                                  cool_pipe_radius  
+                                  geom_cool_pipe_cntr, &
+                                  geom_cool_pipe_radius  
     
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)
@@ -202,8 +202,8 @@ contains
           ypos = xlo(2) + (0.5+j-lo(2))*dx(2)
 
           ! Check if the grid point (i,j) falls inside the cooling pipe
-          if (sqrt((xpos-cool_pipe_cntr(1))**2 &
-                   +(ypos-cool_pipe_cntr(2))**2) .lt. cool_pipe_radius) then
+          if (sqrt((xpos-geom_cool_pipe_cntr(1))**2 &
+                   +(ypos-geom_cool_pipe_cntr(2))**2) .lt. geom_cool_pipe_radius) then
              pipe_flag = .true.
           else
              pipe_flag = .false.
@@ -248,8 +248,8 @@ contains
     
     use material_properties_module, only : temp_melt  
     use read_input_module, only : sample_edge, &
-         cool_pipe_cntr, &
-         cool_pipe_radius  
+         geom_cool_pipe_cntr, &
+         geom_cool_pipe_radius  
     
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)
@@ -298,10 +298,10 @@ contains
           ypos = xlo(2) + (0.5+j-lo(2))*dx(2)
 
           ! Check if the grid point (i,j) falls inside the cooling pipe
-          if((xpos.lt.cool_pipe_cntr(1)+(pi)*cool_pipe_radius/4) .and. & 
-               (xpos.gt.cool_pipe_cntr(1)-(pi)*cool_pipe_radius/4) .and. &
-               (ypos.lt.cool_pipe_cntr(2)+(pi)*cool_pipe_radius/4) .and. &
-               (ypos.gt.cool_pipe_cntr(2)-(pi)*cool_pipe_radius/4)) then
+          if((xpos.lt.geom_cool_pipe_cntr(1)+(pi)*geom_cool_pipe_radius/4) .and. & 
+               (xpos.gt.geom_cool_pipe_cntr(1)-(pi)*geom_cool_pipe_radius/4) .and. &
+               (ypos.lt.geom_cool_pipe_cntr(2)+(pi)*geom_cool_pipe_radius/4) .and. &
+               (ypos.gt.geom_cool_pipe_cntr(2)-(pi)*geom_cool_pipe_radius/4)) then
              pipe_flag = .true.
           else
              pipe_flag = .false.

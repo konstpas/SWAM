@@ -289,7 +289,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine advance_one_level_subcycling(lev, time, dt, substep)
 
-    use read_input_module, only : solve_sw, solve_heat
+    use read_input_module, only : sw_solve, solve_heat
     use heat_transfer_module, only : advance_heat_solver_explicit_level
     use shallow_water_module, only : advance_SW
 
@@ -300,7 +300,7 @@ contains
     real(amrex_real), intent(in) :: dt
 
     ! Advance shallow-water equations (only at max level)
-    if (solve_sw .and. lev.eq.amrex_max_level) then
+    if (sw_solve .and. lev.eq.amrex_max_level) then
        call advance_SW(time)    
     end if 
 
@@ -352,7 +352,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine advance_all_levels(time, dt)
 
-    use read_input_module, only : solve_sw, solve_heat
+    use read_input_module, only : sw_solve, solve_heat
     use material_properties_module, only : get_temp
     use shallow_water_module, only : advance_SW
     use heat_transfer_module, only : advance_heat_solver_implicit
@@ -362,7 +362,7 @@ contains
     real(amrex_real), intent(in) :: time
 
     ! Advance SW equations (only at max level)
-    if (solve_sw) then
+    if (sw_solve) then
        call advance_SW(time)    
     end if
 

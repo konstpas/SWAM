@@ -106,7 +106,7 @@ contains
   subroutine advance_SW_fixed_velocity(dt)
 
     use amr_data_module, only : melt_vel
-    use read_input_module, only : fixed_melt_velocity
+    use read_input_module, only : sw_melt_velocity
     
     ! Input and output variables
     real(amrex_real), intent(in) :: dt
@@ -115,7 +115,7 @@ contains
     call advance_SW_explicit_height(dt)
 
     ! Momentum continuity equation (not solved for now, only prescribed) 
-    melt_vel = fixed_melt_velocity
+    melt_vel = sw_melt_velocity
 
   end subroutine advance_SW_fixed_velocity
 
@@ -369,7 +369,7 @@ contains
                                 melt_vel, &
                                 max_melt_vel
                                 
-    use read_input_module, only : sw_magnetic, sw_captol
+    use read_input_module, only : sw_magnetic_magnitude, sw_captol
 
     use material_properties_module, only : get_mass_density, &
                                            get_viscosity
@@ -442,7 +442,7 @@ contains
          end if
          
           ! Update source term
-          src_term(i) =  sw_magnetic * J_face/4.0 & ! Lorentz force
+          src_term(i) =  sw_magnetic_magnitude * J_face/4.0 & ! Lorentz force
                          + laplacian_term
           
           ! Fix dimensionality

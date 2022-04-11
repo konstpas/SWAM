@@ -30,7 +30,7 @@ contains
                                   read_input_file, &
                                   plasma_flux_type, &
                                   restart, &
-                                  geometry_name, &
+                                  geom_name, &
                                   plasma_flux_side_type, &
                                   solve_heat 
     use heat_transfer_read_flux_module, only : construct_plasma_flux_table
@@ -61,7 +61,7 @@ contains
     if (plasma_flux_type.eq.'Input_file') then
        call construct_plasma_flux_table(.false.)
     end if
-    if (geometry_name.eq.'West' .and. &
+    if (geom_name.eq.'West' .and. &
         plasma_flux_side_type.eq.'Input_file') then
        call construct_plasma_flux_table(.true.)
     end if
