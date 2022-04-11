@@ -23,7 +23,7 @@ module material_properties_tungsten_module
   public :: get_electrical_resistivity_tungsten
   public :: get_emissivity_tungsten
   public :: get_enthalpy_of_vaporization_tungsten
-  public :: get_Richardson_tungsten
+  public :: get_richardson_constant_tungsten
   public :: get_surface_tension_tungsten
   public :: get_thermelectric_power_tungsten
   public :: get_vapor_pressure_tungsten
@@ -305,7 +305,7 @@ contains
   ! -----------------------------------------------------------------
   ! Subroutine used to compute Richardson constant
   ! -----------------------------------------------------------------
-  subroutine get_Richardson_tungsten(Aeff)
+  subroutine get_richardson_constant_tungsten(Aeff)
 
     ! Relatively good agreement on the Richardson constant value, after correcting for small work function discrepancies see for
     ! instance M. H. Nichols, The Thermionic Constants of Tungsten as a Function of Crystallographic Direction,
@@ -318,7 +318,7 @@ contains
     
     Aeff = 60E4
    
-  end subroutine get_Richardson_tungsten
+  end subroutine get_richardson_constant_tungsten
 
 
   ! -----------------------------------------------------------------

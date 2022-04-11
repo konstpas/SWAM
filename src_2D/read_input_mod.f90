@@ -53,7 +53,9 @@ module read_input_module
   public :: time_step_max  
   ! Maximum simulated time [s]
   public :: time_max
-
+  ! Maximum fractional change of the timestep between two
+  ! successive timesteps
+  public :: time_ddt_max
 
   ! --- Variables for the geometry of the heat transfer domain ---
 
@@ -143,7 +145,6 @@ module read_input_module
   public :: ls_consolidation
   public :: ls_max_coarsening_level
 
-
   ! --- Variables for the shallow water solver ---
 
   ! Capping height for the viscous drag in the momentum equation [m]
@@ -183,11 +184,11 @@ module read_input_module
 
   ! Type of material to simulated, only one can be selected (Tungsten,
   ! Beryllium, Iridium, Niobium)
-  public :: material
+  public :: material_name
   ! Maximum temperature used to compute the material properties [K]
-  public :: phiT_table_max_T
+  public :: material_maxT
   ! Number of temperatures at which the material properties are computed
-  public :: phiT_table_n_points
+  public :: material_nPoints
 
   ! --- Variables for the input/output ---
 
@@ -212,9 +213,6 @@ module read_input_module
   ! Activate or deactivate reflux in the explicit heat
   ! solver (1 = on, 0 = off)
   public :: do_reflux
-  ! Maximum fractional change of the timestep between two
-  ! successive timesteps
-  public :: dt_change_max
 
   
   ! -----------------------------------------------------------------
@@ -226,7 +224,7 @@ module read_input_module
   ! Declare public variables
   ! -----------------------------------------------------------------
   character(len=:), allocatable, save :: check_file
-  character(len=:), allocatable, save :: material
+  character(len=:), allocatable, save :: material_name
   character(len=:), allocatable, save :: geom_name
   character(len=:), allocatable, save :: heat_solver
   character(len=:), allocatable, save :: heat_plasma_flux_type
@@ -245,7 +243,7 @@ module read_input_module
   integer, save :: ls_linop_maxorder
   integer, save :: ls_max_coarsening_level
   integer, save :: time_step_max
-  integer, save :: phiT_table_n_points
+  integer, save :: material_nPoints
   integer, save :: plot_int
   integer, save :: regrid_int
   integer, save :: verbose
@@ -261,10 +259,10 @@ module read_input_module
   logical, save :: sw_solve_momentum
   real(amrex_real), save :: cfl
   real(amrex_real), save :: geom_cool_pipe_radius
-  real(amrex_real), save :: dt_change_max
+  real(amrex_real), save :: time_ddt_max
   real(amrex_real), save :: time_dt  
   real(amrex_real), save :: ls_accuracy
-  real(amrex_real), save :: phiT_table_max_T
+  real(amrex_real), save :: material_maxT
   real(amrex_real), save :: time_max
   real(amrex_real), save :: heat_sample_edge
   real(amrex_real), save :: sw_captol
@@ -302,6 +300,7 @@ contains
     call pp%query("max_step", time_step_max)
     call pp%query("stop_time", time_max)
     call pp%query("dt", time_dt)
+    call pp%query("time_change_max", time_ddt_max)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the grid control
@@ -360,9 +359,9 @@ contains
 
     ! Parameters for the material
     call amrex_parmparse_build(pp, "material")
-    call pp%query("material", material)
-    call pp%query("phiT_max_T", phiT_table_max_T)
-    call pp%query("phiT_n_points", phiT_table_n_points)
+    call pp%query("material", material_name)
+    call pp%query("max_temperature", material_maxT)
+    call pp%query("points", material_nPoints)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the geometry
@@ -376,7 +375,6 @@ contains
     call amrex_parmparse_build(pp, "numerics")
     call pp%query("cfl", cfl)
     call pp%query("do_reflux", do_reflux)
-    call pp%query("dt_change_max", dt_change_max)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the linear solver used for the implicit solution of the heat equation
@@ -407,7 +405,7 @@ contains
     allocate(character(len=8)::heat_plasma_flux_side_type)
     allocate(character(len=25)::heat_plasma_flux_file)
     allocate(character(len=25)::heat_plasma_flux_side_file)
-    allocate(character(len=8)::material)
+    allocate(character(len=8)::material_name)
     allocate(character(len=4)::geom_name)
     allocate(character(len=9)::heat_phase_init)
     allocate(character(len=3)::plot_file)
@@ -432,7 +430,7 @@ contains
     heat_cooling_vaporization = .true.
     heat_cooling_radiation = .true.
     do_reflux = .true.
-    dt_change_max = 1.1
+    time_ddt_max = 1.1
     time_dt = 0.0001
     sw_melt_velocity = 0.0
     heat_solver = "explicit"
@@ -447,15 +445,15 @@ contains
     ls_agglomeration = .true.
     ls_consolidation = .true.
     ls_max_coarsening_level = 30
-    material = "Tungsten"
+    material_name = "Tungsten"
     geom_name = "Slab"
     geom_cool_pipe_cntr(1) = 0.01
     geom_cool_pipe_cntr(2) = 0.005
     geom_cool_pipe_radius = 0.0
     time_step_max = 10000
     heat_phase_init = "undefined"
-    phiT_table_max_T = 10000.0
-    phiT_table_n_points = 10000
+    material_maxT = 10000.0
+    material_nPoints = 10000
     heat_plasma_flux_params(1) = 0.0
     heat_plasma_flux_params(2) = 1.0
     heat_plasma_flux_params(3) = 300e6
@@ -502,7 +500,7 @@ contains
     
     deallocate(check_file)
     deallocate(heat_solver)
-    deallocate(material)
+    deallocate(material_name)
     deallocate(geom_name)
     deallocate(heat_phase_init)
     deallocate(heat_plasma_flux_params)

@@ -569,7 +569,7 @@ contains
   subroutine thermionic_cooling(Ts, q_plasma, q_therm, Jth)
     
     use material_properties_module, only : get_work_function, &
-                                           get_Richardson
+                                           get_richardson_constant
     
     use read_input_module, only : sw_magnetic_inclination
     
@@ -590,7 +590,7 @@ contains
     real(amrex_real) :: pi = 3.1415927
     
     call get_work_function(Wf)
-    call get_Richardson(Aeff)
+    call get_richardson_constant(Aeff)
     
     ! Nominal thermionic current from the Richardson-Dushman formula
     Jth_nom = Aeff*EXP(-Wf/(kb*Ts))*Ts**2

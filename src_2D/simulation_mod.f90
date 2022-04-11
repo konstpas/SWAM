@@ -114,7 +114,7 @@ contains
     
     use amr_data_module, only : dt, &
                                 nsubsteps
-    use read_input_module, only : dt_change_max, &
+    use read_input_module, only : time_ddt_max, &
                                   time_dt, &
                                   heat_solver
 
@@ -141,7 +141,7 @@ contains
     n_factor = 1
     do lev = 0, nlevs-1
        ! Limit the change of the timestep between two successive timesteps
-       dt_tmp(lev) = min(dt_tmp(lev), dt_change_max*dt(lev))
+       dt_tmp(lev) = min(dt_tmp(lev), time_ddt_max*dt(lev))
        n_factor = n_factor * nsubsteps(lev)
        dt_0 = min(dt_0, n_factor*dt_tmp(lev))
        ! Cap the timestep to the value prescribed in input
