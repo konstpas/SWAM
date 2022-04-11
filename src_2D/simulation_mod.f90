@@ -29,9 +29,9 @@ contains
                                 dt
     use read_input_module, only : time_step_max, &
                                   time_max, &
-                                  plot_int, &
+                                  io_plot_int, &
                                   heat_solver, &
-                                  do_reflux, &
+                                  heat_reflux, &
                                   heat_solve
     use plotfile_module, only: writeplotfile
 
@@ -50,11 +50,11 @@ contains
 
     ! Automatically disable reflux if the heat equation is not solved explicitly
     if (heat_solver.ne."explicit" .or. .not.heat_solve) then
-       do_reflux = .false.
+       heat_reflux = .false.
     end if
     
     ! Output initial configuration
-    if (plot_int .gt. 0) call writeplotfile
+    if (io_plot_int .gt. 0) call writeplotfile
 
     ! Loop over time-steps
     do step = stepno(0), time_step_max - 1
@@ -95,7 +95,7 @@ contains
        end if
 
        ! Print output to file
-       if (plot_int .gt. 0 .and. mod(step+1,plot_int) .eq. 0) then
+       if (io_plot_int .gt. 0 .and. mod(step+1,io_plot_int) .eq. 0) then
           last_plot_file_step = step+1
           call writeplotfile
        end if
@@ -168,7 +168,7 @@ contains
   subroutine check_timestep_stability(lev, dt)
 
     use amr_data_module, only : max_melt_vel
-    use read_input_module, only : cfl, &
+    use read_input_module, only : num_cfl, &
                                   heat_solver, &
                                   heat_solve, &
                                   time_dt
@@ -191,7 +191,7 @@ contains
     if (heat_solver.eq."explicit" .and. heat_solve) then
        dxsqr= (1.0/dx**2 + 1.0/dy**2) 
        dt = 0.5/(dxsqr*max_diffus)
-       dt = dt * cfl
+       dt = dt * num_cfl
     else
        dt = time_dt
     end if
@@ -211,7 +211,7 @@ contains
   ! -----------------------------------------------------------------
   recursive subroutine advance_one_timestep_subcycling(lev, time, substep)
 
-    use read_input_module, only : do_reflux
+    use read_input_module, only : heat_reflux
     use amr_data_module, only : t_old, &
                                 t_new, &
                                 phi_new, &
@@ -246,7 +246,7 @@ contains
        end do
 
        ! Update coarse solution at coarse-fine interface via dPhidt = -div(+F) where F is stored flux (flux_reg)
-       if (do_reflux) then
+       if (heat_reflux) then
           call flux_reg(lev+1)%reflux(phi_new(lev), 1.0_amrex_real) 
        end if
        

@@ -71,7 +71,7 @@ contains
   subroutine init_tmp_multifab(lev, time, phi_tmp, temp_tmp, &
                                idomain_tmp, fluxes)
 
-    use read_input_module, only : do_reflux
+    use read_input_module, only : heat_reflux
     use amr_data_module, only : phi_new, &
                                 phi_old, &
                                 idomain 
@@ -117,7 +117,7 @@ contains
     call amrex_multifab_swap(idomain_tmp, idomain(lev))
 
     ! Initialize fluxes  
-    if (do_reflux) then
+    if (heat_reflux) then
        do idim = 1, amrex_spacedim
           nodal = .false.
           nodal(idim) = .true.
@@ -192,7 +192,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine update_flux_registers(lev, fluxes)
 
-    use read_input_module, only : do_reflux
+    use read_input_module, only : heat_reflux
     use amr_data_module, only : flux_reg
     
     ! Input and output variables 
@@ -204,7 +204,7 @@ contains
     
     ! Update flux registers (fluxes have already been scaled by dt and area
     ! in the advance subroutine)
-    if (do_reflux) then
+    if (heat_reflux) then
 
        if (lev > 0) then
           call flux_reg(lev)%fineadd(fluxes, 1.0_amrex_real)
@@ -233,7 +233,7 @@ contains
     use amr_data_module, only : phi_new, &
                                 temp, &
                                 idomain
-    use read_input_module, only : do_reflux, &
+    use read_input_module, only : heat_reflux, &
                                   heat_temp_surf
     use heat_transfer_domain_module, only : get_idomain, &
                                             get_melt_pos, &
@@ -336,7 +336,7 @@ contains
                   ptemp, lbound(ptemp), ubound(ptemp), .true.) 
        
     ! Update pointers for flux registers
-    if (do_reflux) then
+    if (heat_reflux) then
        
        do idim = 1, amrex_spacedim
           

@@ -384,17 +384,17 @@ contains
   ! ----------------------------------------------------------------------------------- 
   subroutine conduction_get_temperature(ba, dm, dt, alpha, beta, rhs, sol)
 
-    use read_input_module, only : ls_accuracy, &
-                                  ls_composite_solve, &
-                                  ls_agglomeration, &
-                                  ls_consolidation, &
-                                  ls_max_coarsening_level, &
-                                  ls_linop_maxorder, &
-                                  ls_bottom_solver, &
-                                  ls_bottom_verbose, &
-                                  ls_max_fmg_iter, &
-                                  ls_max_iter, &
-                                  ls_verbose
+    use read_input_module, only : num_accuracy, &
+                                  num_composite_solve, &
+                                  num_agglomeration, &
+                                  num_consolidation, &
+                                  num_max_coarsening_level, &
+                                  num_linop_maxorder, &
+                                  num_bottom_solver, &
+                                  num_bottom_verbose, &
+                                  num_max_fmg_iter, &
+                                  num_max_iter, &
+                                  num_verbose
     use amrex_linear_solver_module
 
         
@@ -416,14 +416,14 @@ contains
 
 
     ! Solve linear system of equations
-    if (ls_composite_solve) then
+    if (num_composite_solve) then
        
        call amrex_abeclaplacian_build(abeclap, amrex_geom, ba, dm, &
-                                      metric_term=.false., agglomeration=ls_agglomeration, &
-                                      consolidation=ls_consolidation, &
-                                      max_coarsening_level=ls_max_coarsening_level)
+                                      metric_term=.false., agglomeration=num_agglomeration, &
+                                      consolidation=num_consolidation, &
+                                      max_coarsening_level=num_max_coarsening_level)
 
-       call abeclap%set_maxorder(ls_linop_maxorder)
+       call abeclap%set_maxorder(num_linop_maxorder)
        
        ! This is set up to have homogeneous Neumann BC
        call abeclap%set_domain_bc([amrex_lo_neumann, amrex_lo_neumann], &
@@ -445,14 +445,14 @@ contains
        
        ! Build multigrid solver
        call amrex_multigrid_build(multigrid, abeclap)
-       call multigrid%set_verbose(ls_verbose)
-       call multigrid%set_bottom_verbose(ls_bottom_verbose)
-       call multigrid%set_max_iter(ls_max_iter)
-       call multigrid%set_max_fmg_iter(ls_max_fmg_iter)
-       call multigrid%set_bottom_solver(ls_bottom_solver)
+       call multigrid%set_verbose(num_verbose)
+       call multigrid%set_bottom_verbose(num_bottom_verbose)
+       call multigrid%set_max_iter(num_max_iter)
+       call multigrid%set_max_fmg_iter(num_max_fmg_iter)
+       call multigrid%set_bottom_solver(num_bottom_solver)
        
        ! Solve the linear system
-       err = multigrid%solve(sol, rhs, ls_accuracy, 0.0_amrex_real)
+       err = multigrid%solve(sol, rhs, num_accuracy, 0.0_amrex_real)
        
        ! Clean memory
        call amrex_abeclaplacian_destroy(abeclap)
@@ -463,11 +463,11 @@ contains
        do ilev = 0, amrex_max_level
 
           call amrex_abeclaplacian_build(abeclap, [amrex_geom(ilev)], [ba(ilev)], [dm(ilev)], &
-                                         metric_term=.false., agglomeration=ls_agglomeration, &
-                                         consolidation=ls_consolidation, &
-                                        max_coarsening_level=ls_max_coarsening_level)
+                                         metric_term=.false., agglomeration=num_agglomeration, &
+                                         consolidation=num_consolidation, &
+                                        max_coarsening_level=num_max_coarsening_level)
           
-          call abeclap%set_maxorder(ls_linop_maxorder)
+          call abeclap%set_maxorder(num_linop_maxorder)
 
           ! This is set up to have homogeneous Neumann BC
           call abeclap%set_domain_bc([amrex_lo_neumann, amrex_lo_neumann], &
@@ -489,14 +489,14 @@ contains
 
           ! Build multigrid solver
           call amrex_multigrid_build(multigrid, abeclap)
-          call multigrid%set_verbose(ls_verbose)
-          call multigrid%set_bottom_verbose(ls_bottom_verbose)
-          call multigrid%set_max_iter(ls_max_iter)
-          call multigrid%set_max_fmg_iter(ls_max_fmg_iter)
-          call multigrid%set_bottom_solver(ls_bottom_solver)
+          call multigrid%set_verbose(num_verbose)
+          call multigrid%set_bottom_verbose(num_bottom_verbose)
+          call multigrid%set_max_iter(num_max_iter)
+          call multigrid%set_max_fmg_iter(num_max_fmg_iter)
+          call multigrid%set_bottom_solver(num_bottom_solver)
         
           ! Solve the linear system
-          err = multigrid%solve([sol(ilev)], [rhs(ilev)], ls_accuracy, 0.0_amrex_real)
+          err = multigrid%solve([sol(ilev)], [rhs(ilev)], num_accuracy, 0.0_amrex_real)
        
           ! Clean memory
           call amrex_abeclaplacian_destroy(abeclap)

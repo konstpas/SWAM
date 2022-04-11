@@ -29,7 +29,7 @@ contains
     use read_input_module, only : heat_cooling_debug, &
                                   read_input_file, &
                                   heat_plasma_flux_type, &
-                                  restart, &
+                                  io_restart, &
                                   geom_name, &
                                   heat_plasma_flux_side_type, &
                                   heat_solve
@@ -80,7 +80,7 @@ contains
                                       my_error_estimate)
     
     ! Start new simulation or read restart file
-    if (len_trim(restart) .eq. 0) then
+    if (len_trim(io_restart) .eq. 0) then
        call amrex_init_from_scratch(0.0_amrex_real)
        call averagedown      
     else

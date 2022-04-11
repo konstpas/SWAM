@@ -48,7 +48,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine my_make_new_level_from_scratch(lev, time, pba, pdm) bind(c)
 
-    use read_input_module, only : do_reflux
+    use read_input_module, only : heat_reflux
     use material_properties_module, only : get_temp
     use heat_transfer_domain_module, only : get_idomain
 
@@ -88,7 +88,7 @@ contains
     call amrex_multifab_build(idomain(lev), ba, dm, ncomp, nghost)
        
     ! Build the flux registers
-    if (lev > 0 .and. do_reflux) then
+    if (lev > 0 .and. heat_reflux) then
        call amrex_fluxregister_build(flux_reg(lev), ba, dm, &
                                      amrex_ref_ratio(lev-1), lev, ncomp)
     end if
@@ -158,7 +158,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine my_make_new_level_from_coarse(lev, time, pba, pdm) bind(c)
 
-    use read_input_module, only : do_reflux
+    use read_input_module, only : heat_reflux
     use material_properties_module, only : get_temp
     use heat_transfer_domain_module, only : get_idomain
 
@@ -198,7 +198,7 @@ contains
     call amrex_multifab_build(idomain(lev), ba, dm, ncomp, nghost)
     
     ! Build the flux registers
-    if (lev > 0 .and. do_reflux) then
+    if (lev > 0 .and. heat_reflux) then
        call amrex_fluxregister_build(flux_reg(lev), ba, dm, &
                                      amrex_ref_ratio(lev-1), lev, ncomp)
     end if
@@ -310,7 +310,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine my_remake_level(lev, time, pba, pdm) bind(c)
 
-    use read_input_module, only : do_reflux
+    use read_input_module, only : heat_reflux
     use material_properties_module, only : get_temp
     use heat_transfer_domain_module, only : get_idomain
 
@@ -355,7 +355,7 @@ contains
     call amrex_multifab_build(idomain(lev), ba, dm, ncomp, nghost)
     
     ! Build the flux registers
-    if (lev > 0 .and. do_reflux) then
+    if (lev > 0 .and. heat_reflux) then
        call amrex_fluxregister_build(flux_reg(lev), ba, dm, &
                                      amrex_ref_ratio(lev-1), lev, ncomp)
     end if
@@ -433,7 +433,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine my_clear_level(lev) bind(c)
 
-    use read_input_module, only : do_reflux
+    use read_input_module, only : heat_reflux
     
     integer, intent(in), value :: lev
     
@@ -441,7 +441,7 @@ contains
     call amrex_multifab_destroy(phi_old(lev))
     call amrex_multifab_destroy(temp(lev))
     call amrex_multifab_destroy(idomain(lev))
-    if (do_reflux) then
+    if (heat_reflux) then
        call amrex_fluxregister_destroy(flux_reg(lev))
     end if
     
