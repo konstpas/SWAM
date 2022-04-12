@@ -70,15 +70,16 @@ contains
 		 
        ! Advance all levels of one time step (with or withouth subcycling)
        if (heat_solve) then
-          if (heat_solver.eq."explicit") then
-             lev = 0
-             substep = 1
-             call advance_one_timestep_subcycling(lev, time, substep)
-          else if (heat_solver.eq."implicit") then
-             call advance_one_timestep(time)
-          else
-             STOP "Unknown heat solver prescribed in input"
-          end if
+          ! if (heat_solver.eq."explicit") then
+          !    lev = 0
+          !    substep = 1
+          !    call advance_one_timestep_subcycling(lev, time, substep)
+          ! else if (heat_solver.eq."implicit") then
+          !    call advance_one_timestep(time)
+          ! else
+          !    STOP "Unknown heat solver prescribed in input"
+          ! end if
+          call advance_one_timestep(time)
        else
           call advance_one_timestep(time)
        end if
@@ -376,7 +377,7 @@ contains
                                   heat_solve
     use material_properties_module, only : get_temp
     use shallow_water_module, only : advance_SW
-    use heat_transfer_module, only : advance_heat_solver_implicit
+    use heat_transfer_module, only : advance_heat_solver_explicit
     
     ! Input and output variables
     real(amrex_real), intent(in) :: dt
@@ -389,7 +390,8 @@ contains
 
     ! Advance heat equation
     if(heat_solve) then
-       call advance_heat_solver_implicit(time, dt)
+       ! call advance_heat_solver_implicit(time, dt)
+       call advance_heat_solver_explicit(time, dt)
     end if
 
   end subroutine advance_all_levels

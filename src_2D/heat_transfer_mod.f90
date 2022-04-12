@@ -7,5 +7,6 @@ module heat_transfer_module
   
   use heat_transfer_explicit_module
   use heat_transfer_implicit_module
+  use heat_transfer_explicit_no_subcycling
   
 end module heat_transfer_module
