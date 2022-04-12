@@ -426,18 +426,24 @@ contains
   subroutine set_default_time()
     
     time_ddt_max = 1.1
-    time_dt = 0.0001
-    time_step_max = 10000
-    time_max = 1.0
+    time_dt = 1e-6
+    time_step_max = 0
+    time_max = 0.0
     
   end subroutine set_default_time
 
   
   subroutine set_default_geom()
 
+    real(amrex_real) :: Lx
+    real(amrex_real) :: Ly
+
+    Lx = amrex_probhi(1) - amrex_problo(1)
+    Ly = amrex_probhi(2) - amrex_problo(2)
+    
     geom_name = "Slab"
-    geom_cool_pipe_cntr(1) = 0.01
-    geom_cool_pipe_cntr(2) = 0.005
+    geom_cool_pipe_cntr(1) = 0.5*Lx
+    geom_cool_pipe_cntr(2) = 0.5*Ly
     geom_cool_pipe_radius = 0.0
 
   end subroutine set_default_geom
@@ -445,7 +451,7 @@ contains
   
   subroutine set_default_regrid()
 
-    regrid_int = 2
+    regrid_int = 1
     regrid_dist = 0.0_amrex_real
     
   end subroutine set_default_regrid
@@ -464,20 +470,16 @@ contains
     heat_reflux = .true.
     heat_solver = "explicit"
     heat_phase_init = "undefined"
+    heat_plasma_flux_file = "plasma_flux.dat"
     heat_plasma_flux_params(1) = 0.0
     heat_plasma_flux_params(2) = 1.0
     heat_plasma_flux_params(3) = 300e6
     heat_plasma_flux_params(4) = 0.0
     heat_plasma_flux_params(5) = 0.01
-    heat_plasma_flux_side_params(1) = 0.0
-    heat_plasma_flux_side_params(2) = 1.0
-    heat_plasma_flux_side_params(3) = 300e6
-    heat_plasma_flux_side_params(4) = 0.0
-    heat_plasma_flux_side_params(5) = 0.01
     heat_plasma_flux_type = "Gaussian"
-    heat_plasma_flux_side_type = "Gaussian"
-    heat_plasma_flux_file = "plasma_flux.dat"
     heat_plasma_flux_side_file = "plasma_side_flux.dat"
+    heat_plasma_flux_side_params = heat_plasma_flux_params
+    heat_plasma_flux_side_type = heat_plasma_flux_type
     heat_solve = .true.
     heat_sample_edge = 0.020
     heat_temp_surf = -1.0
@@ -487,18 +489,22 @@ contains
 
   subroutine set_default_sw()
 
-    sw_melt_velocity = 0.0
-    sw_solve = .true.
-    sw_solve_momentum = .true.
-    sw_magnetic_magnitude = 0.0
+    real(amrex_real) :: Ly
+
+    Ly = amrex_probhi(2) - amrex_problo(2)
+
     sw_captol = 0.0
     sw_current = 0.0
-    sw_drytol = 0.0
+    sw_drytol = 0.0    
+    sw_magnetic_inclination = 90.0
+    sw_magnetic_magnitude = 0.0
+    sw_melt_velocity = 0.0
     sw_pool_params(1) = 0.0
     sw_pool_params(2) = 0.0
     sw_pool_params(3) = 1.0
-    sw_surf_pos_init = 0.020
-    sw_magnetic_inclination = 90.0
+    sw_solve = .true.
+    sw_solve_momentum = .true.
+    sw_surf_pos_init = 0.5*Ly
     
   end subroutine set_default_sw
 
@@ -514,7 +520,7 @@ contains
   
   subroutine set_default_numerics()
 
-    num_cfl = 0.70
+    num_cfl = 0.95
     num_accuracy = 10e-10
     num_composite_solve = .true.
     num_verbose = 0
