@@ -564,8 +564,8 @@ contains
 
   
   subroutine allocate_regrid_variables()
-
-    allocate(regrid_dist(0:amrex_max_level))
+    
+    allocate(regrid_dist(1:amrex_max_level))
         
   end subroutine allocate_regrid_variables
 
