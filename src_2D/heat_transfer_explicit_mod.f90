@@ -16,6 +16,7 @@ module heat_transfer_explicit_module
   ! -----------------------------------------------------------------
   public :: advance_heat_solver_explicit
   public :: advance_heat_solver_explicit_level
+  public :: get_volumetric_heat_source
   
 contains
 
@@ -449,13 +450,13 @@ contains
   ! a given box of a certain level via an explicit update
   ! -----------------------------------------------------------------
   subroutine get_enthalpy(time, lo, hi, &
-                                   u_old,  uo_lo, uo_hi, &
-                                   u_new, un_lo, un_hi, &
-                                   temp, t_lo, t_hi, &
-                                   flxx, fx_lo, fx_hi, &
-                                   flxy, fy_lo, fy_hi, &
-                                   idom, id_lo, id_hi, &
-                                   geom, dt, lev)
+                          u_old,  uo_lo, uo_hi, &
+                          u_new, un_lo, un_hi, &
+                          temp, t_lo, t_hi, &
+                          flxx, fx_lo, fx_hi, &
+                          flxy, fy_lo, fy_hi, &
+                          idom, id_lo, id_hi, &
+                          geom, dt, lev)
 
     use heat_transfer_flux_module, only: get_boundary_heat_flux
     use read_input_module, only : num_subcycling
@@ -468,6 +469,7 @@ contains
     integer, intent(in) :: fx_lo(2), fx_hi(2) ! bounds of the enthalpy flux along x
     integer, intent(in) :: fy_lo(2), fy_hi(2) ! bounds of the enthalpy flux along y
     integer, intent(in) :: id_lo(2), id_hi(2) ! bounds of the idomain box
+    integer, intent(in) :: lev 
     real(amrex_real), intent(in) :: dt ! time step
     real(amrex_real), intent(in) :: time ! time
     real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2)) ! Input enthalpy 
@@ -477,7 +479,7 @@ contains
     real(amrex_real), intent(out) :: flxy(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2)) ! flux along the y direction
     real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2)) ! idomain
     type(amrex_geometry), intent(in) :: geom ! geometry
-    integer, intent(in) :: lev
+
     
     ! Local variables
     integer :: i,j
@@ -504,7 +506,8 @@ contains
     call get_boundary_heat_flux(time, lo_phys, &
                                 dx, lo, hi, &
                                 idom, id_lo, id_hi, &
-                                temp, t_lo, t_hi, lev, qbound)
+                                temp, t_lo, t_hi, lev, &
+                                qbound)
 
     ! Volumetric sources
     call get_volumetric_heat_source(dx, lo_phys, lo, hi, &
@@ -549,13 +552,13 @@ contains
   ! Case with fixed temperature at the free surface
   ! -----------------------------------------------------------------
   subroutine get_enthalpy_fixT(lo, hi, &
-                                        u_old,  uo_lo, uo_hi, &
-                                        u_new, un_lo, un_hi, &
-                                        temp, t_lo, t_hi, &
-                                        flxx, fx_lo, fx_hi, &
-                                        flxy, fy_lo, fy_hi, &
-                                        idom, id_lo, id_hi, &
-                                        geom, dt)
+                               u_old,  uo_lo, uo_hi, &
+                               u_new, un_lo, un_hi, &
+                               temp, t_lo, t_hi, &
+                               flxx, fx_lo, fx_hi, &
+                               flxy, fy_lo, fy_hi, &
+                               idom, id_lo, id_hi, &
+                               geom, dt)
     
     use material_properties_module, only : get_enthalpy
     use read_input_module, only : heat_temp_surf
