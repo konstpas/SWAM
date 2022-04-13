@@ -17,6 +17,7 @@ module heat_transfer_explicit_module
   public :: advance_heat_solver_explicit
   public :: advance_heat_solver_explicit_level
   public :: get_volumetric_heat_source
+  public :: get_face_flux
   
 contains
 
@@ -495,12 +496,13 @@ contains
     lo_phys = geom%get_physical_location(lo)
                   
     ! Get enthalpy flux 
-    call create_face_flux(dx, lo_phys, lo, hi, &
+    call get_face_flux(dx, lo_phys, lo, hi, &
                           u_old, uo_lo, uo_hi, &
                           flxx, fx_lo, fx_hi, &
                           flxy, fy_lo, fy_hi, &
                           temp, t_lo, t_hi, &
-                          idom, id_lo, id_hi)
+                          idom, id_lo, id_hi, &
+                          .true., .true.)
   				  	
     ! Prescribe external heat flux on the free surface
     call get_boundary_heat_flux(time, lo_phys, &
@@ -596,7 +598,7 @@ contains
     lo_phys = geom%get_physical_location(lo)
     
     ! Get enthalpy flux 
-    call create_face_flux_fixT(dx, lo, hi, &
+    call get_face_flux_fixT(dx, lo, hi, &
                                flxx, fx_lo, fx_hi, &
                                flxy, fy_lo, fy_hi, &
                                temp, t_lo, t_hi)
@@ -641,12 +643,13 @@ contains
   ! Subroutine used to compute the enthalpy fluxes on the edges of
   ! the grid
   ! -----------------------------------------------------------------  
-  subroutine create_face_flux(dx, lo_phys, lo, hi, &
+  subroutine get_face_flux(dx, lo_phys, lo, hi, &
                               u_old, uo_lo, uo_hi, &
                               flxx, fx_lo, fx_hi, &
                               flxy, fy_lo, fy_hi, &
                               temp, t_lo, t_hi, &
-                              idom, id_lo, id_hi)
+                              idom, id_lo, id_hi, &
+                              conduction, advection)
   				
     use material_properties_module, only: get_conductivity
     use heat_transfer_domain_module, only: get_face_velocity
@@ -658,6 +661,8 @@ contains
     integer, intent(in) :: fx_lo(2), fx_hi(2)
     integer, intent(in) :: fy_lo(2), fy_hi(2)
     integer, intent(in) :: id_lo(2), id_hi(2)
+    logical, intent(in) :: conduction
+    logical, intent(in) :: advection
     real(amrex_real), intent(in) :: dx(2)
     real(amrex_real), intent(in) :: lo_phys(2)
     real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))
@@ -681,62 +686,56 @@ contains
     do j = lo(2), hi(2)          
        do i = lo(1), hi(1)+1
 
-          if (nint(idom(i-1,j)).eq.0 .or. nint(idom(i,j)).eq.0) then
+          ! Suppress flux
+          flxx(i,j) = 0.0_amrex_real
+          
+          if (nint(idom(i-1,j)).gt.0 .and. nint(idom(i,j)).gt.0) then
 
-             ! Suppress flux at the free surface
-             flxx(i,j) = 0.0_amrex_real
+             ! Advective flux
+             if (advection) then
+                if (vx(i,j).gt.0.0_amrex_real) then
+                   flxx(i,j)  = flxx(i,j) + u_old(i-1,j)*vx(i,j)
+                else
+                   flxx(i,j)  = flxx(i,j) + u_old(i,j)*vx(i,j)
+                end if
+             end if
 
-          else if (nint(idom(i-1,j)).eq.-1 .or. nint(idom(i,j)).eq.-1) then
-
-             ! Suppress flux at the surface of the cooling pipe
-             flxx(i,j) = 0.0_amrex_real
-             
-          else
-             
-             ! Advective component
-             if (vx(i,j).gt.0.0_amrex_real) then
-                flxx(i,j)  = u_old(i-1,j)*vx(i,j)
-             else
-                flxx(i,j)  = u_old(i,j)*vx(i,j)
+             ! Conductive flux
+             if (conduction) then
+                temp_face = (temp(i,j) + temp(i-1,j))/2_amrex_real
+                call get_conductivity(temp_face, ktherm)
+                flxx(i,j) = flxx(i,j) - ktherm*(temp(i,j)-temp(i-1,j))/dx(1)
              end if
              
-             ! Diffusive component
-             temp_face = (temp(i,j) + temp(i-1,j))/2_amrex_real
-             call get_conductivity(temp_face, ktherm)
-             flxx(i,j) = flxx(i,j) - ktherm*(temp(i,j)-temp(i-1,j))/dx(1)
-             
           end if
           
        end do
     end do
-    
+
     ! Flux along the y direction
-    do j = lo(2), hi(2)+1
+    do j = lo(2), hi(2)+1          
        do i = lo(1), hi(1)
 
-          if (nint(idom(i,j-1)).eq.0 .or. nint(idom(i,j)).eq.0) then
+          ! Suppress flux
+          flxy(i,j) = 0.0_amrex_real
+          
+          if (nint(idom(i,j-1)).gt.0 .and. nint(idom(i,j)).gt.0) then
 
-             ! Suppress flux at the free surface
-             flxy(i,j) = 0.0_amrex_real
+             ! No advection along the y direction
 
-          else if (nint(idom(i,j-1)).eq.-1 .or. nint(idom(i,j)).eq.-1) then
-
-             ! Suppress flux at the surface of the cooling pipe
-             flxy(i,j) = 0.0_amrex_real
-             
-          else
-             
-             ! Diffusive component (there is no advection in the y direction)
-             temp_face = (temp(i,j) + temp(i,j-1))/2_amrex_real
-             call get_conductivity(temp_face, ktherm)
-             flxy(i,j) = -ktherm*(temp(i,j)-temp(i,j-1))/dx(2)
+             ! Conductive flux
+             if (conduction) then
+                temp_face = (temp(i,j) + temp(i,j-1))/2.0_amrex_real
+                call get_conductivity(temp_face, ktherm)
+                flxy(i,j) = flxy(i,j) - ktherm*(temp(i,j)-temp(i,j-1))/dx(2)
+             end if
              
           end if
           
        end do
     end do
- 
-  end subroutine create_face_flux
+  
+  end subroutine get_face_flux
   
 
   ! -----------------------------------------------------------------
@@ -744,7 +743,7 @@ contains
   ! the grid. Case with fixed temperature at the free surface without
   ! convection
   ! -----------------------------------------------------------------  
-  subroutine create_face_flux_fixT(dx, lo, hi, &
+  subroutine get_face_flux_fixT(dx, lo, hi, &
                                    flxx, fx_lo, fx_hi, &
                                    flxy, fy_lo, fy_hi, &
                                    temp, t_lo, t_hi)
@@ -791,7 +790,7 @@ contains
        end do
     end do
  
-  end subroutine create_face_flux_fixT
+  end subroutine get_face_flux_fixT
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the volumetric enthalpy source terms
