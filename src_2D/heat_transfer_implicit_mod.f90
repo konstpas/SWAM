@@ -59,6 +59,7 @@ contains
     use heat_transfer_explicit_module, only : init_tmp_multifab, &
                                               free_memory, &
                                               update_flux_registers
+    use read_input_module, only : num_subcycling
     ! Input and output variables
     integer, intent(in) :: lev
     integer, intent(in) :: substep
@@ -90,7 +91,11 @@ contains
     call update_flux_registers(lev, fluxes)
     
     ! Update temperature multifab at level lev-1
-    if (substep.eq.nsubsteps(lev)) call update_temperature_lm1(lev, temp_tmp, temp_tmp_lm1)  
+    if (num_subcycling) then
+       if (substep.eq.nsubsteps(lev)) call update_temperature_lm1(lev, temp_tmp, temp_tmp_lm1)  
+    else
+       call update_temperature_lm1(lev, temp_tmp, temp_tmp_lm1)
+    end if
     
     ! Update melt position
     call update_melt_pos(lev)
