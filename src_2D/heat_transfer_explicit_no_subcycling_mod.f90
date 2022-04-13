@@ -210,7 +210,6 @@ contains
 
        do ilev = 0, amrex_max_level
 
-          print *, ilev
           if (ilev > 0) then
              call flux_reg(ilev)%fineadd(fluxes(ilev,:), 1.0_amrex_real)
           end if

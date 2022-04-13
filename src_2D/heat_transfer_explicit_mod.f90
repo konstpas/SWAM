@@ -18,9 +18,25 @@ module heat_transfer_explicit_module
  
 contains
 
+  ! ! -----------------------------------------------------------------
+  ! ! Subroutine used to advance the heat solver on all levels
+  ! ! -----------------------------------------------------------------
+  ! subroutine advance_heat_solver_explicit(time, dt)
+
+  !   use heat_transfer_domain_module, only : reset_melt_pos
+
+  !   ! Input and output variables
+  !   real(amrex_real), intent(in) :: dt
+  !   real(amrex_real), intent(in) :: time
+    
+  !   do ilev = 0, amrex_max_level
+  !      call advance_heat_solver_explicit_level(ilev, time, dt, 1)
+  !   end do
+    
+  ! end subroutine advance_heat_solver_explicit
+  
   ! -----------------------------------------------------------------
-  ! Subroutine used to compute the enthalpy at a new time step for
-  ! a given level via an explicit update.
+  ! Subroutine used to advance the heat solver on a given level
   ! -----------------------------------------------------------------
   subroutine advance_heat_solver_explicit_level(lev, time, dt, substep)
 
@@ -49,17 +65,17 @@ contains
     call advance(lev, time, dt, substep, phi_tmp, temp_tmp, &
                  idomain_tmp, fluxes)
 
-    ! Update flux registers (fluxes have already been scaled by dt and area
-    ! in the advance_heat_solver_box subroutine)
+    ! Update flux registers 
     call update_flux_registers(lev, fluxes)
 
+    ! Synchronize idomains
+    !call synch_idomain(lev, temp_tmp)
+    
     ! Update melt position
     call update_melt_pos(lev)
       
     ! Clean memory
-    call amrex_multifab_destroy(phi_tmp)
-    call amrex_multifab_destroy(temp_tmp)
-    call amrex_multifab_destroy(idomain_tmp)
+    !call free_memory(phi_tmp, temp_tmp, idomain_tmp, fluxes)
     
   end subroutine advance_heat_solver_explicit_level
 
@@ -213,14 +229,58 @@ contains
        if (lev < amrex_get_finest_level()) then
           call flux_reg(lev+1)%crseinit(fluxes, -1.0_amrex_real)
        end if
-
-       do idim = 1, amrex_spacedim
-          call amrex_multifab_destroy(fluxes(idim))
-       end do
        
     end if
     
   end subroutine update_flux_registers
+
+  ! ! -----------------------------------------------------------------
+  ! ! Subroutine used to synchronize the idomains
+  ! ! -----------------------------------------------------------------
+  ! subroutine synch_idomain(lev, temp_tmp)
+    
+  !   use amr_data_module, only : phi_new, &
+  !                               idomain, &
+  !                               temp    
+  !   use heat_transfer_domain_module, only : get_idomain
+        
+  !   ! Input and output variables
+  !   type(amrex_multifab), intent(inout) :: temp_tmp
+    
+  !   ! Local variables
+  !   integer :: ncomp
+  !   type(amrex_geometry) :: geom
+  !   type(amrex_mfiter) :: mfi
+  !   type(amrex_box) :: bx
+  !   real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidom
+  !   real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp_tmp
+    
+  !   ! Geometry
+  !   geom = amrex_geom(lev)
+
+  !   ! Get number of components
+  !   ncomp = phi_new(lev)%ncomp()
+    
+  !   ! Synchronize temperature with ghost points
+  !   call temp_tmp(lev)%copy(temp(lev), 1, 1, ncomp, 1) ! The last 1 is the number of ghost points
+  !   call temp_tmp(lev)%fill_boundary(geom)
+    
+  !   !$omp parallel private(mfi, bx, pidom, ptemp_tmp)
+  !   call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
+  !   do while(mfi%next())
+  !      bx = mfi%validbox()
+  !      pidom  => idomain(lev)%dataptr(mfi)
+  !      ptemp_tmp   => temp_tmp(lev)%dataptr(mfi)
+  !      call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
+  !           bx%lo, bx%hi, &
+  !           pidom, lbound(pidom), ubound(pidom), &
+  !           ptemp_tmp, lbound(ptemp_tmp), ubound(ptemp_tmp))
+       
+  !   end do
+  !   call amrex_mfiter_destroy(mfi)   
+  !   !$omp end parallel
+       
+  ! end subroutine synch_idomain
   
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the enthalpy at a new time step for

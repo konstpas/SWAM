@@ -178,7 +178,7 @@ module read_input_module
   ! --- Variables that control the numerics ---
 
   ! Safety factor used to multiply the minimum time step
-  ! that ensures the stability of the heat solver
+  ! that ensures the stability of the heat solverw
   public :: num_cfl
   ! Relative error used in the linear solvers (only used if the implicit
   ! solver for the heat equation is employed)
@@ -195,6 +195,8 @@ module read_input_module
   public :: num_agglomeration
   public :: num_consolidation
   public :: num_max_coarsening_level
+  ! Activate or deactivate subcycling in time (1 = on, 0 = off) 
+  public :: num_subcycling
 
   
   ! --- Variables for the input/output ---
@@ -284,6 +286,7 @@ module read_input_module
   logical, save :: num_composite_solve  
   logical, save :: num_agglomeration
   logical, save :: num_consolidation
+  logical, save :: num_subcycling
   real(amrex_real), save :: num_cfl
   real(amrex_real), save :: num_accuracy
 
@@ -380,6 +383,7 @@ contains
     call pp%query("agglomeration", num_agglomeration)
     call pp%query("consolidation", num_consolidation)
     call pp%query("max_coarsening_level", num_max_coarsening_level)
+    call pp%query("subcycling", num_subcycling)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the material
@@ -532,6 +536,7 @@ contains
     num_agglomeration = .true.
     num_consolidation = .true.
     num_max_coarsening_level = 30
+    num_subcycling = .false.
     
   end subroutine set_default_numerics
 

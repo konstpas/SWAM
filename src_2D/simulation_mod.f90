@@ -32,7 +32,8 @@ contains
                                   io_plot_int, &
                                   heat_solver, &
                                   heat_reflux, &
-                                  heat_solve
+                                  heat_solve, &
+                                  num_subcycling
     use plotfile_module, only: writeplotfile
 
     ! Local variables
@@ -52,6 +53,7 @@ contains
     if (heat_solver.ne."explicit" .or. .not.heat_solve) then
        heat_reflux = .false.
     end if
+    if (.not.heat_solve) num_subcycling = .false.
     
     ! Output initial configuration
     if (io_plot_int .gt. 0) call writeplotfile
@@ -69,17 +71,10 @@ contains
        call compute_dt
 		 
        ! Advance all levels of one time step (with or withouth subcycling)
-       if (heat_solve) then
-          ! if (heat_solver.eq."explicit") then
-          !    lev = 0
-          !    substep = 1
-          !    call advance_one_timestep_subcycling(lev, time, substep)
-          ! else if (heat_solver.eq."implicit") then
-          !    call advance_one_timestep(time)
-          ! else
-          !    STOP "Unknown heat solver prescribed in input"
-          ! end if
-          call advance_one_timestep(time)
+       if (num_subcycling) then
+          lev = 0
+          substep = 1
+          call advance_one_timestep_subcycling(lev, time, substep)
        else
           call advance_one_timestep(time)
        end if
@@ -117,7 +112,7 @@ contains
                                 nsubsteps
     use read_input_module, only : time_ddt_max, &
                                   time_dt, &
-                                  heat_solver
+                                  num_subcycling
 
     ! Local variables
     integer :: lev
@@ -152,12 +147,11 @@ contains
     ! Compute timestep for all levels
     dt(0) = dt_0
     do lev = 1, nlevs-1
-       ! if (heat_solver.eq."explicit") then
-       !    dt(lev) = dt(lev-1) / nsubsteps(lev)
-       ! else
-       !    dt(lev) = dt(lev-1)
-       ! end if
-       dt(lev) = dt(lev-1)
+       if (num_subcycling) then
+          dt(lev) = dt(lev-1)/nsubsteps(lev)
+       else
+          dt(lev) = dt(lev-1)
+       end if
     end do
     
   end subroutine compute_dt
@@ -311,7 +305,8 @@ contains
   subroutine advance_one_level_subcycling(lev, time, dt, substep)
 
     use read_input_module, only : sw_solve, &
-                                  heat_solve
+                                  heat_solve, &
+                                  heat_solver
     use heat_transfer_module, only : advance_heat_solver_explicit_level
     use shallow_water_module, only : advance_SW
 
@@ -328,7 +323,13 @@ contains
 
     ! Advance heat equation
     if(heat_solve) then
-       call advance_heat_solver_explicit_level(lev, time, dt, substep)
+       if (heat_solver.eq."explicit") then
+          call advance_heat_solver_explicit_level(lev, time, dt, substep)
+       else if (heat_solver.eq."implicit") then
+          STOP "Subcycling in time is not implemented for the implicit heat solver"
+       else
+          STOP "Unknown heat solver specified in input"
+       end if
     end if
 
     
@@ -375,10 +376,13 @@ contains
   subroutine advance_all_levels(time, dt)
 
     use read_input_module, only : sw_solve, &
-                                  heat_solve
+                                  heat_solve, &
+                                  heat_solver
+    
     use material_properties_module, only : get_temp
     use shallow_water_module, only : advance_SW
-    use heat_transfer_module, only : advance_heat_solver_explicit
+    use heat_transfer_module, only : advance_heat_solver_explicit, &
+                                     advance_heat_solver_implicit
     
     ! Input and output variables
     real(amrex_real), intent(in) :: dt
@@ -390,11 +394,16 @@ contains
     end if
 
     ! Advance heat equation
-    if(heat_solve) then
-       ! call advance_heat_solver_implicit(time, dt)
-       call advance_heat_solver_explicit(time, dt)
+    if (heat_solve) then
+       if (heat_solver.eq."explicit") then
+          call advance_heat_solver_explicit(time, dt)
+       else if (heat_solver.eq."implicit") then
+          call advance_heat_solver_implicit(time, dt)
+       else
+          STOP "Unknown heat solver specified in input"
+       end if
     end if
-
+    
   end subroutine advance_all_levels
 
   
