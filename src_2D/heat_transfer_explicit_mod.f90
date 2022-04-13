@@ -18,6 +18,9 @@ module heat_transfer_explicit_module
   public :: advance_heat_solver_explicit_level
   public :: get_volumetric_heat_source
   public :: get_face_flux
+  public :: init_tmp_multifab
+  public :: free_memory
+  public :: update_flux_registers
   
 contains
 
@@ -402,7 +405,7 @@ contains
                                pin, lbound(pin), ubound(pin), &
                                ptempin, lbound(ptempin), ubound(ptempin))
     
-    ! Increment enthalpy at given box depending on the condition of the free surface
+    ! Update the enthalpy
     if (heat_temp_surf.gt.0) then
        call get_enthalpy_fixT(bx%lo, bx%hi, &
                               pin, lbound(pin), ubound(pin),     &
@@ -423,7 +426,7 @@ contains
                          geom, dt, lev)
     end if
 
-    ! Get temperature corresponding to the new enthalpy
+    ! Update the temperature
     call get_temp(bx%lo, bx%hi, &
                   pout, lbound(pout), ubound(pout), &
                   ptemp, lbound(ptemp), ubound(ptemp), .true.) 

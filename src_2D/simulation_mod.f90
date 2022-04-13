@@ -30,7 +30,6 @@ contains
     use read_input_module, only : time_step_max, &
                                   time_max, &
                                   io_plot_int, &
-                                  heat_solver, &
                                   heat_reflux, &
                                   heat_solve, &
                                   num_subcycling
@@ -40,7 +39,6 @@ contains
     integer :: last_plot_file_step
     integer :: step
     integer :: lev
-    integer :: substep
     real(amrex_real) :: time
 
     ! Initialize time
@@ -50,10 +48,10 @@ contains
     last_plot_file_step = 0;
 
     ! Automatically disable reflux if the heat equation is not solved explicitly
-    if (heat_solver.ne."explicit" .or. .not.heat_solve) then
+    if (.not.heat_solve) then
        heat_reflux = .false.
+       num_subcycling = .false.
     end if
-    if (.not.heat_solve) num_subcycling = .false.
     
     ! Output initial configuration
     if (io_plot_int .gt. 0) call writeplotfile
@@ -72,9 +70,7 @@ contains
 		 
        ! Advance all levels of one time step (with or withouth subcycling)
        if (num_subcycling) then
-          lev = 0
-          substep = 1
-          call advance_one_timestep_subcycling(lev, time, substep)
+          call advance_one_timestep_subcycling(time, 0, 1)
        else
           call advance_one_timestep(time)
        end if
@@ -205,7 +201,7 @@ contains
   ! one level with the fully explicit method with subcycling.
   ! Note that the subroutine is recursive, i.e. it calls itself.
   ! -----------------------------------------------------------------
-  recursive subroutine advance_one_timestep_subcycling(lev, time, substep)
+  recursive subroutine advance_one_timestep_subcycling(time, lev, substep)
 
     use read_input_module, only : heat_reflux
     use amr_data_module, only : t_old, &
@@ -238,7 +234,8 @@ contains
     if (lev .lt. amrex_get_finest_level()) then
        
        do fine_substep = 1, nsubsteps(lev+1)
-          call advance_one_timestep_subcycling(lev+1, time+(fine_substep-1)*dt(lev+1), fine_substep) 
+          call advance_one_timestep_subcycling(time+(fine_substep-1)*dt(lev+1), &
+                                               lev+1, fine_substep) 
        end do
 
        ! Update coarse solution at coarse-fine interface via dPhidt = -div(+F) where F is stored flux (flux_reg)
@@ -307,7 +304,8 @@ contains
     use read_input_module, only : sw_solve, &
                                   heat_solve, &
                                   heat_solver
-    use heat_transfer_module, only : advance_heat_solver_explicit_level
+    use heat_transfer_module, only : advance_heat_solver_explicit_level, &
+                                     advance_heat_solver_implicit_level
     use shallow_water_module, only : advance_SW
 
     ! Input and output variables 
@@ -316,6 +314,9 @@ contains
     real(amrex_real), intent(in) :: time
     real(amrex_real), intent(in) :: dt
 
+    ! Local variables
+    type(amrex_multifab) :: temp_lm1 ! Temperature multifab at lev-1
+    
     ! Advance shallow-water equations (only at max level)
     if (sw_solve .and. lev.eq.amrex_max_level) then
        call advance_SW(time)    
@@ -326,12 +327,16 @@ contains
        if (heat_solver.eq."explicit") then
           call advance_heat_solver_explicit_level(lev, time, dt, substep)
        else if (heat_solver.eq."implicit") then
-          STOP "Subcycling in time is not implemented for the implicit heat solver"
+          STOP "Subcycling not yet implemented for the implicit solver"
+          ! call advance_heat_solver_implicit_level(lev, time, dt, substep, &
+          !                                         temp_lm1)
        else
           STOP "Unknown heat solver specified in input"
        end if
     end if
 
+    ! Clean memory
+    call amrex_multifab_destroy(temp_lm1)
     
   end subroutine advance_one_level_subcycling
 
