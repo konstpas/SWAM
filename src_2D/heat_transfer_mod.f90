@@ -6,7 +6,6 @@ module heat_transfer_module
   ! -----------------------------------------------------------------
   
   use heat_transfer_explicit_module
-  !use heat_transfer_implicit_module
-  use heat_transfer_implicit_subcycling_module
+  use heat_transfer_implicit_module
   
 end module heat_transfer_module
