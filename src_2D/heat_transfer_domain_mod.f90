@@ -16,6 +16,7 @@ module heat_transfer_domain_module
   ! -----------------------------------------------------------------
   public :: get_idomain
   public :: get_melt_pos
+  public :: update_melt_pos
   public :: get_surf_pos
   public :: get_face_velocity
   public :: reset_melt_pos
@@ -399,8 +400,49 @@ contains
 
 
   ! -----------------------------------------------------------------
+  ! Subroutine used to update the position of the bottom of the
+  ! melt pool for a given level
+  ! -----------------------------------------------------------------
+  subroutine update_melt_pos(lev)
+    
+    use amr_data_module, only : phi_new,&
+                                idomain
+
+    ! Input variables
+    integer, intent(in) :: lev
+    
+    ! Local variables
+    type(amrex_geometry) :: geom
+    type(amrex_mfiter) :: mfi
+    type(amrex_box) :: bx
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidom
+    
+    if (lev.eq.amrex_max_level) then
+       
+       ! Geometry
+       geom = amrex_geom(lev)
+       
+       ! Loop through all the boxes in the level
+       !$omp parallel private(mfi, bx, pidom)
+       call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
+       do while(mfi%next())
+          bx = mfi%validbox()
+          pidom  => idomain(lev)%dataptr(mfi)
+          call get_melt_pos(bx%lo, bx%hi, &
+                            pidom, lbound(pidom), ubound(pidom), &
+                            geom)
+          
+       end do
+       call amrex_mfiter_destroy(mfi)
+       !$omp end parallel   
+
+    end if
+    
+  end subroutine update_melt_pos
+
+  ! -----------------------------------------------------------------
   ! Subroutine used to get the position of the bottom of the melt
-  ! pool
+  ! pool for a box of a given level
   ! -----------------------------------------------------------------
   subroutine get_melt_pos(lo, hi, idom, id_lo, id_hi, geom)
        

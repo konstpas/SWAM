@@ -24,8 +24,6 @@ contains
   ! -----------------------------------------------------------------
   subroutine advance_heat_solver_explicit(time, dt)
 
-    use heat_transfer_domain_module, only : reset_melt_pos
-
     ! Input and output variables
     real(amrex_real), intent(in) :: dt
     real(amrex_real), intent(in) :: time
@@ -44,7 +42,8 @@ contains
   ! -----------------------------------------------------------------
   subroutine advance_heat_solver_explicit_level(lev, time, dt, substep)
 
-    use heat_transfer_domain_module, only : reset_melt_pos
+    use heat_transfer_domain_module, only : reset_melt_pos, &
+                                            update_melt_pos
     
     ! Input and output variables 
     integer, intent(in) :: lev
@@ -285,6 +284,7 @@ contains
        
   end subroutine synch_idomain
 
+    
   ! -----------------------------------------------------------------
   ! Subroutine used to free memory 
   ! -----------------------------------------------------------------
@@ -328,7 +328,6 @@ contains
     use read_input_module, only : heat_reflux, &
                                   heat_temp_surf
     use heat_transfer_domain_module, only : get_idomain, &
-                                            get_melt_pos, &
                                             revaluate_heat_domain
     use material_properties_module, only : get_temp
     
@@ -835,46 +834,5 @@ contains
  
   end subroutine get_volumetric_heat_source
 
-  ! -----------------------------------------------------------------
-  ! Subroutine used to update the position of the bottom of the
-  ! melt pool
-  ! -----------------------------------------------------------------
-  subroutine update_melt_pos(lev)
-    
-    use amr_data_module, only : phi_new,&
-                                idomain
-    use heat_transfer_domain_module, only : get_melt_pos
-
-    ! Input variables
-    integer, intent(in) :: lev
-    
-    ! Local variables
-    type(amrex_geometry) :: geom
-    type(amrex_mfiter) :: mfi
-    type(amrex_box) :: bx
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidom
-    
-    if (lev.eq.amrex_max_level) then
-       
-       ! Geometry
-       geom = amrex_geom(lev)
-       
-       ! Loop through all the boxes in the level
-       !$omp parallel private(mfi, bx, pidom)
-       call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
-       do while(mfi%next())
-          bx = mfi%validbox()
-          pidom  => idomain(lev)%dataptr(mfi)
-          call get_melt_pos(bx%lo, bx%hi, &
-               pidom, lbound(pidom), ubound(pidom), &
-               geom)
-          
-       end do
-       call amrex_mfiter_destroy(mfi)
-       !$omp end parallel   
-
-    end if
-    
-  end subroutine update_melt_pos
   
 end module heat_transfer_explicit_module
