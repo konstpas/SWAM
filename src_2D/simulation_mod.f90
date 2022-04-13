@@ -152,11 +152,12 @@ contains
     ! Compute timestep for all levels
     dt(0) = dt_0
     do lev = 1, nlevs-1
-       if (heat_solver.eq."explicit") then
-          dt(lev) = dt(lev-1) / nsubsteps(lev)
-       else
-          dt(lev) = dt(lev-1)
-       end if
+       ! if (heat_solver.eq."explicit") then
+       !    dt(lev) = dt(lev-1) / nsubsteps(lev)
+       ! else
+       !    dt(lev) = dt(lev-1)
+       ! end if
+       dt(lev) = dt(lev-1)
     end do
     
   end subroutine compute_dt

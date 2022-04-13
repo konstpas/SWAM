@@ -25,14 +25,12 @@ contains
   subroutine advance_heat_solver_explicit(time, dt)
 
     use heat_transfer_domain_module, only : reset_melt_pos
-    
+
     ! Input and output variables
     real(amrex_real), intent(in) :: dt
     real(amrex_real), intent(in) :: time
     
     ! Local variables
-    integer :: idim
-    integer :: ilev
     type(amrex_multifab) :: phi_tmp(0:amrex_max_level) ! Enthalpy multifab with ghost points
     type(amrex_multifab) :: temp_tmp(0:amrex_max_level) ! Temperature multifab with ghost points
     type(amrex_multifab) :: idomain_tmp(0:amrex_max_level) ! Idomain multifab to distinguish material and background
@@ -47,22 +45,17 @@ contains
     ! Advance heat transfer equation of one timestep
     call advance(time, dt, phi_tmp, temp_tmp, idomain_tmp, fluxes)
 
-    ! Update flux registers (fluxes have already been scaled by dt and area
-    ! in the advance_heat_solver_box subroutine)
+    ! Update flux registers 
     call update_flux_registers(fluxes)
 
+    ! Synchronize idomains
+    call synch_idomain(temp_tmp)
+    
     ! Update melt position
     call update_melt_pos(amrex_max_level)
       
     ! Clean memory
-    do ilev = 0, amrex_max_level 
-       call amrex_multifab_destroy(phi_tmp(ilev))
-       call amrex_multifab_destroy(temp_tmp(ilev))
-       call amrex_multifab_destroy(idomain_tmp(ilev))
-       do idim = 1, amrex_spacedim
-          call amrex_multifab_destroy(fluxes(ilev, idim))
-       end do
-    end do
+    call free_memory(phi_tmp, temp_tmp, idomain_tmp, fluxes)
     
   end subroutine advance_heat_solver_explicit
 
@@ -161,7 +154,7 @@ contains
     type(amrex_fab) :: flux(amrex_spacedim)
     type(amrex_geometry) :: geom
     type(amrex_mfiter) :: mfi
-
+    
     do ilev = 0, amrex_max_level
        
        ! Get geometry
@@ -209,7 +202,6 @@ contains
     type(amrex_multifab), intent(inout) :: fluxes(0:amrex_max_level, amrex_spacedim)
 
     ! Local variables
-    integer :: idim
     integer :: ilev
     
     ! Update flux registers (fluxes have already been scaled by dt and area
@@ -217,7 +209,8 @@ contains
     if (heat_reflux) then
 
        do ilev = 0, amrex_max_level
-       
+
+          print *, ilev
           if (ilev > 0) then
              call flux_reg(ilev)%fineadd(fluxes(ilev,:), 1.0_amrex_real)
           end if
@@ -225,16 +218,97 @@ contains
           if (ilev < amrex_get_finest_level()) then
              call flux_reg(ilev+1)%crseinit(fluxes(ilev,:), -1.0_amrex_real)
           end if
-          
-          do idim = 1, amrex_spacedim
-             call amrex_multifab_destroy(fluxes(ilev, idim))
-          end do
 
        end do
        
     end if
     
   end subroutine update_flux_registers
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to synchronize the idomains on all levels
+  ! -----------------------------------------------------------------
+  subroutine synch_idomain(temp_tmp)
+    
+    use amr_data_module, only : phi_new, &
+                                idomain, &
+                                temp    
+    use heat_transfer_domain_module, only : get_idomain
+        
+    ! Input and output variables
+    type(amrex_multifab), intent(inout) :: temp_tmp(0:amrex_max_level)
+    
+    ! Local variables
+    integer :: ilev
+    integer :: ncomp
+    type(amrex_geometry) :: geom
+    type(amrex_mfiter) :: mfi
+    type(amrex_box) :: bx
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidom
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp_tmp
+    
+    do ilev = 0, amrex_max_level
+
+       ! Geometry
+       geom = amrex_geom(ilev)
+
+       ! Get number of components
+       ncomp = phi_new(ilev)%ncomp()
+       
+       ! Synchronize temperature with ghost points
+       call temp_tmp(ilev)%copy(temp(ilev), 1, 1, ncomp, 1) ! The last 1 is the number of ghost points
+       call temp_tmp(ilev)%fill_boundary(geom)
+       
+       !$omp parallel private(mfi, bx, pidom, ptemp_tmp)
+       call amrex_mfiter_build(mfi, phi_new(ilev), tiling=.false.)
+       do while(mfi%next())
+          bx = mfi%validbox()
+          pidom  => idomain(ilev)%dataptr(mfi)
+          ptemp_tmp   => temp_tmp(ilev)%dataptr(mfi)
+          call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
+                           bx%lo, bx%hi, &
+                           pidom, lbound(pidom), ubound(pidom), &
+                           ptemp_tmp, lbound(ptemp_tmp), ubound(ptemp_tmp))
+          
+       end do
+       call amrex_mfiter_destroy(mfi)   
+       !$omp end parallel
+       
+    end do
+    
+  end subroutine synch_idomain
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to free memory on all levels
+  ! -----------------------------------------------------------------
+  subroutine free_memory(phi_tmp, temp_tmp, idomain_tmp, fluxes)
+
+    use read_input_module, only: heat_reflux
+    
+    ! Input and output variables
+    type(amrex_multifab), intent(inout) :: phi_tmp(0:amrex_max_level)
+    type(amrex_multifab), intent(inout) :: temp_tmp(0:amrex_max_level)
+    type(amrex_multifab), intent(inout) :: idomain_tmp(0:amrex_max_level)
+    type(amrex_multifab), intent(inout) :: fluxes(0:amrex_max_level, amrex_spacedim)
+    
+    ! Local variables
+    integer :: idim
+    integer :: ilev
+
+    do ilev = 0, amrex_max_level
+       
+       call amrex_multifab_destroy(phi_tmp(ilev))
+       call amrex_multifab_destroy(temp_tmp(ilev))
+       call amrex_multifab_destroy(idomain_tmp(ilev))
+       if (heat_reflux) then
+          do idim = 1, amrex_spacedim
+             call amrex_multifab_destroy(fluxes(ilev, idim))
+          end do
+       end if
+       
+    end do
+       
+  end subroutine free_memory
   
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the enthalpy at a new time step for
@@ -296,7 +370,7 @@ contains
        tbx = bx
        call tbx%nodalize(idim)
        call flux(idim)%resize(tbx,ncomp)
-       call tbx%grow(1)
+       call tbx%grow(lev+1)
     end do
     pfx => flux(1)%dataptr()
     pfy => flux(2)%dataptr()
@@ -304,8 +378,8 @@ contains
     
     ! Get temperature corresponding to the enthalpy (with ghost points)
     call get_temp(lbound(ptempin), ubound(ptempin), &
-         pin, lbound(pin), ubound(pin), &
-         ptempin, lbound(ptempin), ubound(ptempin),.true.)
+                  pin, lbound(pin), ubound(pin), &
+                  ptempin, lbound(ptempin), ubound(ptempin),.true.)
     
     ! Get configuration of the system after the deformation
     call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
@@ -346,8 +420,8 @@ contains
     ! Get temperature corresponding to the new enthalpy
     call get_temp(bx%lo, bx%hi, &
                   pout, lbound(pout), ubound(pout), &
-                  ptemp, lbound(ptemp), ubound(ptemp), .true.) 
-       
+                  ptemp, lbound(ptemp), ubound(ptemp), .true.)
+        
     ! Update pointers for flux registers
     if (heat_reflux) then
        
@@ -755,6 +829,7 @@ contains
  
   end subroutine get_volumetric_heat_source
 
+  
   ! -----------------------------------------------------------------
   ! Subroutine used to update the position of the bottom of the
   ! melt pool
@@ -786,8 +861,8 @@ contains
           bx = mfi%validbox()
           pidom  => idomain(lev)%dataptr(mfi)
           call get_melt_pos(bx%lo, bx%hi, &
-               pidom, lbound(pidom), ubound(pidom), &
-               geom)
+                             pidom, lbound(pidom), ubound(pidom), &
+                             geom)
           
        end do
        call amrex_mfiter_destroy(mfi)
@@ -796,5 +871,6 @@ contains
     end if
     
   end subroutine update_melt_pos
+
   
 end module heat_transfer_explicit_no_subcycling
