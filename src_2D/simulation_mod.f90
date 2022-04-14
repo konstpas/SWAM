@@ -40,7 +40,8 @@ contains
     integer :: step
     integer :: lev
     real(amrex_real) :: time
-
+    type(amrex_multifab) :: temp_lm1(0:amrex_max_level) 
+    
     ! Initialize time
     time = t_new(0)
 
@@ -70,7 +71,7 @@ contains
 		 
        ! Advance all levels of one time step (with or withouth subcycling)
        if (num_subcycling) then
-          call advance_one_timestep_subcycling(time, 0, 1)
+          call advance_one_timestep_subcycling(time, 0, 1, temp_lm1)
        else
           call advance_one_timestep(time)
        end if
@@ -95,6 +96,11 @@ contains
        ! Stopping criteria
        if (time .ge. time_max) exit
 
+    end do
+
+    ! Clean memory
+    do lev = 0, amrex_max_level
+       call amrex_multifab_destroy(temp_lm1(lev))
     end do
     
   end subroutine run_simulation
@@ -201,7 +207,7 @@ contains
   ! one level with the fully explicit method with subcycling.
   ! Note that the subroutine is recursive, i.e. it calls itself.
   ! -----------------------------------------------------------------
-  recursive subroutine advance_one_timestep_subcycling(time, lev, substep)
+  recursive subroutine advance_one_timestep_subcycling(time, lev, substep, temp_lm1)
 
     use read_input_module, only : heat_reflux
     use amr_data_module, only : t_old, &
@@ -217,6 +223,7 @@ contains
     integer, intent(in) :: lev
     integer, intent(in) :: substep
     real(amrex_real), intent(in) :: time
+    type(amrex_multifab), intent(inout) :: temp_lm1(0:amrex_max_level)
 
     ! Local variables
     integer :: fine_substep    
@@ -228,14 +235,14 @@ contains
     stepno(lev) = stepno(lev)+1
     t_old(lev) = time
     t_new(lev) = time + dt(lev)
-    call advance_one_level_subcycling(lev, time, dt(lev), substep)
+    call advance_one_level_subcycling(lev, time, dt(lev), substep, temp_lm1)
 
     ! Propagate solution and synchronize levels
     if (lev .lt. amrex_get_finest_level()) then
        
        do fine_substep = 1, nsubsteps(lev+1)
           call advance_one_timestep_subcycling(time+(fine_substep-1)*dt(lev+1), &
-                                               lev+1, fine_substep) 
+                                               lev+1, fine_substep, temp_lm1) 
        end do
 
        ! Update coarse solution at coarse-fine interface via dPhidt = -div(+F) where F is stored flux (flux_reg)
@@ -247,7 +254,7 @@ contains
        call averagedownto(lev)
         
     end if
-  
+    
   end subroutine advance_one_timestep_subcycling
 
   ! -----------------------------------------------------------------
@@ -299,7 +306,7 @@ contains
   ! heat equation solver of one time step at a given level. Only
   ! used if the fully explicit solver with subcycling is used.
   ! -----------------------------------------------------------------
-  subroutine advance_one_level_subcycling(lev, time, dt, substep)
+  subroutine advance_one_level_subcycling(lev, time, dt, substep, temp_lm1)
 
     use read_input_module, only : sw_solve, &
                                   heat_solve, &
@@ -313,10 +320,8 @@ contains
     integer, intent(in) :: substep
     real(amrex_real), intent(in) :: time
     real(amrex_real), intent(in) :: dt
+    type(amrex_multifab), intent(inout) :: temp_lm1(0:amrex_max_level) ! Temperature multifab at lev-1
 
-    ! Local variables
-    type(amrex_multifab) :: temp_lm1 ! Temperature multifab at lev-1
-    
     ! Advance shallow-water equations (only at max level)
     if (sw_solve .and. lev.eq.amrex_max_level) then
        call advance_SW(time)    
@@ -327,17 +332,13 @@ contains
        if (heat_solver.eq."explicit") then
           call advance_heat_solver_explicit_level(lev, time, dt, substep)
        else if (heat_solver.eq."implicit") then
-          STOP "Subcycling not yet implemented for the implicit solver"
-          ! call advance_heat_solver_implicit_level(lev, time, dt, substep, &
-          !                                         temp_lm1)
+          call advance_heat_solver_implicit_level(lev, time, dt, substep, &
+                                                  temp_lm1)
        else
           STOP "Unknown heat solver specified in input"
        end if
     end if
 
-    ! Clean memory
-    call amrex_multifab_destroy(temp_lm1)
-    
   end subroutine advance_one_level_subcycling
 
   ! -----------------------------------------------------------------

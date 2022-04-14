@@ -32,9 +32,8 @@ contains
 
     ! Local variables
     integer :: ilev
-    type(amrex_multifab) :: temp_lm1 ! Temperature multifab at lev-1
-    ! temp_lm1 is used to impose the boundary conditions when solving
-    ! the conductive part of the heat equation
+    type(amrex_multifab) :: temp_lm1(0:amrex_max_level) ! Temperature multifab at lev-1
+    
 
     ! Advance heat solver
     do ilev = 0, amrex_max_level
@@ -42,7 +41,9 @@ contains
     end do
 
     ! Clean memory
-    call amrex_multifab_destroy(temp_lm1)
+    do ilev = 0, amrex_max_level
+       call amrex_multifab_destroy(temp_lm1(ilev))
+    end do
     
   end subroutine advance_heat_solver_implicit
 
@@ -65,14 +66,14 @@ contains
     integer, intent(in) :: substep
     real(amrex_real), intent(in) :: dt
     real(amrex_real), intent(in) :: time
-    type(amrex_multifab), intent(inout) :: temp_tmp_lm1
+    type(amrex_multifab), intent(inout) :: temp_tmp_lm1(0:amrex_max_level)
     
     ! Local variables
     type(amrex_multifab) :: phi_tmp  ! Enthalpy multifab with ghost points
     type(amrex_multifab) :: temp_tmp ! Temperature multifab with ghost points
     type(amrex_multifab) :: idomain_tmp ! Idomain multifab to distinguish material and background
     type(amrex_multifab) :: fluxes(amrex_spacedim)
-    
+
     ! Initialize temporary multifabs
     call init_tmp_multifab(lev, time, phi_tmp, temp_tmp, &
                            idomain_tmp, fluxes)
@@ -82,7 +83,7 @@ contains
     
     ! Advance the conductive part of the heat equation
     call advance_conduction(lev, time, dt, phi_tmp, temp_tmp, &
-                            temp_tmp_lm1, idomain_tmp)
+                            temp_tmp_lm1(lev-1), idomain_tmp)
   
     ! Advance the advective part of the heat equation
     call advance_advection(lev, dt, substep, temp_tmp, phi_tmp, fluxes)
@@ -92,9 +93,11 @@ contains
     
     ! Update temperature multifab at level lev-1
     if (num_subcycling) then
-       if (substep.eq.nsubsteps(lev)) call update_temperature_lm1(lev, temp_tmp, temp_tmp_lm1)  
+       if (substep.eq.nsubsteps(lev)) then
+          call update_temperature_lm1(lev, temp_tmp, temp_tmp_lm1(lev))
+       end if
     else
-       call update_temperature_lm1(lev, temp_tmp, temp_tmp_lm1)
+       call update_temperature_lm1(lev, temp_tmp, temp_tmp_lm1(lev))
     end if
     
     ! Update melt position
@@ -1081,7 +1084,7 @@ contains
     ! Scale the fluxes for the flux registers
     do j = lo(2), hi(2)
        do i = lo(1), hi(1) + 1
-          flxx(i,j) = flxx(i,j) + flxx_cond(i,j)
+          !flxx(i,j) = flxx(i,j) + flxx_cond(i,j)
           flxx(i,j) = flxx(i,j) * dx(2)
           if (num_subcycling) flxx(i,j) = flxx(i,j) * dt 
        end do
@@ -1089,7 +1092,7 @@ contains
 
     do j = lo(2), hi(2) + 1
        do i = lo(1), hi(1)
-          flxy(i,j) = flxy(i,j) + flxy_cond(i,j)
+          !flxy(i,j) = flxy(i,j) + flxy_cond(i,j)
           flxy(i,j) = flxy(i,j) * dx(1)
           if (num_subcycling) flxy(i,j) = flxy(i,j) * dt 
        end do
