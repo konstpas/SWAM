@@ -395,7 +395,7 @@ contains
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the linear solver used for the implicit solution of the heat equation
-    call amrex_parmparse_build(pp, "linear_solver")
+    call amrex_parmparse_build(pp, "numerics")
     call pp%query("accuracy", num_accuracy)
     call pp%query("composite_solve", num_composite_solve)  
     call pp%query("verbose", num_verbose)

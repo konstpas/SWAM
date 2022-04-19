@@ -22,92 +22,100 @@ contains
   ! -----------------------------------------------------------------
   ! Subroutine used to run the simulation
   ! -----------------------------------------------------------------
-  subroutine run_simulation()
+subroutine run_simulation()
 
-    use amr_data_module, only : t_new, stepno, dt
-    use read_input_module, only : time_step_max, time_max, io_plot_int, heat_solver, heat_reflux, heat_solve
-    use plotfile_module, only: writeplotfile
+   use amr_data_module, only : t_new, &
+                               stepno, &
+                               dt
+   use read_input_module, only : time_step_max, &
+                                 time_max, &
+                                 io_plot_int, &
+                                 heat_reflux, &
+                                 heat_solve, &
+                                 num_subcycling
+   use plotfile_module, only: writeplotfile
 
-    ! Local variables
-    integer :: last_plot_file_step
-    integer :: step
-    integer :: lev
-    integer :: substep
-    real(amrex_real) :: cur_time
-    
-    ! Initialize time
-    cur_time = t_new(0)
+   ! Local variables
+   integer :: last_plot_file_step
+   integer :: step
+   integer :: lev
+   real(amrex_real) :: time
+   type(amrex_multifab) :: temp_lm1(0:amrex_max_level) 
+   
+   ! Initialize time
+   time = t_new(0)
 
-    ! Initialize counter for output
-    last_plot_file_step = 0;
+   ! Initialize counter for output
+   last_plot_file_step = 0;
 
-    ! Automatically disable reflux if the heat equation is not solved explicitly
-    if (heat_solver.ne."explicit" .or. .not.heat_solve) then
+   ! Automatically disable reflux if the heat equation is not solved explicitly
+   if (.not.heat_solve) then
       heat_reflux = .false.
-    end if
+      num_subcycling = .false.
+   end if
+   
+   ! Output initial configuration
+   if (io_plot_int .gt. 0) call writeplotfile
 
-    ! Output initial configuration
-    if (io_plot_int .gt. 0) call writeplotfile
+   ! Loop over time-steps
+   do step = stepno(0), time_step_max - 1
 
-    ! Loop over time-steps
-    do step = stepno(0), time_step_max-1
+      ! Print timestep information on screen (start)
+      if (amrex_parallel_ioprocessor()) then
+         print *, ""
+         print *, "STEP", step+1, "starts ..."
+      end if
 
-       ! Print timestep information on screen (start)
-       if (amrex_parallel_ioprocessor()) then
-          print *, ""
-          print *, "STEP", step+1, "starts ..."
-       end if
+      ! Compute time step size
+      call compute_dt
+      
+      ! Advance all levels of one time step (with or withouth subcycling)
+      if (num_subcycling) then
+         call advance_one_timestep_subcycling(time, 0, 1, temp_lm1)
+      else
+         call advance_one_timestep(time)
+      end if
+      
+      ! Update time on all levels
+      time = time + dt(0)
+      do lev = 0, amrex_max_level
+         t_new(lev) = time
+      end do
 
-       ! Compute time step size
-       call compute_dt
-		 
-       ! Advance all levels of one time step
+      ! Print timestep information on screen (end)
+      if (amrex_parallel_ioprocessor()) then
+         print *, "STEP", step+1, "end. TIME =", time, "DT =", dt(0)
+      end if
 
-       if (heat_solve) then
-         if (heat_solver.eq."explicit") then
-            lev = 0
-            substep = 1
-            call advance_one_timestep_subcycling(lev, cur_time, substep)
-         else if (heat_solver.eq."implicit") then
-            call advance_one_timestep(cur_time)
-         else
-            STOP "Unknown heat solver prescribed in input"
-         end if
-       else
-         call advance_one_timestep(cur_time)
-       end if       
- 	
-       ! Update time on all levels
-       cur_time = cur_time + dt(0)
-       do lev = 0, amrex_get_finest_level()
-          t_new(lev) = cur_time
-       end do
+      ! Print output to file
+      if (io_plot_int .gt. 0 .and. mod(step+1,io_plot_int) .eq. 0) then
+         last_plot_file_step = step+1
+         call writeplotfile
+      end if
 
-       ! Print timestep information on screen (end)
-       if (amrex_parallel_ioprocessor()) then
-          print *, "STEP", step+1, "end. TIME =", cur_time, "DT =", dt(0)
-       end if
+      ! Stopping criteria
+      if (time .ge. time_max) exit
 
-       ! Print output to file
-       if (io_plot_int .gt. 0 .and. mod(step+1,io_plot_int) .eq. 0) then
-          last_plot_file_step = step+1
-          call writeplotfile
-       end if
+   end do
 
-       ! Stopping criteria
-       if (cur_time .ge. time_max) exit
-
-    end do
-
-  end subroutine run_simulation
+   ! Clean memory
+   do lev = 0, amrex_max_level
+      call amrex_multifab_destroy(temp_lm1(lev))
+   end do
+   
+ end subroutine run_simulation
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the timestep for each level
   ! -----------------------------------------------------------------
   subroutine compute_dt()
     
-    use amr_data_module, only : dt, nsubsteps
-    use read_input_module, only : time_ddt_max, time_dt, heat_solver
+    
+    use amr_data_module, only : dt, &
+                                nsubsteps
+    use read_input_module, only : time_ddt_max, &
+                                  time_dt, &
+                                  num_subcycling
 
     ! Local variables
     integer :: lev
@@ -142,7 +150,7 @@ contains
     ! Compute timestep for all levels
     dt(0) = dt_0
     do lev = 1, nlevs-1
-       if (heat_solver.eq."explicit") then
+       if (num_subcycling) then
           dt(lev) = dt(lev-1) / nsubsteps(lev)
        else
           dt(lev) = dt(lev-1)
@@ -194,37 +202,46 @@ contains
 
   
   ! -----------------------------------------------------------------
-  ! Subroutine used to advance the simulation of one timestep. Note
-  ! that the subroutine is recursive, i.e. it calls itself
+  ! Subroutine used to advance the simulation of one timestep on
+  ! one level with the fully explicit method with subcycling.
+  ! Note that the subroutine is recursive, i.e. it calls itself.
   ! -----------------------------------------------------------------
-  recursive subroutine advance_one_timestep_subcycling(lev, time, substep)
+  recursive subroutine advance_one_timestep_subcycling(time, lev, substep, temp_lm1)
 
     use read_input_module, only : heat_reflux
-    use amr_data_module, only : t_old, t_new, phi_new, flux_reg, stepno, nsubsteps, dt  
+    use amr_data_module, only : t_old, &
+                                t_new, &
+                                phi_new, &
+                                flux_reg, &
+                                stepno, &
+                                nsubsteps, &
+                                dt  
     use regrid_module, only : averagedownto
 
     ! Input and output variables
     integer, intent(in) :: lev
     integer, intent(in) :: substep
     real(amrex_real), intent(in) :: time
+    type(amrex_multifab), intent(inout) :: temp_lm1(0:amrex_max_level)
 
     ! Local variables
-    integer :: fine_substep
+    integer :: fine_substep    
     
-    ! Regridding 
-    call check_regridding(lev, time)     
+    ! Regridding
+    call check_regridding(lev, time)    
     
     ! Advance solution
     stepno(lev) = stepno(lev)+1
     t_old(lev) = time
     t_new(lev) = time + dt(lev)
-    call advance_one_level_subcycling(lev, time, dt(lev), substep)
+    call advance_one_level_subcycling(lev, time, dt(lev), substep, temp_lm1)
 
-    ! Advance solution and synchronize levels
+    ! Propagate solution and synchronize levels
     if (lev .lt. amrex_get_finest_level()) then
        
        do fine_substep = 1, nsubsteps(lev+1)
-          call advance_one_timestep_subcycling(lev+1, time+(fine_substep-1)*dt(lev+1), fine_substep) 
+          call advance_one_timestep_subcycling(time+(fine_substep-1)*dt(lev+1), &
+                                               lev+1, fine_substep, temp_lm1) 
        end do
 
        ! Update coarse solution at coarse-fine interface via dPhidt = -div(+F) where F is stored flux (flux_reg)
@@ -234,9 +251,9 @@ contains
        
        ! Define the solution at the coarser level to be the average of the solution at the finer level
        call averagedownto(lev)
-       
+        
     end if
-  
+    
   end subroutine advance_one_timestep_subcycling
 
   
@@ -290,10 +307,13 @@ contains
   ! heat equation solver of one time step at a given level. Only
   ! used if the fully explicit solver with subcycling is used.
   ! -----------------------------------------------------------------
- subroutine advance_one_level_subcycling(lev, time, dt, substep)
+ subroutine advance_one_level_subcycling(lev, time, dt, substep, temp_lm1)
 
-   use read_input_module, only : sw_solve, heat_solve
-   use heat_transfer_module, only : advance_heat_solver_explicit_level
+   use read_input_module, only : sw_solve, &
+                                 heat_solve, &
+                                 heat_solver
+   use heat_transfer_module, only : advance_heat_solver_explicit_level, &
+                                    advance_heat_solver_implicit_level
    use shallow_water_module, only : advance_SW
 
    ! Input and output variables 
@@ -301,6 +321,7 @@ contains
    integer, intent(in) :: substep
    real(amrex_real), intent(in) :: time
    real(amrex_real), intent(in) :: dt
+   type(amrex_multifab), intent(inout) :: temp_lm1(0:amrex_max_level) ! Temperature multifab at lev-1
 
    ! Advance shallow-water equations (only at max level)
    if (sw_solve .and. lev.eq.amrex_max_level) then
@@ -309,7 +330,14 @@ contains
 
    ! Advance heat equation
    if(heat_solve) then
-      call advance_heat_solver_explicit_level(lev, time, dt, substep)
+      if (heat_solver.eq."explicit") then
+         call advance_heat_solver_explicit_level(lev, time, dt, substep)
+      else if (heat_solver.eq."implicit") then
+         call advance_heat_solver_implicit_level(lev, time, dt, substep, &
+                                                 temp_lm1)
+      else
+         STOP "Unknown heat solver specified in input"
+      end if
    end if
 
  end subroutine advance_one_level_subcycling
@@ -352,27 +380,38 @@ contains
   ! heat equation solver of one time step for all levels. Only
   ! used if the implicit solver for the heat equation is employed.
   ! -----------------------------------------------------------------
-  subroutine advance_all_levels(time, dt)
+   subroutine advance_all_levels(time, dt)
 
-    use read_input_module, only : sw_solve, heat_solve
-    use shallow_water_module, only : advance_SW
-    use heat_transfer_module, only : advance_heat_solver_implicit
-   
-    ! Input and output variables
-    real(amrex_real), intent(in) :: dt
-    real(amrex_real), intent(in) :: time
-
-    ! Advance SW equations (only at max level)
-    if (sw_solve) then
-       call advance_SW(time)    
-    end if
-
-    ! Advance heat equation
-    if(heat_solve) then      
-      call advance_heat_solver_implicit(time, dt)
-   end if
-
- end subroutine advance_all_levels
+      use read_input_module, only : sw_solve, &
+                                    heat_solve, &
+                                    heat_solver
+      
+      use material_properties_module, only : get_temp
+      use shallow_water_module, only : advance_SW
+      use heat_transfer_module, only : advance_heat_solver_explicit, &
+                                       advance_heat_solver_implicit
+      
+      ! Input and output variables
+      real(amrex_real), intent(in) :: dt
+      real(amrex_real), intent(in) :: time
+  
+      ! Advance SW equations (only at max level)
+      if (sw_solve) then
+         call advance_SW(time)    
+      end if
+  
+      ! Advance heat equation
+      if (heat_solve) then
+         if (heat_solver.eq."explicit") then
+            call advance_heat_solver_explicit(time, dt)
+         else if (heat_solver.eq."implicit") then
+            call advance_heat_solver_implicit(time, dt)
+         else
+            STOP "Unknown heat solver specified in input"
+         end if
+      end if
+      
+    end subroutine advance_all_levels
 
    
 end module simulation_module
