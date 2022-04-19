@@ -1037,23 +1037,12 @@ contains
     real(amrex_real) :: dx(2)
     real(amrex_real) :: lo_phys(2) 
     real(amrex_real) :: qvol(lo(1):hi(1),lo(2):hi(2))
-    real(amrex_real) :: flxx_cond(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2))
-    real(amrex_real) :: flxy_cond(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2))
-    
+     
     ! Get grid size
     dx = geom%dx(1:2) ! grid width at level 
 
     ! Get physical location of the lowest corner of the tile box
     lo_phys = geom%get_physical_location(lo)
-
-    ! Get enthalpy flux (only conductive component)
-    call get_face_flux(dx, lo_phys, lo, hi, &
-                       u_old, uo_lo, uo_hi, &
-                       flxx_cond, fx_lo, fx_hi, &
-                       flxy_cond, fy_lo, fy_hi, &
-                       temp, t_lo, t_hi, &
-                       idom, id_lo, id_hi, &
-                       .true., .false.)
     
     ! Get enthalpy flux (only advective component)
     call get_face_flux(dx, lo_phys, lo, hi, &
@@ -1084,7 +1073,6 @@ contains
     ! Scale the fluxes for the flux registers
     do j = lo(2), hi(2)
        do i = lo(1), hi(1) + 1
-          !flxx(i,j) = flxx(i,j) + flxx_cond(i,j)
           flxx(i,j) = flxx(i,j) * dx(2)
           if (num_subcycling) flxx(i,j) = flxx(i,j) * dt 
        end do
@@ -1092,7 +1080,6 @@ contains
 
     do j = lo(2), hi(2) + 1
        do i = lo(1), hi(1)
-          !flxy(i,j) = flxy(i,j) + flxy_cond(i,j)
           flxy(i,j) = flxy(i,j) * dx(1)
           if (num_subcycling) flxy(i,j) = flxy(i,j) * dt 
        end do
