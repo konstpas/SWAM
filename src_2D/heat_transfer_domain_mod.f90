@@ -21,6 +21,7 @@ module heat_transfer_domain_module
   public :: get_face_velocity
   public :: reset_melt_pos
   public :: revaluate_heat_domain
+  public :: get_surf_deformation
   
 contains
   
@@ -93,11 +94,11 @@ contains
     ! Local variables
     logical :: find_liquid
     integer :: i,j
-    integer :: surf_ind_heat_domain
-    real(amrex_real) :: surf_pos_heat_domain(id_lo(1):id_hi(1))
+    integer :: surf_ind_hd
+    real(amrex_real) :: surf_pos_hd(id_lo(1):id_hi(1))
  
     ! Get location of the free surface
-    call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
+    call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_hd)
 
     ! Do not distinguish between liquid and solid if the temperature
     ! multifab passed in input doesn't have ghost point. This should
@@ -114,11 +115,11 @@ contains
        do i = lo(1)-1, hi(1)+1
 
           ! Index of the free surface in the heat transfer domain
-          surf_ind_heat_domain = id_lo(2) + &
-                                 floor((surf_pos_heat_domain(i) - &
+          surf_ind_hd = id_lo(2) + &
+                                 floor((surf_pos_hd(i) - &
                                  xlo(2)+dx(2))/dx(2))
           
-          if (j .le. surf_ind_heat_domain) then
+          if (j .le. surf_ind_hd) then
              
              if (find_liquid) then
                 if (temp(i,j).gt.temp_melt) then
@@ -168,13 +169,13 @@ contains
     ! Local variables
     logical :: find_liquid
     integer :: i,j
-    integer :: surf_ind_heat_domain
-    real(amrex_real) :: surf_pos_heat_domain(id_lo(1):id_hi(1))
+    integer :: surf_ind_hd
+    real(amrex_real) :: surf_pos_hd(id_lo(1):id_hi(1))
     real(amrex_real) :: xpos, ypos
     logical :: pipe_flag
     
     ! Get location of the free surface
-    call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
+    call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_hd)
     
     ! Do not distinguish between liquid and solid if the temperature
     ! multifab passed in input doesn't have ghost point. This should
@@ -191,8 +192,8 @@ contains
        do i = lo(1)-1, hi(1)+1
 
           ! Index of the free surface in the heat transfer domain
-          surf_ind_heat_domain = id_lo(2) + &
-                                 floor((surf_pos_heat_domain(i) - &
+          surf_ind_hd = id_lo(2) + &
+                                 floor((surf_pos_hd(i) - &
                                  xlo(2)+dx(2))/dx(2))
           
           ! x position of the i-th center in the current box
@@ -211,7 +212,7 @@ contains
           end if
 
           ! Set flags
-          if (j .le. surf_ind_heat_domain .and. &
+          if (j .le. surf_ind_hd .and. &
                xpos .le. heat_sample_edge .and. &
                (.not.pipe_flag)) then             
              if (find_liquid) then
@@ -264,14 +265,14 @@ contains
     ! Local variables
     logical :: find_liquid
     integer :: i,j
-    integer :: surf_ind_heat_domain
-    real(amrex_real) :: surf_pos_heat_domain(id_lo(1):id_hi(1))
+    integer :: surf_ind_hd
+    real(amrex_real) :: surf_pos_hd(id_lo(1):id_hi(1))
     real(amrex_real) :: xpos, ypos
     logical :: pipe_flag
     real(amrex_real), parameter :: pi = 3.14159265358979
     
     ! Get location of the free surface
-    call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
+    call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_hd)
     
     ! Do not distinguish between liquid and solid if the temperature
     ! multifab passed in input doesn't have ghost point. This should
@@ -288,8 +289,8 @@ contains
        do i = lo(1)-1, hi(1)+1       
 
           ! Index of the free surface in the heat transfer domain
-          surf_ind_heat_domain = id_lo(2) + &
-                                 floor((surf_pos_heat_domain(i) - &
+          surf_ind_hd = id_lo(2) + &
+                                 floor((surf_pos_hd(i) - &
                                  xlo(2)+dx(2))/dx(2))
 
           ! x position of the i-th center in the current box
@@ -309,7 +310,7 @@ contains
           end if
 
           ! Set flags
-          if (j .le. surf_ind_heat_domain .and. &
+          if (j .le. surf_ind_hd .and. &
                xpos .le. heat_sample_edge .and. &
                (.not.pipe_flag)) then
              if (find_liquid) then
@@ -336,14 +337,14 @@ contains
   end subroutine get_west_rectangular_idomain
     
 
-  
+   
   ! -----------------------------------------------------------------
   ! Subroutine used to interpolate the free surface position as given
   ! by the fluid solver in order to construct the heat conduction
   ! free interface at a given box on a given level characterized
   ! by xlo (lower corner) and dx (grid resolution) 
   ! -----------------------------------------------------------------     
-  subroutine get_surf_pos(xlo, dx, lo, hi, surf_pos_heat_domain)
+  subroutine get_surf_pos(xlo, dx, lo, hi, surf_pos_hd)
 
     
     use amr_data_module, only : surf_pos
@@ -353,7 +354,7 @@ contains
     integer, intent(in) :: lo(2), hi(2) 
     real(amrex_real), intent(in) :: xlo(2)
     real(amrex_real), intent(in) :: dx(2)
-    real(amrex_real), intent(out) :: surf_pos_heat_domain(lo(1):hi(1))
+    real(amrex_real), intent(out) :: surf_pos_hd(lo(1):hi(1))
 
     ! Local variables
     integer :: i
@@ -370,7 +371,7 @@ contains
       
        ! Position of the free surface in the heat transfer domain at
        ! a given level
-       surf_pos_heat_domain(i) = surf_pos(xind)
+       surf_pos_hd(i) = surf_pos(xind)
        
     end do
     
@@ -650,6 +651,42 @@ contains
 
 
   ! -----------------------------------------------------------------
+  ! Subroutine used to interpolate the free surface deformation as
+  ! given by the fluid solver at a given box on a given level
+  ! characterized by xlo (lower corner) and dx (grid resolution) 
+  ! -----------------------------------------------------------------     
+  subroutine get_surf_deformation(xlo, dx, lo, hi, surf_def_hd)
+
+    use amr_data_module, only : surf_deformation
+    
+    ! Input and output variables
+    integer, intent(in) :: lo(2), hi(2) 
+    real(amrex_real), intent(in) :: xlo(2)
+    real(amrex_real), intent(in) :: dx(2)
+    real(amrex_real), intent(out) :: surf_def_hd(lo(1):hi(1))
+
+    ! Local variables
+    integer :: i
+    integer :: xind
+
+    ! Note: xlo is the lowest corner of a given box and is defined on the faces.
+    ! xpos refers to the x-coordinate of one cell center of a given box
+    ! and is defined on the centers.
+    
+    do  i = lo(1),hi(1)
+
+       ! Map to maximum level
+       call interp_to_max_lev(lo, xlo, dx, i, xind)
+      
+       ! Deformation of the free surface in the heat transfer domain at
+       ! a given level
+       surf_def_hd(i) = surf_deformation(xind)
+       
+    end do
+    
+  end subroutine get_surf_deformation
+
+  ! -----------------------------------------------------------------
   ! Subroutine used to interpolate spatial locations to the maximum
   ! amrex level where the free surface is defined
   ! -----------------------------------------------------------------  
@@ -682,5 +719,6 @@ contains
     if (xind.gt.surf_ind(1,2)) xind = surf_ind(1,2)
     
   end subroutine interp_to_max_lev
+
   
 end module heat_transfer_domain_module

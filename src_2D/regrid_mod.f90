@@ -453,7 +453,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine my_error_estimate(lev, cp, t, settag, cleartag) bind(c)
 
-    use read_input_module,  only : regrid_dist 
+    use read_input_module,  only : regrid_dist, regrid_def
 
     ! Input and output variables
     character(kind=c_char), intent(in), value :: cleartag
@@ -486,7 +486,8 @@ contains
        
        call tag_phi_error(bx%lo, bx%hi, &
                           geom%get_physical_location(bx%lo), &
-                          geom%dx, regrid_dist(lev+1), & 
+                          geom%dx, regrid_dist(lev+1), &
+                          regrid_def(lev+1), &
                           phiarr, lbound(phiarr), ubound(phiarr), &
                           tagarr, lbound(tagarr), ubound(tagarr), &
                           settag)
@@ -500,14 +501,15 @@ contains
   ! -----------------------------------------------------------------
   ! Subroutine used to tag the grid points that need regridding
   ! -----------------------------------------------------------------  
-  subroutine tag_phi_error(lo, hi, xlo, dx, surf_dist, &
+  subroutine tag_phi_error(lo, hi, xlo, dx, regrid_dist, &
+                           regrid_def, &
                            phi, philo, phihi, &
                            tag, taglo, taghi, &
                            settag)
     
-    use heat_transfer_domain_module, only : get_surf_pos   
+    use heat_transfer_domain_module, only : get_surf_pos, get_surf_deformation   
     use material_properties_module, only : enth_at_melt
-
+    
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)
     integer, intent(in) :: philo(3), phihi(3) ! WHY DOES THIS HAVE 3 ELEMENTS?!
@@ -515,26 +517,29 @@ contains
     real(amrex_real), intent(in) :: dx(2)  
     real(amrex_real), intent(in) :: phi(philo(1):phihi(1),philo(2):phihi(2))
     real(amrex_real), intent(in) :: xlo(2)
-    real(amrex_real), intent(in) :: surf_dist
+    real(amrex_real), intent(in) :: regrid_dist
+    real(amrex_real), intent(in) :: regrid_def
     character(kind=c_char), intent(inout) :: tag(taglo(1):taghi(1),taglo(2):taghi(2))
     character(kind=c_char), intent(in) :: settag
     
     ! Local variables
     integer :: i,j
-    real(amrex_real) :: surfpos(lo(1):hi(1)) 
+    real(amrex_real) :: surf_pos(lo(1):hi(1))
+    real(amrex_real) :: surf_def(lo(1):hi(1))
     real(amrex_real) :: ydist
 
 
     ! Get position of the free surface
-    call get_surf_pos(xlo, dx, lo, hi, surfpos)
-
+    call get_surf_pos(xlo, dx, lo, hi, surf_pos)
+    call get_surf_deformation(xlo, dx, lo, hi, surf_def)
+    
     ! Loop through the domain
     do j = lo(2), hi(2)
        do i = lo(1), hi(1)
           
           ! Regrid based on the distance from the free surface
-          ydist = abs(xlo(2) + (j-lo(2))*dx(2) - surfpos(i) ) 
-          if (ydist .le. surf_dist) then 
+          ydist = (xlo(2) + (j-lo(2))*dx(2) - surf_pos(i) ) 
+          if (abs(ydist) .le. regrid_dist) then 
              tag(i,j) = settag
           endif
           
@@ -543,6 +548,12 @@ contains
           if (phi(i,j).ge.enth_at_melt) then
              tag(i,j) = settag  
           endif
+
+          ! Regrid based on the free surface deformation
+          if (ydist.gt.0 .and. surf_def(i).gt.regrid_def) then
+             tag(i,j) = settag
+          end if
+          
           
        enddo
     enddo

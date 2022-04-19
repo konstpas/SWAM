@@ -268,7 +268,8 @@ contains
                                 surf_evap_flux, &
                                 surf_pos, &
                                 melt_pos, &
-                                melt_vel
+                                melt_vel, &
+                                surf_deformation
     
     
     ! Input and output variables
@@ -328,10 +329,9 @@ contains
 
     ! Update the column height equation
     do  i = surf_ind(1,1),surf_ind(1,2)
-       
-       surf_pos(i) = surf_pos(i) & 
-                     - dt/surf_dx(1) * (height_flux(i+1,1) - height_flux(i,1)) &
-                     - dt*surf_evap_flux(i)
+
+       surf_deformation(i) = -(height_flux(i+1,1) - height_flux(i,1))/surf_dx(1) - surf_evap_flux(i)
+       surf_pos(i) = surf_pos(i) + surf_deformation(i)*dt
        
     end do
     melt_height = surf_pos - melt_pos

@@ -70,6 +70,8 @@ module amr_data_module
   public :: surf_evap_flux
   ! Thermionic current on the free surface
   public :: surf_current
+  ! Free surface deformation (dh/dt), used for regridding
+  public :: surf_deformation
   ! Time
   public :: t_new
   public :: t_old
@@ -102,6 +104,7 @@ module amr_data_module
   real(amrex_real), allocatable, save :: melt_top(:)
   real(amrex_real), allocatable, save :: melt_vel(:,:)
   real(amrex_real), allocatable, save :: surf_current(:)
+  real(amrex_real), allocatable, save :: surf_deformation(:)
   real(amrex_real), allocatable, save :: surf_enthalpy(:)
   real(amrex_real), allocatable, save :: surf_evap_flux(:)
   real(amrex_real), allocatable, save :: surf_pos(:)
@@ -109,7 +112,7 @@ module amr_data_module
   real(amrex_real), save :: surf_dx(1)
   real(amrex_real), allocatable, save :: surf_temperature(:)
   real(amrex_real), save :: surf_xlo(1)
-
+  
   ! Variables related to the heat flux read from files
   real(amrex_real), allocatable, save :: plasma_flux_time_mesh(:)
   real(amrex_real), allocatable, save :: plasma_flux_surf_mesh(:)
@@ -190,6 +193,7 @@ contains
     allocate(melt_top(lo_x:hi_x))
     allocate(melt_vel(lo_x:hi_x+1, 1:amrex_spacedim-1))
     allocate(surf_current(lo_x:hi_x))
+    allocate(surf_deformation(lo_x:hi_x))  
     allocate(surf_enthalpy(lo_x:hi_x))
     allocate(surf_evap_flux(lo_x:hi_x))
     allocate(surf_pos(lo_x:hi_x))
@@ -261,6 +265,7 @@ contains
     surf_ind(1,1) = lo_x
     surf_ind(1,2) = hi_x
     surf_current = 0.0_amrex_real
+    surf_deformation = 0.0_amrex_real
     surf_enthalpy = 0.0_amrex_real
     surf_evap_flux = 0.0_amrex_real
     surf_pos = sw_surf_pos_init
@@ -317,6 +322,7 @@ contains
     deallocate(melt_top)
     deallocate(melt_vel)
     deallocate(surf_current)
+    deallocate(surf_deformation)  
     deallocate(surf_enthalpy)
     deallocate(surf_evap_flux)
     deallocate(surf_pos)

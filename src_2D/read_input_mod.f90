@@ -73,7 +73,10 @@ module read_input_module
   ! Distance from the free surface that triggers regridding [m].
   ! One value for each level larger than 0 must be provided
   public :: regrid_dist
-
+  ! Free surface deformation that triggers regridding [m/s].
+  ! One value for each level larger than 0 must be provided
+  public :: regrid_def
+  
   ! --- Variables for the heat solver ---
 
   ! Parameters to plot the cooling fluxes as a function of
@@ -237,6 +240,7 @@ module read_input_module
 
   ! Grid
   integer, save :: regrid_int
+  real(amrex_real), allocatable, save :: regrid_def(:)
   real(amrex_real), allocatable, save :: regrid_dist(:)
 
   ! Heat solver
@@ -332,6 +336,7 @@ contains
     call amrex_parmparse_build(pp, "regrid")
     call pp%query("interval", regrid_int)
     call pp%queryarr("distance", regrid_dist)
+    call pp%queryarr("deformation", regrid_def)
     call amrex_parmparse_destroy(pp)
    
     ! Parameters for the heat solver
@@ -455,8 +460,9 @@ contains
   
   subroutine set_default_regrid()
 
-    regrid_int = 1
+    regrid_def = 0.0_amrex_real
     regrid_dist = 0.0_amrex_real
+    regrid_int = 1
     
   end subroutine set_default_regrid
 
@@ -575,9 +581,10 @@ contains
 
   
   subroutine allocate_regrid_variables()
-    
+
+    allocate(regrid_def(1:amrex_max_level))
     allocate(regrid_dist(1:amrex_max_level))
-        
+   
   end subroutine allocate_regrid_variables
 
   
