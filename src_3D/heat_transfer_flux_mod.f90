@@ -52,18 +52,18 @@ contains
                                     Qpipe_box, Qtherm_box, Qvap_box, Qrad_box, &
                                     Qplasma_box, qb)
 
-    use read_input_module, only : plasma_flux_type, &
-                                  cooling_thermionic, &
-                                  cooling_thermionic_side, &
-                                  cooling_vaporization, &
-                                  cooling_radiation, &
-                                  geometry_name, &
-                                  plasma_side_flux_type, &
-                                  sample_edge
+    use read_input_module, only : heat_plasma_flux_type, &
+                                  heat_cooling_thermionic, &
+                                  heat_cooling_thermionic_side, &
+                                  heat_cooling_vaporization, &
+                                  heat_cooling_radiation, &
+                                  geom_name, &
+                                  heat_plasma_flux_side_type, &
+                                  heat_sample_edge
 
-    use amr_data_module, only : J_th
+    use amr_data_module, only : surf_current
 
-    use domain_module, only : get_local_highest_level
+    use heat_transfer_domain_module, only : get_local_highest_level
 
     ! Input and output variables
     integer, intent(in) :: lo(3), hi(3)  
@@ -124,13 +124,13 @@ contains
                 zpos = xlo(3) + (k-lo(3))*dx(3)
                 
                 ! Plasma flux
-                if (plasma_flux_type.eq.'Gaussian') then
+                if (heat_plasma_flux_type.eq.'Gaussian') then
                    call gaussian_heat_flux(time, xpos, zpos, side_flag, q_plasma)
-                elseif (plasma_flux_type.eq.'Gaussian_tube') then
+                elseif (heat_plasma_flux_type.eq.'Gaussian_tube') then
                   call gaussian_tube_heat_flux(time, xpos, side_flag, q_plasma)
-                elseif (plasma_flux_type.eq.'Uniform') then
+                elseif (heat_plasma_flux_type.eq.'Uniform') then
                   call uniform_heat_flux(time, xpos, zpos, side_flag, q_plasma)
-                elseif (plasma_flux_type.eq.'Input_file') then
+                elseif (heat_plasma_flux_type.eq.'Input_file') then
                   call file_heat_flux(time, xpos, zpos, side_flag, q_plasma)
                 else
                    STOP "Unknown plasma heat flux type"
@@ -138,9 +138,9 @@ contains
                 if (lev.eq.amrex_max_level) Qplasma_box = Qplasma_box + q_plasma*dx(1)*dx(3)*dt
                 
                 ! Thermionic cooling flux
-                if (cooling_thermionic) then
+                if (heat_cooling_thermionic) then
                   if(lev.eq.amrex_max_level) then
-                     call thermionic_cooling(temp(i,j,k), q_plasma, q_therm, J_th(i,k))
+                     call thermionic_cooling(temp(i,j,k), q_plasma, q_therm, surf_current(i,k))
                   else
                      call thermionic_cooling(temp(i,j,k), q_plasma, q_therm)
                   end if
@@ -148,13 +148,13 @@ contains
                 end if
                 
                 ! Vaporization cooling flux
-                if (cooling_vaporization) then
+                if (heat_cooling_vaporization) then
                    call vaporization_cooling(temp(i,j,k), q_vap)
                    if (lev.eq.amrex_max_level) Qvap_box = Qvap_box+ q_vap*dx(1)*dx(3)*dt
                 end if
                 
                 ! Radiative cooling flux
-                if (cooling_radiation) then
+                if (heat_cooling_radiation) then
                    call radiation_cooling(temp(i,j,k), q_rad)
                    if (lev.eq.amrex_max_level) Qrad_box = Qrad_box +q_rad*dx(1)*dx(3)*dt
                 end if
@@ -201,8 +201,8 @@ contains
 
              zpos = xlo(3) + (1+k-lo(3))*dx(3)
              ypos = xlo(2) + (1+j-lo(2))*dx(2)
-             if(geometry_name .eq. "West" .and. nint(idom(i,j,k)).ne.0 .and. & 
-               (xpos.ge.sample_edge .or. nint(idom(i+1,j,k)).eq.0)) then           
+             if(geom_name .eq. "West" .and. nint(idom(i,j,k)).ne.0 .and. & 
+               (xpos.ge.heat_sample_edge .or. nint(idom(i+1,j,k)).eq.0)) then           
                 side_flag = .true.
                 q_plasma = 0.0
                 q_therm = 0.0
@@ -210,13 +210,13 @@ contains
                 q_rad = 0.0
 
                 ! Plasma flux
-                if (plasma_side_flux_type.eq.'Gaussian') then
+                if (heat_plasma_flux_side_type.eq.'Gaussian') then
                    call gaussian_heat_flux(time, ypos, zpos, side_flag, q_plasma)
-                elseif (plasma_side_flux_type.eq.'Gaussian_tube') then
+                elseif (heat_plasma_flux_side_type.eq.'Gaussian_tube') then
                    call gaussian_tube_heat_flux(time, ypos, side_flag, q_plasma)
-                elseif (plasma_side_flux_type.eq.'Uniform') then
+                elseif (heat_plasma_flux_side_type.eq.'Uniform') then
                   call uniform_heat_flux(time, ypos, zpos, side_flag, q_plasma)
-                elseif (plasma_side_flux_type.eq.'Input_file') then
+                elseif (heat_plasma_flux_side_type.eq.'Input_file') then
                    call file_heat_flux (time, ypos, zpos, side_flag, q_plasma)
                 else
                    STOP "Unknown plasma heat flux type"
@@ -225,19 +225,19 @@ contains
                 if (lev.eq.local_max_level(i,j,k)) Qplasma_box = Qplasma_box + q_plasma*dx(2)*dx(3)*dt
  
                !  ! Thermionic cooling flux
-                if (cooling_thermionic_side) then
+                if (heat_cooling_thermionic_side) then
                    call thermionic_cooling(temp(i,j,k), q_plasma, q_therm)
                    if (lev.eq.local_max_level(i,j,k)) Qtherm_box = Qtherm_box + q_therm*dx(2)*dx(3)*dt
                 end if
  
                 ! Vaporization cooling flux
-                if (cooling_vaporization) then
+                if (heat_cooling_vaporization) then
                    call vaporization_cooling(temp(i,j,k), q_vap)
                    if (lev.eq.local_max_level(i,j,k)) Qvap_box = Qvap_box + q_vap*dx(2)*dx(3)*dt
                 end if
  
                 ! Radiative cooling flux
-                if (cooling_radiation) then
+                if (heat_cooling_radiation) then
                    call radiation_cooling(temp(i,j,k), q_rad)
                    if (lev.eq.local_max_level(i,j,k)) Qrad_box = Qrad_box + q_rad*dx(2)*dx(3)*dt
                 end if
@@ -258,8 +258,8 @@ contains
    ! -----------------------------------------------------------------   
    subroutine gaussian_heat_flux(time, xpos, zpos, side_flag, qb) 
  
-     use read_input_module, only : plasma_flux_params, &
-                                   plasma_side_flux_params
+     use read_input_module, only : heat_plasma_flux_params, &
+                                   heat_plasma_flux_side_params
      
      ! Input and output variables
      real(amrex_real), intent(in) :: time
@@ -275,9 +275,9 @@ contains
      plasma_params = 0.0
 
      if (side_flag) then
-      plasma_params = plasma_side_flux_params
+      plasma_params = heat_plasma_flux_side_params
      else
-      plasma_params = plasma_flux_params
+      plasma_params = heat_plasma_flux_params
      end if
      
      if (time.ge.plasma_params(1) .and. time.le.plasma_params(2)) then
@@ -296,8 +296,8 @@ contains
    ! -----------------------------------------------------------------   
    subroutine gaussian_tube_heat_flux(time, xpos, side_flag, qb) 
  
-      use read_input_module, only : plasma_flux_params, &
-                                    plasma_side_flux_params
+      use read_input_module, only : heat_plasma_flux_params, &
+                                    heat_plasma_flux_side_params
       
       ! Input and output variables
       real(amrex_real), intent(in) :: time
@@ -312,9 +312,9 @@ contains
       plasma_params = 0.0
       
       if (side_flag) then
-         plasma_params = plasma_side_flux_params
+         plasma_params = heat_plasma_flux_side_params
       else
-         plasma_params = plasma_flux_params
+         plasma_params = heat_plasma_flux_params
       end if
 
       if (time.ge.plasma_params(1) .and. time.le.plasma_params(2)) then
@@ -330,8 +330,8 @@ contains
    ! -----------------------------------------------------------------   
    subroutine uniform_heat_flux(time, xpos, zpos, side_flag, qb) 
  
-      use read_input_module, only : plasma_flux_params, &
-                                    plasma_side_flux_params
+      use read_input_module, only : heat_plasma_flux_params, &
+                                    heat_plasma_flux_side_params
       
       ! Input and output variables
       real(amrex_real), intent(in) :: time
@@ -347,9 +347,9 @@ contains
       plasma_params = 0.0
       
       if (side_flag) then
-         plasma_params = plasma_side_flux_params
+         plasma_params = heat_plasma_flux_side_params
         else
-         plasma_params = plasma_flux_params
+         plasma_params = heat_plasma_flux_params
       end if
       
       if (time.ge.plasma_params(1) .and. time.le.plasma_params(2)) then
@@ -622,9 +622,9 @@ contains
    subroutine thermionic_cooling(Ts, q_plasma, q_therm, Jth)
  
      use material_properties_module, only : get_work_function, &
-                                            get_Richardson
+                                            get_richardson_constant
      
-     use read_input_module, only : thermionic_alpha
+     use read_input_module, only : sw_magnetic_inclination
  
      ! Input and output variables                                       
      real(amrex_real), intent(in) :: Ts        ! Temperature at the center of cells adjacent to the free surface [K]
@@ -643,13 +643,13 @@ contains
      real(amrex_real) :: J
      
      call get_work_function(Wf)
-     call get_Richardson(Aeff)
+     call get_richardson_constant(Aeff)
 
      ! Nominal thermionic current from the Richardson-Dushman formula
      Jth_nom = Aeff*EXP(-Wf/(kb*Ts))*Ts**2
 
      ! Space-charge limited current (semi-empirical expression)
-     Jth_lim = 1.51e4 * q_plasma**(1.0/3.0) * (SIN(thermionic_alpha/180*pi))**2
+     Jth_lim = 1.51e4 * q_plasma**(1.0/3.0) * (SIN(sw_magnetic_inclination/180*pi))**2
 
      ! Minimum between nominal and space-charge limited
      J = MIN(Jth_lim, Jth_nom)
@@ -723,8 +723,8 @@ contains
     ! -----------------------------------------------------------------   
     subroutine debug_cooling_fluxes() 
       
-      use read_input_module, only : cooling_debug, &
-                                    thermionic_alpha
+      use read_input_module, only : heat_cooling_debug, &
+                                    sw_magnetic_inclination
       
       integer :: i
       real(amrex_real) :: dT
@@ -733,14 +733,14 @@ contains
       real(amrex_real) :: q_vap
       real(amrex_real) :: q_rad
       
-      dT = (cooling_debug(3) - cooling_debug(2))/nint(cooling_debug(4))
-      temp = cooling_debug(2)
+      dT = (heat_cooling_debug(3) - heat_cooling_debug(2))/nint(heat_cooling_debug(4))
+      temp = heat_cooling_debug(2)
       
       open (2, file = 'cooling_fluxes.dat', status = 'unknown')
-      write(2, *) '# plasma flux and magnetic inclination: ', cooling_debug(5), thermionic_alpha
+      write(2, *) '# plasma flux and magnetic inclination: ', heat_cooling_debug(5), sw_magnetic_inclination
       write(2, *) '# Temperature[K], Thermionic flux [W/m^2], Radiative flux [W/m^2], Vaporization flux [W/m^2]'
-      do i = 0,nint(cooling_debug(4)) 
-         call thermionic_cooling(temp, cooling_debug(5), q_therm)
+      do i = 0,nint(heat_cooling_debug(4)) 
+         call thermionic_cooling(temp, heat_cooling_debug(5), q_therm)
          call vaporization_cooling(temp, q_vap)
          call radiation_cooling(temp, q_rad)
          write(2,*) temp, q_therm, q_vap, q_rad

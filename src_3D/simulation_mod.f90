@@ -25,9 +25,8 @@ contains
   subroutine run_simulation()
 
     use amr_data_module, only : t_new, stepno, dt
-    use read_input_module, only : max_step, stop_time, plot_int, heat_solver, do_reflux, solve_heat
-    use plotfile_module, only: writeplotfile, write2dplotfile
-    use energy_module, only: sum_enthalpy
+    use read_input_module, only : time_step_max, time_max, io_plot_int, heat_solver, heat_reflux, heat_solve
+    use plotfile_module, only: writeplotfile
 
     ! Local variables
     integer :: last_plot_file_step
@@ -35,7 +34,6 @@ contains
     integer :: lev
     integer :: substep
     real(amrex_real) :: cur_time
-    real(amrex_real) :: total_enthalpy
     
     ! Initialize time
     cur_time = t_new(0)
@@ -44,15 +42,15 @@ contains
     last_plot_file_step = 0;
 
     ! Automatically disable reflux if the heat equation is not solved explicitly
-    if (heat_solver.ne."explicit" .or. .not.solve_heat) then
-      do_reflux = .false.
+    if (heat_solver.ne."explicit" .or. .not.heat_solve) then
+      heat_reflux = .false.
     end if
 
     ! Output initial configuration
-    if (plot_int .gt. 0) call writeplotfile
+    if (io_plot_int .gt. 0) call writeplotfile
 
     ! Loop over time-steps
-    do step = stepno(0), max_step-1
+    do step = stepno(0), time_step_max-1
 
        ! Print timestep information on screen (start)
        if (amrex_parallel_ioprocessor()) then
@@ -64,20 +62,20 @@ contains
        call compute_dt
 		 
        ! Advance all levels of one time step
-       if (heat_solver.eq."explicit" .and. solve_heat) then
-          lev = 0
-          substep = 1
-          call advance_one_timestep_subcycling(lev, cur_time, substep)
+
+       if (heat_solve) then
+         if (heat_solver.eq."explicit") then
+            lev = 0
+            substep = 1
+            call advance_one_timestep_subcycling(lev, cur_time, substep)
+         else if (heat_solver.eq."implicit") then
+            call advance_one_timestep(cur_time)
+         else
+            STOP "Unknown heat solver prescribed in input"
+         end if
        else
-          call advance_one_timestep(cur_time)
-       end if
-      
-       ! Get total enthalpy in the domain
-       if(solve_heat) then
-         call sum_enthalpy(total_enthalpy)
-       else
-         total_enthalpy = 0.0
-       end if
+         call advance_one_timestep(cur_time)
+       end if       
  	
        ! Update time on all levels
        cur_time = cur_time + dt(0)
@@ -87,20 +85,17 @@ contains
 
        ! Print timestep information on screen (end)
        if (amrex_parallel_ioprocessor()) then
-          print *, 'Enthalpy is', total_enthalpy 
-          print *, '' 
           print *, "STEP", step+1, "end. TIME =", cur_time, "DT =", dt(0)
        end if
 
        ! Print output to file
-       if (plot_int .gt. 0 .and. mod(step+1,plot_int) .eq. 0) then
+       if (io_plot_int .gt. 0 .and. mod(step+1,io_plot_int) .eq. 0) then
           last_plot_file_step = step+1
           call writeplotfile
-          call write2dplotfile
        end if
 
        ! Stopping criteria
-       if (cur_time .ge. stop_time) exit
+       if (cur_time .ge. time_max) exit
 
     end do
 
@@ -112,7 +107,7 @@ contains
   subroutine compute_dt()
     
     use amr_data_module, only : dt, nsubsteps
-    use read_input_module, only : dt_change_max, in_dt, heat_solver
+    use read_input_module, only : time_ddt_max, time_dt, heat_solver
 
     ! Local variables
     integer :: lev
@@ -127,7 +122,7 @@ contains
 
     ! Estimate timestep in order to avoid instabilities
     do lev = 0, nlevs-1
-       call est_timestep(lev, dt_tmp(lev))
+       call check_timestep_stability(lev, dt_tmp(lev))
     end do
     call amrex_parallel_reduce_min(dt_tmp, nlevs)
 
@@ -137,11 +132,11 @@ contains
     n_factor = 1
     do lev = 0, nlevs-1
        ! Limit the change of the timestep between two successive timesteps
-       dt_tmp(lev) = min(dt_tmp(lev), dt_change_max*dt(lev))
+       dt_tmp(lev) = min(dt_tmp(lev), time_ddt_max*dt(lev))
        n_factor = n_factor * nsubsteps(lev)
        dt_0 = min(dt_0, n_factor*dt_tmp(lev))
        ! Cap the timestep to the value prescribed in input
-       dt_0 = min(dt_0, in_dt)
+       dt_0 = min(dt_0, time_dt)
     end do
 
     ! Compute timestep for all levels
@@ -161,9 +156,10 @@ contains
   ! Subroutine used to estimate the timestep based on the stability
   ! criteria for the solver of the energy equation
   ! -----------------------------------------------------------------
-  subroutine est_timestep(lev, dt)
+  subroutine check_timestep_stability(lev, dt)
 
-    use read_input_module, only : cfl, heat_solver, solve_heat
+    use amr_data_module, only : max_melt_vel_x, max_melt_vel_z
+    use read_input_module, only : time_dt, heat_solver, heat_solve, time_dt
     use material_properties_module, only : max_diffus 
 
     ! Input and output variables 
@@ -172,29 +168,29 @@ contains
 
     ! Local variables 
     real(amrex_real) :: dxsqr
+    real(amrex_real) :: dx
+    real(amrex_real) :: dy
+    real(amrex_real) :: dz
 
-    if (heat_solver.eq."explicit" .and. solve_heat) then
+    ! Grid resolutions
+    dx = amrex_geom(lev)%dx(1)
+    dy = amrex_geom(lev)%dx(2)
+    dz = amrex_geom(lev)%dx(3)
 
-      ! NOTE: There are two stability criteria to take into
-      ! account, the von Neumann stability and the CFL
-      ! condition. The CFL is not yet implemented
-      
-      ! Von Neumann stability criterion 
-      dxsqr= (1/amrex_geom(lev)%dx(1)**2 + &
-               1/amrex_geom(lev)%dx(2)**2 + &
-               1/amrex_geom(lev)%dx(3)**2) 
+    ! Von Neumann stability condition (enforced)
+    if (heat_solver.eq."explicit" .and. heat_solve) then      
+      dxsqr= (1.0/dx**2 + 1.0/dy**2 + 1.0/dz**2) 
       dt = 0.5/(dxsqr*max_diffus)
-      dt = dt * cfl
-
-    else
-
-       ! Implicit diffusion, explicit advection
-
-       ! NOTE: The CFL condition is not yet implemented
-       dt = 1.0e100_amrex_real
-      
-    end if
-  end subroutine est_timestep
+      dt = min(dt, time_dt)
+   else
+      dt = time_dt
+   end if
+   
+   ! CFL stability condition (only checked)
+   if (max_melt_vel_x*dt.ge.dx .or. max_melt_vel_z.ge.dz) then
+      print *, "CFL stability condition is not satisfied"
+   end if   
+  end subroutine check_timestep_stability
 
   
   ! -----------------------------------------------------------------
@@ -203,7 +199,7 @@ contains
   ! -----------------------------------------------------------------
   recursive subroutine advance_one_timestep_subcycling(lev, time, substep)
 
-    use read_input_module, only : do_reflux
+    use read_input_module, only : heat_reflux
     use amr_data_module, only : t_old, t_new, phi_new, flux_reg, stepno, nsubsteps, dt  
     use regrid_module, only : averagedownto
 
@@ -224,7 +220,7 @@ contains
     t_new(lev) = time + dt(lev)
     call advance_one_level_subcycling(lev, time, dt(lev), substep)
 
-    ! Propagate solution and synchronize levels
+    ! Advance solution and synchronize levels
     if (lev .lt. amrex_get_finest_level()) then
        
        do fine_substep = 1, nsubsteps(lev+1)
@@ -232,7 +228,7 @@ contains
        end do
 
        ! Update coarse solution at coarse-fine interface via dPhidt = -div(+F) where F is stored flux (flux_reg)
-       if (do_reflux) then
+       if (heat_reflux) then
           call flux_reg(lev+1)%reflux(phi_new(lev), 1.0_amrex_real) 
        end if
        
@@ -296,9 +292,8 @@ contains
   ! -----------------------------------------------------------------
  subroutine advance_one_level_subcycling(lev, time, dt, substep)
 
-   use read_input_module, only : solve_sw
+   use read_input_module, only : sw_solve, heat_solve
    use heat_transfer_module, only : advance_heat_solver_explicit_level
-   use domain_module, only : reset_melt_pos
    use shallow_water_module, only : advance_SW
 
    ! Input and output variables 
@@ -308,18 +303,14 @@ contains
    real(amrex_real), intent(in) :: dt
 
    ! Advance shallow-water equations (only at max level)
-   if (solve_sw .and. lev.eq.amrex_max_level) then
+   if (sw_solve .and. lev.eq.amrex_max_level) then
       call advance_SW(time)    
    end if 
-   
-   ! Set melt interface position array equal to free interface position array 
-   ! Since melt layer may span several tile boxes in y-direction (in mfiterator below), we cannot reset within each loop 
-   ! Therefore we reset melt position after solving SW, and before propagating temperature 
-   ! Melt position is then found after heat has been propagated 
-   call reset_melt_pos 
 
    ! Advance heat equation
-   call advance_heat_solver_explicit_level(lev, time, dt, substep)
+   if(heat_solve) then
+      call advance_heat_solver_explicit_level(lev, time, dt, substep)
+   end if
 
  end subroutine advance_one_level_subcycling
 
@@ -363,9 +354,7 @@ contains
   ! -----------------------------------------------------------------
   subroutine advance_all_levels(time, dt)
 
-    use read_input_module, only : solve_sw, solve_heat
-    use domain_module, only : reset_melt_pos
-    use material_properties_module, only : get_temp
+    use read_input_module, only : sw_solve, heat_solve
     use shallow_water_module, only : advance_SW
     use heat_transfer_module, only : advance_heat_solver_implicit
    
@@ -373,19 +362,13 @@ contains
     real(amrex_real), intent(in) :: dt
     real(amrex_real), intent(in) :: time
 
-    ! Propagate SW equations (only at max level)
-    if (solve_sw) then
+    ! Advance SW equations (only at max level)
+    if (sw_solve) then
        call advance_SW(time)    
     end if
 
-    if(solve_heat) then
-      ! Set melt interface position array equal to free interface position array 
-      ! Since melt layer may span several tile boxes in y-direction (in mfiterator below), we cannot reset within each loop 
-      ! Therefore we reset melt position after solving SW, and before propagating temperature 
-      ! Melt position is then found after heat has been propagated 
-      call reset_melt_pos 
-      
-      ! Advance heat equation
+    ! Advance heat equation
+    if(heat_solve) then      
       call advance_heat_solver_implicit(time, dt)
    end if
 

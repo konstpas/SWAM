@@ -21,7 +21,7 @@ module material_properties_niobium_module
   public :: get_mass_density_niobium
   public :: get_electrical_resistivity_niobium
   public :: get_emissivity_niobium
-  public :: get_Richardson_niobium
+  public :: get_richardson_constant_niobium
   public :: get_surface_tension_niobium
   public :: get_viscosity_niobium
   public :: get_work_function_niobium
@@ -299,7 +299,7 @@ contains
   ! -----------------------------------------------------------------
   ! Subroutine used to compute Richardson constant
   ! -----------------------------------------------------------------
-  subroutine get_Richardson_niobium(Aeff)
+  subroutine get_richardson_constant_niobium(Aeff)
 
     ! Relatively good agreement on the Richardson constant value, see V. S. Fomenko, The Handbook of
     ! thermionic properties, Plenum, New York (1966); W. C. Niehaus and E. A. Coomes, Surface-barrier
@@ -310,7 +310,7 @@ contains
 
     Aeff = 50E4
     
-  end subroutine get_Richardson_niobium
+  end subroutine get_richardson_constant_niobium
 
 
   ! -----------------------------------------------------------------

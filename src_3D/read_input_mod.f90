@@ -1,35 +1,37 @@
 module read_input_module
 
-  ! -----------------------------------------------------------------
+! -----------------------------------------------------------------
   ! This module is used to read the input file. When reading the
   ! input file it is important to realize that there are two type of
   ! variables:
   !
-  !     1) Variables that are used by amrex to generate the mesh.
-  !        These variables are labelled with "amr" and with 
-  !        "geometry" in the input file. The value of such
-  !        variables is read from the amrex initialization routines
-  !        routines, so in the following module they are used only
-  !        to ensure self-consistency of the input. Among these
-  !        variables, the following must be specified:
-  !            a) geometry.is_periodic
-  !            b) geometry.coord_sys
-  !            c) geometry.prob_lo
-  !            d) geometry.prob_hi
-  !            e) amr.n_cell
-  !            f) amr.max_level
-  !        The following can be omitted, in which case they will
-  !        assume the default value:
-  !            a) amr.v (default: 0)
-  !            b) amr.ref_ratio (default: 2 for each level)
-  !            c) amr.blocking_factor (default: 8)
-  !            d) amr.max_grid_size (default: 32)
+  ! 1) Variables that are used by amrex to generate the mesh.
+  !    These variables are labelled with "amr" and with 
+  !    "geometry" in the input file. The value of such
+  !     variables is read from the amrex initialization routines
+  !    so in the following module they are used only
+  !    to ensure self-consistency of the input.
   !
-  !     2) Variables that are used from the rest of the code. Such
-  !        variables have a diverse set of labels and are read
-  !        by the routine specified in this module. All these
-  !        variables are optional, if not specified they will
-  !        be assigned the values given in set_default_values
+  !    Among these variables, the following must be specified:
+  !     a) geometry.prob_lo: Coordinates of the bottom-left corner of
+  !                          the domain (x,y). Distances are in meters
+  !     b) geometry.prob_hi: Coordinates of the top-right corner of
+  !                          the domain (x,y). Distances are in meters
+  !     c) amr.n_cell: Number of cells in each direction (x,y)
+  !     d) amr.max_level: Maximum amrex level (starting from 0)
+  !
+  !    The following can be omitted, in which case they will
+  !    assume the default value:
+  !     a) amr.v (default: 0)
+  !     b) amr.ref_ratio (default: 2 for each level)
+  !     c) amr.blocking_factor (default: 8)
+  !     d) amr.max_grid_size (default: 32)
+  !
+  ! 2) Variables that are used from the rest of the code. Such
+  !    variables have a diverse set of labels and are read
+  !    by the routine specified in this module. All these
+  !    variables are optional, if not specified they will
+  !    be assigned the values given in set_default_values
   ! -----------------------------------------------------------------
   
   use amrex_amr_module
@@ -42,67 +44,188 @@ module read_input_module
   ! -----------------------------------------------------------------
   ! Public variables (read from input file)
   ! -----------------------------------------------------------------
-  public :: cfl
-  public :: check_file
-  public :: check_int
-  public :: cooling_debug
-  public :: cooling_thermionic
-  public :: cooling_thermionic_side
-  public :: cooling_vaporization
-  public :: cooling_radiation
-  public :: do_reflux
-  public :: dt_change_max
-  public :: fixed_melt_velocity
-  public :: heat_solver
-  public :: solve_heat
-  public :: sw_solver
-  public :: in_dt
-  public :: ls_verbose
-  public :: ls_bottom_verbose
-  public :: ls_max_iter
-  public :: ls_max_fmg_iter
-  public :: ls_bottom_solver
-  public :: ls_linop_maxorder
-  public :: ls_composite_solve  
-  public :: ls_agglomeration
-  public :: ls_consolidation
-  public :: ls_max_coarsening_level
-  public :: plasma_flux_type
-  public :: plasma_flux_params
-  public :: plasma_flux_input_file
-  public :: plasma_side_flux_type
-  public :: plasma_side_flux_params
-  public :: plasma_side_flux_input_file
-  public :: material
-  public :: geometry_name
-  public :: cool_pipe_cntr
-  public :: cool_pipe_radius
-  public :: max_grid_size_2d
-  public :: max_step
-  public :: phase_init
-  public :: phiT_table_max_T
-  public :: phiT_table_n_points
-  public :: plot_file
-  public :: plot_int
+
+  ! --- Variables that control the length of the simulation ---
+
+  ! Time step [s]
+  public :: time_dt
+  ! Maximum number of time steps
+  public :: time_step_max  
+  ! Maximum simulated time [s]
+  public :: time_max
+  ! Maximum fractional change of the timestep between two
+  ! successive timesteps
+  public :: time_ddt_max
+
+  ! --- Variables for the geometry of the heat transfer domain ---
+
+  ! Select type of geometry to simulate (Slab, West or West_rectangular)
+  public :: geom_name
+  ! West geometry: Coordinates for the center of the cooling pipe 
+  public :: geom_cool_pipe_cntr
+  ! West geometry: Radius of the cooling pipe [m]
+  public :: geom_cool_pipe_radius
+
+  ! --- Variables that control the grid generated by amrex ---
+
+  ! How often to check if regrid is necessary (in number of time steps)
   public :: regrid_int
-  public :: restart
-  public :: solve_sw
-  public :: solve_sw_momentum
-  public :: sw_iter
-  public :: sw_gravity
+  ! Distance from the free surface that triggers regridding [m].
+  ! One value for each level larger than 0 must be provided
+  public :: regrid_dist
+
+  ! --- Variables for the heat solver ---
+
+  ! Parameters to plot the cooling fluxes as a function of
+  ! the temperature. Array with 5 elements: 1) on-off switch,
+  ! with 1 = on and 0 = off, 2) minimum temperature
+  ! 3) maximum temperature, 4) temperature resolution
+  ! 5) incoming heat flux
+  public :: heat_cooling_debug
+  ! Activate or deactivate thermionic cooling (1 = on, 0 = off)
+  public :: heat_cooling_thermionic
+  ! Activate or deactivate thermionic cooling on the exposed
+  ! side in leading edge geometries (1 = on, 0 = off)
+  public :: heat_cooling_thermionic_side
+  ! Activate or deactivate vaporization cooling (1 = on, 0 = off)
+  public :: heat_cooling_vaporization
+  ! Activate or deactivate radiative cooling (1 = on, 0 = off)
+  public :: heat_cooling_radiation
+  ! Solver for the heat equation (explicit or implicit)
+  public :: heat_solver
+  ! Initial phase of the sample (solid, liquid). Relevant only
+  ! if the sample is initialized at the melting temperature
+  public :: heat_phase_init
+  ! Type of plasma heat flux (Gaussian, Uniform, Input_file)
+  public :: heat_plasma_flux_type
+  ! Parameters for the plasma heat flux. An array with 5 parameters
+  ! whose content depends on the type of plasma heat flux
+  !  a) Gaussian heat flux, array with 5 elements: 1) switching on,
+  !     time [s], 2) switching off time [s], 3) peak magnitude [W/m^2],
+  !     4) peak position [m], 5) standard deviation [m]
+  !  b) Uniform heat flux, array with 5 elements: 1) switching on
+  !     time [s], 2) switching off time [s], 3) magnitude [W/m^2],
+  !     4) minimum x coordinate [m], 5) maximum x coordinate [m]
+  public :: heat_plasma_flux_params
+  ! Name of file containing the plasma flux (used only if the plasma
+  ! heat flux is of type Input_file)
+  public :: heat_plasma_flux_file
+  ! Type of plasma heat flux on the second exposed side for the
+  ! West geometry (Gaussian, Uniform, Input_file)
+  public :: heat_plasma_flux_side_type
+  ! Parameters for the plasma heat flux on the second exposed side
+  ! for the West geometry. Analogous to heat_plasma_flux_parameters
+  public :: heat_plasma_flux_side_params
+  ! Name of file containing the plasma flux on the second exposed
+  ! side for the West geometry (Used only if the plasma
+  ! heat flux is of type Input_file)
+  public :: heat_plasma_flux_side_file
+  ! Activate or deactivate reflux in the explicit heat
+  ! solver (1 = on, 0 = off)
+  public :: heat_reflux
+  ! Edge of the simulation domain along the x direction [m]
+  public :: heat_sample_edge
+  ! Solve the heat equation (1 = yes, 0 = no) 
+  public :: heat_solve
+  ! Impose temperature on the free surface (only used if positive) [K]
+  public :: heat_temp_surf
+  ! Initial uniform temperature of the sample [K]
+  public :: heat_temp_init
+
+  ! --- Variables for the shallow water solver ---
+
+  ! Capping height for the viscous drag in the momentum equation [m]
+  public :: sw_captol
+  ! Thermionic current on the free surface [A/m^2]. An array of 3
+  ! elements containing: 1) the magnitude of the current,
+  !  2) the switching on time, 3) the switching off time.
+  ! This is only used if the heat equation is not solved,
+  ! i.e. if heat.solve = 0
+  public :: sw_current
+  ! Dry tolerance for the melt pool [m]  (any height below dry
+  ! tolerance is assumed to be zero)
   public :: sw_drytol
+  ! Inclination of the magnetic field [degrees]
+  public :: sw_magnetic_inclination
+  ! Magnitude of the magnetic field [T]
   public :: sw_Bx
   public :: sw_Bz
-  public :: sw_h_cap
-  public :: sw_jxb
-  public :: stop_time
-  public :: surfdist
-  public :: surf_pos_init
-  public :: sample_edge
-  public :: temp_fs
-  public :: temp_init
-  public :: thermionic_alpha
-  public :: verbose
+  ! Fixed melt velocity [m/s]. Only used if the momentum equation
+  ! is not solve, i.e. sw_solve_momentum = 0
+  public :: sw_melt_velocity
+  ! Parameters used to generate a gaussian pool if the heat equation
+  ! is not solved. An array with 3 elements containing: 1) The
+  ! maximum depth of the pool [m], 2) the position of the center of the
+  ! pool [m], 3) the width of the pool (as a standard deviation) [m]
+  public :: sw_pool_params
+  ! Solve the shallow water equation (1 = yes, 0 = no) 
+  public :: sw_solve
+  ! Initial position of the free surface [m] (in the heat domain,
+  ! assumed perpendicular to the y-direction)
+  public :: sw_surf_pos_init
+  ! Solve the momentum equation (1 = yes, 0 = no). If the momentum
+  ! equation is not solved, the velocity is assumed to be equal to
+  ! the velocity prescribed with sw.sw_melt_velocity
+  public :: sw_solve_momentum
+  ! Solver for the shallow water equations (geoclaw or explicit)
+  public :: sw_solver
+  ! Number of maximum iterations in the calculation of the advective update.
+  ! Used only if the sw_solver is geoclaw.
+  public :: sw_iter
+  ! Acceleration due to gravity. Used only if the sw_solver is geoclaw [m/s^2]
+  public :: sw_gravity
+
+  ! --- Variables for the material properties ---
+
+  ! Type of material to simulated, only one can be selected (Tungsten,
+  ! Beryllium, Iridium, Niobium)
+  public :: material_name
+  ! Maximum temperature used to compute the material properties [K]
+  public :: material_maxT
+  ! Number of temperatures at which the material properties are computed
+  public :: material_nPoints
+
+
+  ! --- Variables that control the numerics ---
+
+  ! Safety factor used to multiply the minimum time step
+  ! that ensures the stability of the heat solverw
+  public :: num_cfl
+  ! Relative error used in the linear solvers (only used if the implicit
+  ! solver for the heat equation is employed)
+  public :: num_accuracy
+  ! Internal parameters for the linear solvers (only used if the implicit
+  ! solver for the heat equation is employed)
+  public :: num_composite_solve
+  public :: num_verbose
+  public :: num_bottom_verbose
+  public :: num_max_iter
+  public :: num_max_fmg_iter
+  public :: num_bottom_solver
+  public :: num_linop_maxorder
+  public :: num_agglomeration
+  public :: num_consolidation
+  public :: num_max_coarsening_level
+  ! Activate or deactivate subcycling in time (1 = on, 0 = off) 
+  public :: num_subcycling
+
+  
+  ! --- Variables for the input/output ---
+
+  ! Name of the restart files written by amrex
+  public :: io_check_file
+  ! Name of the plot files written by amrex
+  public :: io_plot_file
+  ! How often to write restart files (in time steps)
+  public :: io_check_int
+  ! How often to write output to files (in time steps)
+  public :: io_plot_int
+  ! Name of file use to restart the simulation
+  public :: io_restart
+  ! Verbosity of the code (1 = on, 0 = off)
+  public :: io_verbose
+  
+
 
   ! -----------------------------------------------------------------
   ! Public subroutines
@@ -112,67 +235,69 @@ module read_input_module
   ! -----------------------------------------------------------------
   ! Default values of public variables
   ! -----------------------------------------------------------------
-  character(len=:), allocatable, save :: check_file
-  character(len=:), allocatable, save :: material
-  character(len=:), allocatable, save :: geometry_name
+  character(len=:), allocatable, save :: io_check_file
+  character(len=:), allocatable, save :: material_name
+  character(len=:), allocatable, save :: geom_name
   character(len=:), allocatable, save :: heat_solver
   character(len=:), allocatable, save :: sw_solver
-  character(len=:), allocatable, save :: plasma_flux_type
-  character(len=:), allocatable, save :: plasma_flux_input_file
-  character(len=:), allocatable, save :: plasma_side_flux_type
-  character(len=:), allocatable, save :: plasma_side_flux_input_file
-  character(len=:), allocatable, save :: phase_init
-  character(len=:), allocatable, save :: plot_file
-  character(len=:), allocatable, save :: restart
-  integer, save :: check_int
-  integer, save :: ls_verbose
-  integer, save :: ls_bottom_verbose
-  integer, save :: ls_max_iter
-  integer, save :: ls_max_fmg_iter
-  integer, save :: ls_bottom_solver
-  integer, save :: ls_linop_maxorder
-  integer, save :: ls_max_coarsening_level
-  integer, save :: max_grid_size_2d
-  integer, save :: max_step
-  integer, save :: phiT_table_n_points
-  integer, save :: plot_int
+  character(len=:), allocatable, save :: heat_plasma_flux_type
+  character(len=:), allocatable, save :: heat_plasma_flux_file
+  character(len=:), allocatable, save :: heat_plasma_flux_side_type
+  character(len=:), allocatable, save :: heat_plasma_flux_side_file
+  character(len=:), allocatable, save :: heat_phase_init
+  character(len=:), allocatable, save :: io_plot_file
+  character(len=:), allocatable, save :: io_restart
+  integer, save :: io_check_int
+  real(amrex_real) :: num_accuracy
+  integer, save :: num_verbose
+  integer, save :: num_bottom_verbose
+  integer, save :: num_max_iter
+  integer, save :: num_max_fmg_iter
+  integer, save :: num_bottom_solver
+  integer, save :: num_linop_maxorder
+  integer, save :: num_max_coarsening_level
+  integer, save :: time_step_max
+  integer, save :: material_nPoints
+  integer, save :: io_plot_int
   integer, save :: regrid_int
   integer, save :: sw_iter
-  integer, save :: verbose
-  logical, save :: cooling_thermionic
-  logical, save :: cooling_thermionic_side
-  logical, save :: cooling_vaporization
-  logical, save :: cooling_radiation
-  logical, save :: do_reflux
-  logical, save :: ls_composite_solve  
-  logical, save :: ls_agglomeration
-  logical, save :: ls_consolidation
-  logical, save :: solve_sw
-  logical, save :: solve_heat
-  logical, save :: solve_sw_momentum
-  real(amrex_real), save :: cfl
-  real(amrex_real), save :: dt_change_max
-  real(amrex_real), save :: in_dt
-  real(amrex_real), save :: phiT_table_max_T
-  real(amrex_real), save :: stop_time
-  real(amrex_real), save :: surf_pos_init
+  integer, save :: io_verbose
+  logical, save :: heat_cooling_thermionic
+  logical, save :: heat_cooling_thermionic_side
+  logical, save :: heat_cooling_vaporization
+  logical, save :: heat_cooling_radiation
+  logical, save :: heat_reflux
+  logical, save :: num_composite_solve  
+  logical, save :: num_agglomeration
+  logical, save :: num_consolidation
+  logical, save :: num_subcycling
+  logical, save :: sw_solve
+  logical, save :: heat_solve
+  logical, save :: sw_solve_momentum
+  real(amrex_real), save :: num_cfl
+  real(amrex_real), save :: time_ddt_max
+  real(amrex_real), save :: time_dt
+  real(amrex_real), save :: material_maxT
+  real(amrex_real), save :: time_max
+  real(amrex_real), save :: sw_surf_pos_init
   real(amrex_real), save :: sw_gravity
   real(amrex_real), save :: sw_drytol
-  real(amrex_real), save :: sample_edge
-  real(amrex_real), allocatable, save :: cool_pipe_cntr(:)
-  real(amrex_real), save :: cool_pipe_radius
-  real(amrex_real), save :: temp_fs
-  real(amrex_real), save :: temp_init
-  real(amrex_real), save :: thermionic_alpha
-  real(amrex_real), allocatable, save :: cooling_debug(:)
-  real(amrex_real), allocatable, save :: fixed_melt_velocity(:)
-  real(amrex_real), allocatable, save :: surfdist(:)
-  real(amrex_real), allocatable, save :: sw_jxb(:)
+  real(amrex_real), save :: heat_sample_edge
+  real(amrex_real), allocatable, save :: geom_cool_pipe_cntr(:)
+  real(amrex_real), save :: geom_cool_pipe_radius
+  real(amrex_real), save :: heat_temp_surf
+  real(amrex_real), save :: heat_temp_init
+  real(amrex_real), save :: sw_magnetic_inclination
+  real(amrex_real), allocatable, save :: heat_cooling_debug(:)
+  real(amrex_real), allocatable, save :: sw_melt_velocity(:)
+  real(amrex_real), allocatable, save :: regrid_dist(:)
   real(amrex_real), save :: sw_Bx
   real(amrex_real), save :: sw_Bz
-  real(amrex_real), save :: sw_h_cap
-  real(amrex_real), allocatable, save :: plasma_flux_params(:)
-  real(amrex_real), allocatable, save :: plasma_side_flux_params(:)
+  real(amrex_real), save :: sw_captol
+  real(amrex_real), allocatable, save :: heat_plasma_flux_params(:)
+  real(amrex_real), allocatable, save :: heat_plasma_flux_side_params(:)
+  real(amrex_real), allocatable, save :: sw_current(:)
+  real(amrex_real), allocatable, save :: sw_pool_params(:)
   
 contains
 
@@ -189,230 +314,354 @@ contains
     call set_default_values
 
     ! Parameters for the simulation length
-    call amrex_parmparse_build(pp, "length")
-    call pp%query("max_step", max_step)
-    call pp%query("stop_time", stop_time)
-    call pp%query("dt", in_dt)
+    call amrex_parmparse_build(pp, "time")
+    call pp%query("max_step", time_step_max)
+    call pp%query("stop_time", time_max)
+    call pp%query("dt", time_dt)
+    call pp%query("dt_change_max", time_ddt_max)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the grid control
-    call amrex_parmparse_build(pp, "grid")
+    call amrex_parmparse_build(pp, "regrid")
     call pp%query("regrid_int", regrid_int)
-    call pp%query("max_grid_size_2d", max_grid_size_2d)
-    call pp%getarr("surfdist", surfdist)
+    call pp%queryarr("regrid_dist", regrid_dist)
     call amrex_parmparse_destroy(pp)
 
-    ! Parameters for the output
-    call amrex_parmparse_build(pp, "output")
-    call pp%query("check_int", check_int)
-    call pp%query("plot_int", plot_int)
-    call pp%query("check_file", check_file)
-    call pp%query("plot_file", plot_file)
-    call pp%query("verbose", verbose)
-    call amrex_parmparse_destroy(pp)
-
-    ! Parameters for the restart
-    call amrex_parmparse_build(pp, "restart")
-    call pp%query("restart", restart)
+    ! Parameters for the input and output
+    call amrex_parmparse_build(pp, "io")
+    call pp%query("check_int", io_check_int)
+    call pp%query("plot_int", io_plot_int)
+    call pp%query("check_file", io_check_file)
+    call pp%query("plot_file", io_plot_file)
+    call pp%query("verbose", io_verbose)
+    call pp%query("restart", io_restart)
     call amrex_parmparse_destroy(pp)
    
     ! Parameters for the heat solver
     call amrex_parmparse_build(pp, "heat")
-    call pp%query("solve",solve_heat)
-    call pp%query("surf_pos", surf_pos_init)   
-    call pp%getarr("fixed_melt_velocity", fixed_melt_velocity)  
-    call pp%query("sample_edge", sample_edge)   
-    call pp%query("temp_init", temp_init)
-    call pp%query("phase_init", phase_init)
-    call pp%query("plasma_flux_type", plasma_flux_type) 
-    call pp%query("plasma_side_flux_type", plasma_side_flux_type) 
-    call pp%getarr("plasma_side_flux_params", plasma_side_flux_params)
-    call pp%getarr("plasma_flux_params", plasma_flux_params)
-    call pp%query("plasma_flux_input_file", plasma_flux_input_file)
-    call pp%query("plasma_side_flux_input_file", plasma_side_flux_input_file)
-    call pp%query("temp_free_surface", temp_fs)
-    call pp%query("cooling_thermionic",cooling_thermionic)
-    call pp%query("side_cooling_thermionic",cooling_thermionic_side)
-    call pp%query("cooling_vaporization",cooling_vaporization)
-    call pp%query("cooling_radiation",cooling_radiation)
-    call pp%getarr("cooling_debug",cooling_debug)
-    call pp%query("thermionic_alpha",thermionic_alpha)
-    call pp%query("heat_solver",heat_solver)
+    call pp%query("solve",heat_solve) 
+    call pp%queryarr("sw_melt_velocity", sw_melt_velocity)  
+    call pp%query("sample_edge", heat_sample_edge)   
+    call pp%query("temp_init", heat_temp_init)
+    call pp%query("phase_init", heat_phase_init)
+    call pp%query("plasma_flux_type", heat_plasma_flux_type) 
+    call pp%query("plasma_flux_side_type", heat_plasma_flux_side_type) 
+    call pp%queryarr("plasma_flux_side_params", heat_plasma_flux_side_params)
+    call pp%queryarr("plasma_flux_params", heat_plasma_flux_params)
+    call pp%query("plasma_flux_file", heat_plasma_flux_file)
+    call pp%query("plasma_flux_side_file", heat_plasma_flux_side_file)
+    call pp%query("temp_free_surface", heat_temp_surf)
+    call pp%query("cooling_thermionic",heat_cooling_thermionic)
+    call pp%query("side_cooling_thermionic",heat_cooling_thermionic_side)
+    call pp%query("cooling_vaporization",heat_cooling_vaporization)
+    call pp%query("cooling_radiation",heat_cooling_radiation)
+    call pp%queryarr("cooling_debug",heat_cooling_debug)
+    call pp%query("solver",heat_solver)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the shallow water solver
     call amrex_parmparse_build(pp, "sw")
-    call pp%query("solve", solve_sw)
+    call pp%query("solve", sw_solve)
     call pp%query("solver",sw_solver)
-    call pp%query("solve_momentum", solve_sw_momentum)
+    call pp%query("solve_momentum", sw_solve_momentum)
     call pp%query("geoclaw_iter", sw_iter)
     call pp%query("geoclaw_gravity", sw_gravity)
-    call pp%query("geoclaw_drytol", sw_drytol)
+    call pp%query("drytol", sw_drytol)
     call pp%query("Bx", sw_Bx)
     call pp%query("Bz", sw_Bz)
-    call pp%query("h_cap", sw_h_cap)
+    call pp%query("captol", sw_captol)
+    call pp%query("magnetic_inclination",sw_magnetic_inclination)
+    call pp%query("surf_pos_init", sw_surf_pos_init)  
     call amrex_parmparse_destroy(pp)
     
     ! Parameters for the material
     call amrex_parmparse_build(pp, "material")
-    call pp%query("material", material)
-    call pp%query("phiT_max_T", phiT_table_max_T)
-    call pp%query("phiT_n_points", phiT_table_n_points)
+    call pp%query("name", material_name)
+    call pp%query("max_temperature", material_maxT)
+    call pp%query("points", material_nPoints)
     call amrex_parmparse_destroy(pp)
     
     ! Parameters for the geometry
     call amrex_parmparse_build(pp, "geometry")
-    call pp%query("geometry_name", geometry_name)
-    call pp%getarr("cool_pipe_cntr",cool_pipe_cntr)
-    call pp%query("cool_pipe_radius", cool_pipe_radius)
+    call pp%query("name", geom_name)
+    call pp%queryarr("cool_pipe_cntr",geom_cool_pipe_cntr)
+    call pp%query("cool_pipe_radius", geom_cool_pipe_radius)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the numerics
     call amrex_parmparse_build(pp, "numerics")
-    call pp%query("cfl", cfl)
-    call pp%query("do_reflux", do_reflux)
-    call pp%query("dt_change_max", dt_change_max)
+    call pp%query("cfl", num_cfl)
+    call pp%query("heat_reflux", heat_reflux)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the linear solver used for the implicit solution of the heat equation
     call amrex_parmparse_build(pp, "linear_solver")
-    call pp%query("composite_solve", ls_composite_solve)
-    call pp%query("verbose", ls_verbose)
-    call pp%query("bottom_verbose_ls", ls_bottom_verbose)
-    call pp%query("max_iter", ls_max_iter)
-    call pp%query("max_fmg_iter", ls_max_fmg_iter)
-    call pp%query("bottom_solver", ls_bottom_solver)
-    call pp%query("linop_maxorder", ls_linop_maxorder)
-    call pp%query("agglomeration", ls_agglomeration)
-    call pp%query("consolidation", ls_consolidation)
-    call pp%query("max_coarsening_level", ls_max_coarsening_level)
+    call pp%query("accuracy", num_accuracy)
+    call pp%query("composite_solve", num_composite_solve)  
+    call pp%query("verbose", num_verbose)
+    call pp%query("bottom_verbose_ls", num_bottom_verbose)
+    call pp%query("max_iter", num_max_iter)
+    call pp%query("max_fmg_iter", num_max_fmg_iter)
+    call pp%query("bottom_solver", num_bottom_solver)
+    call pp%query("linop_maxorder", num_linop_maxorder)
+    call pp%query("agglomeration", num_agglomeration)
+    call pp%query("consolidation", num_consolidation)
+    call pp%query("subcycling", num_subcycling)
+    call pp%query("max_coarsening_level", num_max_coarsening_level)
     
   end subroutine read_input_file
 
 
-  ! Default values for the input parameters
+  ! ------------------------------------------------------------------
+  ! Subroutines used to set the default values for the input variables
+  ! ------------------------------------------------------------------
   subroutine set_default_values()
 
-    integer :: i
-        
-    allocate(character(len=3)::check_file)
-    allocate(character(len=8)::heat_solver)
-    allocate(character(len=8)::sw_solver)
-    allocate(character(len=8)::plasma_flux_type)
-    allocate(character(len=8)::plasma_side_flux_type)
-    allocate(character(len=25)::plasma_flux_input_file)
-    allocate(character(len=25)::plasma_side_flux_input_file)
-    allocate(character(len=8)::material)
-    allocate(character(len=4)::geometry_name)
-    allocate(cool_pipe_cntr(2))
-    allocate(character(len=9)::phase_init)
-    allocate(character(len=3)::plot_file)
-    allocate(character(len=0)::restart)
-    allocate(cooling_debug(5))
-    allocate(fixed_melt_velocity(2))
-    allocate(surfdist(0:amrex_max_level))
-    allocate(plasma_flux_params(100))
-    allocate(plasma_side_flux_params(100))
+    ! Allocate input variables that are not scalars
+    call allocate_input
     
-    cfl = 0.70
-    check_file = "chk"
-    check_int = -1
-    cooling_debug(1) = 0
-    cooling_debug(2) = 300
-    cooling_debug(3) = 301
-    cooling_debug(4) = 1
-    cooling_debug(5) = 1e6
-    solve_heat = .true.
-    cooling_thermionic_side = .false.
-    cooling_thermionic = .true.
-    cooling_vaporization = .true.
-    cooling_radiation = .true.
-    do_reflux = .true.
-    dt_change_max = 1.1
-    fixed_melt_velocity(1) = 0.0_amrex_real
-    fixed_melt_velocity(2) = 0.0_amrex_real
-    in_dt = 0.0001
+    ! Assign default values
+    call set_default_time
+    call set_default_geom
+    call set_default_regrid
+    call set_default_heat
+    call set_default_sw
+    call set_default_material
+    call set_default_numerics
+    call set_default_io
+     
+  end subroutine set_default_values
+
+
+  subroutine set_default_time()
+    
+    time_ddt_max = 1.1
+    time_dt = 1e-6
+    time_step_max = 0
+    time_max = 0.0
+    
+  end subroutine set_default_time
+
+
+  subroutine set_default_geom()
+
+    real(amrex_real) :: Lx
+    real(amrex_real) :: Ly
+
+    Lx = amrex_probhi(1) - amrex_problo(1)
+    Ly = amrex_probhi(2) - amrex_problo(2)
+    
+    geom_name = "Slab"
+    geom_cool_pipe_cntr(1) = 0.5*Lx
+    geom_cool_pipe_cntr(2) = 0.5*Ly
+    geom_cool_pipe_radius = 0.0
+
+  end subroutine set_default_geom
+
+
+  subroutine set_default_regrid()
+
+    regrid_int = 1
+    regrid_dist = 0.0_amrex_real
+    
+  end subroutine set_default_regrid
+
+
+  subroutine set_default_heat()    
+    
+    heat_cooling_debug(1) = 0
+    heat_cooling_debug(2) = 300
+    heat_cooling_debug(3) = 301
+    heat_cooling_debug(4) = 1
+    heat_cooling_debug(5) = 1e6
+    heat_cooling_thermionic = .true.
+    heat_cooling_vaporization = .true.
+    heat_cooling_radiation = .true.
+    heat_reflux = .true.    
+    heat_cooling_thermionic_side = .false.
     heat_solver = "explicit"
-    ls_verbose = 1
-    ls_bottom_verbose = 0
-    ls_max_iter = 100
-    ls_max_fmg_iter = 0
-    ls_bottom_solver = amrex_bottom_default
-    ls_linop_maxorder = 2
-    ls_agglomeration = .true.
-    ls_consolidation = .true.
-    ls_max_coarsening_level = 30
-    material = "Tungsten"
-    geometry_name = "Slab"
-    cool_pipe_cntr(1) = 0.01
-    cool_pipe_cntr(2) = 0.005
-    cool_pipe_radius = 0_amrex_real
-    max_grid_size_2d = 16
-    max_step = 10000
-    phase_init = "undefined"
-    phiT_table_max_T = 10000.0
-    phiT_table_n_points = 10000
-    plasma_flux_params(1) = 0.0
-    plasma_flux_params(2) = 1.0
-    plasma_flux_params(3) = 300E6
-    plasma_flux_params(4) = 0.0
-    plasma_flux_params(5) = 0.01
-    plasma_flux_params(6) = 0.0
-    plasma_flux_params(7) = 0.01
-    plasma_side_flux_params(1) = 0.0
-    plasma_side_flux_params(2) = 1.0
-    plasma_side_flux_params(3) = 300e6
-    plasma_side_flux_params(4) = 0.0
-    plasma_side_flux_params(5) = 0.01
-    plasma_flux_params(6) = 0.0
-    plasma_flux_params(7) = 0.01
-    plasma_flux_type = "Gaussian"
-    plasma_side_flux_type = "Gaussian"
-    plasma_flux_input_file = "plasma_flux.dat"
-    plasma_side_flux_input_file = "plasma_side_flux.dat"
-    plot_file = "plt"
-    plot_int = -1
-    regrid_int = 2
-    solve_sw = .true.
-    sw_solver = "explicit"
-    solve_sw_momentum = .true.
-    sw_drytol = 1e-6_amrex_real
+    heat_phase_init = "undefined"
+    heat_plasma_flux_file = "plasma_flux.dat"
+    heat_plasma_flux_params(1) = 0.0
+    heat_plasma_flux_params(2) = 1.0
+    heat_plasma_flux_params(3) = 300E6
+    heat_plasma_flux_params(4) = 0.0
+    heat_plasma_flux_params(5) = 0.01
+    heat_plasma_flux_params(6) = 0.0
+    heat_plasma_flux_params(7) = 0.01
+    heat_plasma_flux_side_params(1) = 0.0
+    heat_plasma_flux_side_params(2) = 1.0
+    heat_plasma_flux_side_params(3) = 300e6
+    heat_plasma_flux_side_params(4) = 0.0
+    heat_plasma_flux_side_params(5) = 0.01
+    heat_plasma_flux_type = "Gaussian"
+    heat_plasma_flux_side_file = "plasma_side_flux.dat"
+    heat_plasma_flux_side_params = heat_plasma_flux_params
+    heat_plasma_flux_side_type = heat_plasma_flux_type
+    heat_solve = .true.
+    heat_sample_edge = 0.020
+    heat_temp_surf = -1.0
+    
+  end subroutine set_default_heat
+
+
+  subroutine set_default_sw()
+
+    real(amrex_real) :: Ly
+
+    Ly = amrex_probhi(2) - amrex_problo(2)
+
+    sw_captol = 0.0
+    sw_current = 0.0
+    sw_drytol = 0.0    
+    sw_magnetic_inclination = 90.0
+    sw_Bx = 0.0
+    sw_Bz = 0.0
+    sw_melt_velocity = 0.0
+    sw_pool_params(1) = 0.0
+    sw_pool_params(2) = 0.0
+    sw_pool_params(3) = 1.0
+    sw_solve = .true.
+    sw_solve_momentum = .true.
+    sw_surf_pos_init = 0.5*Ly
     sw_iter = 1000
     sw_gravity = 1.0_amrex_real
-    sw_Bx = 0.0_amrex_real
-    sw_Bz = 0.0_amrex_real
-    sw_h_cap = 0.0_amrex_real
-    stop_time = 1.0
-    do i = 0, amrex_max_level
-       surfdist(i) = 0.0_amrex_real
-    end do
-    surf_pos_init = 0.020
-    sample_edge = 0.020
-    thermionic_alpha = 90.0
-    temp_fs = -1
-    verbose = 0
+    sw_Bx = 0.0
+    sw_Bz = 0.0    
+    sw_solver = "explicit"
     
-  end subroutine set_default_values
+  end subroutine set_default_sw
+
+
+  subroutine set_default_material()
+    
+    material_name = "Tungsten"
+    material_maxT = 10000.0
+    material_nPoints = 10000
+    
+  end subroutine set_default_material
+
+
+  subroutine set_default_numerics()
+
+    num_cfl = 0.95
+    num_accuracy = 10e-10
+    num_composite_solve = .true.
+    num_verbose = 0
+    num_bottom_verbose = 0
+    num_max_iter = 100
+    num_max_fmg_iter = 0
+    num_bottom_solver = amrex_bottom_default
+    num_linop_maxorder = 2
+    num_agglomeration = .true.
+    num_consolidation = .true.
+    num_max_coarsening_level = 30
+    num_subcycling = .false.
+    
+  end subroutine set_default_numerics
+
+  subroutine set_default_io()
+
+    io_check_file = "chk"
+    io_check_int = -1
+    io_plot_file = "plt"
+    io_plot_int = -1
+    io_verbose = 0
+    
+  end subroutine set_default_io
+
+  ! ------------------------------------------------------------------
+  ! Subroutines used to allocate memory relate to the input variables
+  ! ------------------------------------------------------------------
+  subroutine allocate_input()
+
+    call allocate_geom_variables
+    call allocate_regrid_variables
+    call allocate_heat_variables
+    call allocate_sw_variables
+    call allocate_material_variables
+    call allocate_io_variables
+    
+  end subroutine allocate_input
+
+
+  subroutine allocate_geom_variables()
+
+    allocate(character(len=4)::geom_name)
+    allocate(geom_cool_pipe_cntr(2))
+    
+  end subroutine allocate_geom_variables
+
+
+  subroutine allocate_regrid_variables()
+    
+    allocate(regrid_dist(1:amrex_max_level))
+        
+  end subroutine allocate_regrid_variables
+
+
+  subroutine allocate_heat_variables()
+
+    allocate(character(len=8)::heat_solver)
+    allocate(character(len=8)::heat_plasma_flux_type)
+    allocate(character(len=8)::heat_plasma_flux_side_type)
+    allocate(character(len=9)::heat_phase_init)
+    allocate(character(len=25)::heat_plasma_flux_file)
+    allocate(character(len=25)::heat_plasma_flux_side_file)
+    allocate(heat_cooling_debug(5))
+    allocate(heat_plasma_flux_params(100))
+    allocate(heat_plasma_flux_side_params(100))
+        
+  end subroutine allocate_heat_variables
+
+
+  subroutine allocate_sw_variables()
+
+    allocate(sw_current(3))
+    allocate(sw_pool_params(3))
+    allocate(sw_melt_velocity(1:2))
+    allocate(character(len=8)::sw_solver)   
+        
+  end subroutine allocate_sw_variables
+
+
+  subroutine allocate_material_variables()
+
+    allocate(character(len=8)::material_name)
+        
+  end subroutine allocate_material_variables
+
+
+  subroutine allocate_io_variables()
+
+    allocate(character(len=3)::io_check_file)
+    allocate(character(len=3)::io_plot_file)
+    allocate(character(len=0)::io_restart)
+    
+  end subroutine allocate_io_variables
+
 
   ! ------------------------------------------------------------------
   ! Subroutine used to free the memory related to the input variables
   ! ------------------------------------------------------------------  
   subroutine deallocate_input()
     
-    deallocate(check_file)
+    deallocate(io_check_file)
     deallocate(heat_solver)
     deallocate(sw_solver)
-    deallocate(material)
-    deallocate(geometry_name)
-    deallocate(phase_init)
-    deallocate(plasma_flux_params)
-    deallocate(plasma_flux_type)
-    deallocate(plasma_side_flux_type)
-    deallocate(plasma_flux_input_file)
-    deallocate(plasma_side_flux_input_file)
-    deallocate(plot_file)
-    deallocate(restart)
-    deallocate(surfdist)
+    deallocate(material_name)
+    deallocate(geom_name)
+    deallocate(heat_phase_init)
+    deallocate(heat_plasma_flux_params)
+    deallocate(heat_plasma_flux_type)
+    deallocate(heat_plasma_flux_side_type)
+    deallocate(heat_plasma_flux_file)
+    deallocate(heat_plasma_flux_side_file)
+    deallocate(io_plot_file)
+    deallocate(io_restart)
+    deallocate(regrid_dist)
+    deallocate(sw_current)
+    deallocate(sw_pool_params)
 
   end subroutine deallocate_input
     

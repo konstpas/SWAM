@@ -21,7 +21,7 @@ module material_properties_beryllium_module
   public :: get_mass_density_beryllium
   public :: get_electrical_resistivity_beryllium
   public :: get_emissivity_beryllium
-  public :: get_Richardson_beryllium
+  public :: get_richardson_constant_beryllium
   public :: get_surface_tension_beryllium
   public :: get_viscosity_beryllium
   public :: get_work_function_beryllium
@@ -337,7 +337,7 @@ contains
   ! -----------------------------------------------------------------
   ! Subroutine used to compute Richardson constant
   ! -----------------------------------------------------------------
-  subroutine get_Richardson_beryllium(Aeff)
+  subroutine get_richardson_constant_beryllium(Aeff)
     
     ! Lack of measurements of the effective Richardson constant of clean polycrystalline samples.
     ! The recommended value is the nominal Richardson value
@@ -346,7 +346,7 @@ contains
 
     Aeff = 120E4
     
-  end subroutine get_Richardson_beryllium
+  end subroutine get_richardson_constant_beryllium
 
 
   ! -----------------------------------------------------------------
