@@ -1,9 +1,9 @@
 module heat_transfer_implicit_module
   
-    ! -----------------------------------------------------------------
-    ! This module is used to perform all the calculations relative
-    ! to the heat transfer part of the code.
-    ! -----------------------------------------------------------------
+  ! -----------------------------------------------------------------
+  ! This module contains the implicit solver for the heat transfer
+  ! equations
+  ! -----------------------------------------------------------------
     
     use amrex_amr_module
     
@@ -18,6 +18,8 @@ module heat_transfer_implicit_module
     public :: advance_heat_solver_implicit_level
     
   contains
+
+
 
   ! -----------------------------------------------------------------
   ! Subroutine used to advance the heat solver on all levels
@@ -45,9 +47,9 @@ module heat_transfer_implicit_module
    
  end subroutine advance_heat_solver_implicit  
 
+  
   ! -----------------------------------------------------------------
-  ! Subroutine used to compute the enthalpy at a new time step for
-  ! all levels via an implicit update.
+  ! Subroutine used to advance the heat solver on one level
   ! -----------------------------------------------------------------
   subroutine advance_heat_solver_implicit_level(lev, time, dt, substep, &
                                                 temp_tmp_lm1)
@@ -104,67 +106,7 @@ module heat_transfer_implicit_module
    ! Clean memory
    call free_memory(phi_tmp, temp_tmp, idomain_tmp, fluxes)
 
-    
   end subroutine advance_heat_solver_implicit_level
-
-   !  ! -----------------------------------------------------------------
-   !  ! Subroutine used to initialize the multifabs used in the
-   !  ! update of the full heat equation
-   !  ! -----------------------------------------------------------------
-   !  subroutine init_tmp_multifab(time, phi_tmp, temp_tmp, idomain_tmp)
-        
-   !      use amr_data_module, only : phi_new, &
-   !                                  phi_old, &
-   !                                  idomain
-   !      use regrid_module, only : fillpatch
-    
-   !      ! Input and output variables
-   !      real(amrex_real), intent(in) :: time
-   !      type(amrex_multifab), intent(out) :: phi_tmp(0:amrex_max_level)
-   !      type(amrex_multifab), intent(out) :: temp_tmp(0:amrex_max_level)
-   !      type(amrex_multifab), intent(out) :: idomain_tmp(0:amrex_max_level)
-        
-   !      ! Local variables
-   !      integer, parameter :: nghost = 1 ! number of ghost points in each spatial direction
-   !      integer :: ncomp
-   !      integer :: ilev
-   !      type(amrex_boxarray) :: ba(0:amrex_max_level) ! Box array
-   !      type(amrex_distromap):: dm(0:amrex_max_level) ! Distribution mapping
-   !      type(amrex_geometry) :: geom
-
-   !      do ilev = 0, amrex_max_level
-        
-   !      ! Swap old and new enthalpies
-   !      call amrex_multifab_swap(phi_old(ilev), phi_new(ilev))
-        
-   !      ! Get boxarray and distribution mapping on level
-   !      ba(ilev) = phi_new(ilev)%ba
-   !      dm(ilev) = phi_new(ilev)%dm
-
-   !      ! Number of components
-   !      ncomp = phi_new(ilev)%ncomp()
-
-   !      ! Geometry
-   !      geom = amrex_geom(ilev)
-        
-   !      ! Enthalpy and temperature multifabs with ghost points
-   !      call amrex_multifab_build(phi_tmp(ilev), ba(ilev), dm(ilev), ncomp, nghost) 
-   !      call amrex_multifab_build(temp_tmp(ilev), ba(ilev), dm(ilev), ncomp, nghost)
-   !      call fillpatch(ilev, time, phi_tmp(ilev))
-
-   !      ! Build temporary idomain multifab to store the domain configuration before SW deformation
-   !      call amrex_multifab_build(idomain_tmp(ilev), ba(ilev), dm(ilev), ncomp, nghost)
-   !      call amrex_multifab_swap(idomain_tmp(ilev), idomain(ilev))
-        
-   !      end do
-
-   !      ! Clean memory
-   !      do ilev = 0, amrex_max_level 
-   !      call amrex_distromap_destroy(dm(ilev))
-   !      end do
-        
-   !  end subroutine init_tmp_multifab
-
 
   ! -----------------------------------------------------------------
   ! Subroutine used to advance of one time step the conduction part
@@ -263,7 +205,7 @@ module heat_transfer_implicit_module
   end subroutine advance_advection
 
 
-    ! -----------------------------------------------------------------
+  ! -----------------------------------------------------------------
   ! Subroutine used update the temperature solution at one level
   ! below (needed for the implicit update of the conduction)
   ! -----------------------------------------------------------------
@@ -306,54 +248,48 @@ module heat_transfer_implicit_module
  end subroutine update_temperature_lm1
 
 
-    ! -----------------------------------------------------------------
-    ! Subroutine used to initialize the multifabs used in the
-    ! update of the conductive part of the heat equation
-    ! -----------------------------------------------------------------
-    subroutine conduction_init_tmp_multifab(lev, ba, dm, alpha, beta, rhs)
-        
-        use amr_data_module, only : phi_new
+   ! -----------------------------------------------------------------
+   ! Subroutine used to initialize the multifabs used in the
+   ! update of the conductive part of the heat equation
+   ! -----------------------------------------------------------------
+   subroutine conduction_init_tmp_multifab(lev, ba, dm, alpha, beta, rhs)
+      
+      use amr_data_module, only : phi_new
 
-        ! Input and output variables
-        integer, intent(in) :: lev
-        type(amrex_multifab), intent(out) :: rhs
-        type(amrex_multifab), intent(out) :: alpha
-        type(amrex_multifab), intent(out) :: beta(amrex_spacedim)
-        type(amrex_boxarray), intent(out) :: ba
-        type(amrex_distromap), intent(out) :: dm
-        
-        ! Local variables
-        logical :: nodal(3)
-        integer :: idim
-        integer :: ilev
-        integer :: ncomp
-        type(amrex_geometry) :: geom
+      ! Input and output variables
+      integer, intent(in) :: lev
+      type(amrex_multifab), intent(out) :: rhs
+      type(amrex_multifab), intent(out) :: alpha
+      type(amrex_multifab), intent(out) :: beta(amrex_spacedim)
+      type(amrex_boxarray), intent(out) :: ba
+      type(amrex_distromap), intent(out) :: dm
+      
+      ! Local variables
+      logical :: nodal(3)
+      integer :: idim
+      integer :: ncomp
+      type(amrex_geometry) :: geom
+      
+      ! Get boxarray and distribution mapping
+      ba = phi_new(lev)%ba
+      dm = phi_new(lev)%dm
 
-        ! Initialize temporary multifabs
-        do ilev = 0, amrex_max_level
-        
-        ! Get boxarray and distribution mapping
-        ba = phi_new(ilev)%ba
-        dm = phi_new(ilev)%dm
+      ! Number of components
+      ncomp = phi_new(lev)%ncomp()
 
-        ! Number of components
-        ncomp = phi_new(ilev)%ncomp()
+      ! Geometry
+      geom = amrex_geom(lev)
 
-        ! Geometry
-        geom = amrex_geom(ilev)
-
-        ! Multifabs for the linear solver
-        call amrex_multifab_build(rhs, ba, dm, ncomp, 0)
-        call amrex_multifab_build(alpha, ba, dm, ncomp, 0)
-        do idim = 1, amrex_spacedim
-            nodal = .false.
-            nodal(idim) = .true.
-            call amrex_multifab_build(beta(idim), ba, dm, ncomp, 0, nodal)
-        end do
-
-        end do
-        
-    end subroutine conduction_init_tmp_multifab
+      ! Multifabs for the linear solver
+      call amrex_multifab_build(rhs, ba, dm, ncomp, 0)
+      call amrex_multifab_build(alpha, ba, dm, ncomp, 0)
+      do idim = 1, amrex_spacedim
+         nodal = .false.
+         nodal(idim) = .true.
+         call amrex_multifab_build(beta(idim), ba, dm, ncomp, 0, nodal)
+      end do
+      
+   end subroutine conduction_init_tmp_multifab
 
   
     ! -----------------------------------------------------------------
@@ -523,161 +459,22 @@ module heat_transfer_implicit_module
       
     end subroutine conduction_predict_box
 
-    ! -----------------------------------------------------------------
-    ! Subroutine used to compute the correction step of the conductive
-    ! part of the heat transfer equation
-    ! -----------------------------------------------------------------
-    subroutine conduction_correct(lev, phi_tmp, temp_tmp, alpha)
-    
-        use amr_data_module, only : phi_new
-        
-        ! Input and output variables
-        integer, intent(in) :: lev
-        type(amrex_multifab), intent(inout) :: phi_tmp
-        type(amrex_multifab), intent(inout) :: temp_tmp
-        type(amrex_multifab), intent(inout) :: alpha
-        
-        ! Local variables
-        type(amrex_geometry) :: geom
-        type(amrex_mfiter) :: mfi
-    
-    
-         ! Geometry
-         geom = amrex_geom(lev)
-         
-         !$omp parallel private(mfi)
-         call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
-         do while(mfi%next())
-            call conduction_correct_box(lev, mfi, phi_tmp, &
-                                       temp_tmp, alpha)
-            
-         end do
-         call amrex_mfiter_destroy(mfi)
-         !$omp end parallel
-         
-         call temp_tmp%fill_boundary(geom)
-           
-        
-    end subroutine conduction_correct  
-  
-    ! -----------------------------------------------------------------
-    ! Subroutine used to perform the correction step for the implicit
-    ! enthalpy update at a given box on a given level 
-    ! -----------------------------------------------------------------
-    subroutine conduction_correct_box(lev, mfi, phi_tmp, &
-                                                temp_tmp, alpha)
-  
-      use amr_data_module, only : phi_new, temp, idomain
-      use heat_transfer_domain_module, only : get_melt_pos
-      use material_properties_module, only : get_temp
-      use read_input_module, only : heat_temp_surf
-      
-      ! Input and output variables
-      integer, intent(in) :: lev
-      type(amrex_mfiter), intent(in) :: mfi
-      type(amrex_multifab), intent(inout) :: phi_tmp
-      type(amrex_multifab), intent(inout) :: temp_tmp
-      type(amrex_multifab), intent(inout) :: alpha
-  
-      ! Local variables
-      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin
-      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pout
-      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptempin
-      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
-      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pid
-      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pac
-      type(amrex_box) :: bx
-      
-      ! Box
-      bx = mfi%validbox()   
-      
-      ! Pointers
-      pin     => phi_tmp%dataptr(mfi)
-      pout    => phi_new(lev)%dataptr(mfi)
-      ptempin => temp_tmp%dataptr(mfi)
-      ptemp   => temp(lev)%dataptr(mfi)
-      pid     => idomain(lev)%dataptr(mfi)
-      pac => alpha%dataptr(mfi)
-      
-      ! Get corrected enthalpy
-      if (heat_temp_surf.gt.0) then
-        STOP 'The implicit solver cannot be used to solve problems with a fixed temperature on the free surface'
-      else
-         call get_enthalpy_conduction(bx%lo, bx%hi, &
-                                    pin, lbound(pin), ubound(pin), &
-                                    pout, lbound(pout), ubound(pout), &
-                                    ptemp, lbound(ptemp), ubound(ptemp), &
-                                    ptempin, lbound(ptempin), ubound(ptempin), &
-                                    pac, lbound(pac), ubound(pac))
-      end if
-  
-      
-    end subroutine conduction_correct_box
-
-    ! -----------------------------------------------------------------
-    ! Subroutine used to synchronize the idomains in the conduction 
-    ! part of the heat transfer equation
-    ! -----------------------------------------------------------------
-    subroutine conduction_synch_idomain(lev, phi_tmp, temp_tmp)
-        
-      use amr_data_module, only : phi_new, &
-                                 temp, &
-                                 idomain
-      use heat_transfer_domain_module, only : get_idomain
-         
-      ! Input and output variables
-      integer, intent(in) :: lev
-      type(amrex_multifab), intent(inout) :: phi_tmp
-      type(amrex_multifab), intent(inout) :: temp_tmp
-        
-      ! Local variables
-      integer :: ncomp
-      type(amrex_geometry) :: geom
-      type(amrex_mfiter) :: mfi
-      type(amrex_box) :: bx
-      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidom
-      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp_tmp
-      
-
-      ! Geometry
-      geom = amrex_geom(lev)
-   
-      ! Number of components
-      ncomp = phi_new(lev)%ncomp()
-
-      ! Synchronize enthalpy multifab with ghost points
-      call phi_tmp%copy(phi_new(lev), 1, 1, ncomp, 1) ! The last 1 is the number of ghost points
-      call phi_tmp%fill_boundary(geom)
-
-      !$omp parallel private(mfi, bx, pidom, ptemp_tmp)
-      call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
-      do while(mfi%next())
-         bx = mfi%validbox()
-         pidom  => idomain(lev)%dataptr(mfi)
-         ptemp_tmp   => temp_tmp%dataptr(mfi)
-         call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
-                           bx%lo, bx%hi, &
-                           pidom, lbound(pidom), ubound(pidom), &
-                           ptemp_tmp, lbound(ptemp_tmp), ubound(ptemp_tmp))
-         
-      end do
-      call amrex_mfiter_destroy(mfi)   
-      !$omp end parallel
-      
-        
-    end subroutine conduction_synch_idomain    
-    
-    ! -----------------------------------------------------------------------------------
+        ! -----------------------------------------------------------------------------------
     ! Subroutine used to solve the linear system of equations for the implict update
     ! of the temperature
     ! ----------------------------------------------------------------------------------- 
     subroutine conduction_get_temperature(lev, ba, dm, dt, alpha, beta, rhs, sol_lm1, sol)
   
-      use read_input_module, only : num_composite_solve, num_agglomeration, &
-                                    num_consolidation, num_max_coarsening_level, &
-                                    num_linop_maxorder, num_bottom_solver, &
-                                    num_bottom_verbose, num_max_fmg_iter, &
-                                    num_max_iter, num_verbose, num_accuracy
+    use read_input_module, only : num_accuracy, &
+                                  num_agglomeration, &
+                                  num_consolidation, &
+                                  num_max_coarsening_level, &
+                                  num_linop_maxorder, &
+                                  num_bottom_solver, &
+                                  num_bottom_verbose, &
+                                  num_max_fmg_iter, &
+                                  num_max_iter, &
+                                  num_verbose
       use amrex_linear_solver_module
   
           
@@ -743,6 +540,152 @@ module heat_transfer_implicit_module
   
             
     end subroutine conduction_get_temperature
+
+    ! -----------------------------------------------------------------
+    ! Subroutine used to compute the correction step of the conductive
+    ! part of the heat transfer equation
+    ! -----------------------------------------------------------------
+    subroutine conduction_correct(lev, phi_tmp, temp_tmp, alpha)
+    
+        use amr_data_module, only : phi_new
+        
+        ! Input and output variables
+        integer, intent(in) :: lev
+        type(amrex_multifab), intent(inout) :: phi_tmp
+        type(amrex_multifab), intent(inout) :: temp_tmp
+        type(amrex_multifab), intent(inout) :: alpha
+        
+        ! Local variables
+        type(amrex_geometry) :: geom
+        type(amrex_mfiter) :: mfi
+    
+    
+         ! Geometry
+         geom = amrex_geom(lev)
+         
+         !$omp parallel private(mfi)
+         call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
+         do while(mfi%next())
+            call conduction_correct_box(lev, mfi, phi_tmp, &
+                                       temp_tmp, alpha)
+            
+         end do
+         call amrex_mfiter_destroy(mfi)
+         !$omp end parallel
+         
+         ! call temp_tmp%fill_boundary(geom)
+           
+        
+    end subroutine conduction_correct  
+  
+    ! -----------------------------------------------------------------
+    ! Subroutine used to perform the correction step for the implicit
+    ! enthalpy update at a given box on a given level 
+    ! -----------------------------------------------------------------
+    subroutine conduction_correct_box(lev, mfi, phi_tmp, &
+                                                temp_tmp, alpha)
+  
+      use amr_data_module, only : phi_new, temp, idomain
+      use read_input_module, only : heat_temp_surf
+      
+      ! Input and output variables
+      integer, intent(in) :: lev
+      type(amrex_mfiter), intent(in) :: mfi
+      type(amrex_multifab), intent(in) :: phi_tmp
+      type(amrex_multifab), intent(inout) :: temp_tmp
+      type(amrex_multifab), intent(inout) :: alpha
+  
+      ! Local variables
+      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pin
+      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pout
+      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptempin
+      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
+      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pid
+      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pac
+      type(amrex_box) :: bx
+      
+      ! Box
+      bx = mfi%validbox()   
+      
+      ! Pointers
+      pin     => phi_tmp%dataptr(mfi)
+      pout    => phi_new(lev)%dataptr(mfi)
+      ptempin => temp_tmp%dataptr(mfi)
+      ptemp   => temp(lev)%dataptr(mfi)
+      pid     => idomain(lev)%dataptr(mfi)
+      pac => alpha%dataptr(mfi)
+      
+      ! Get corrected enthalpy
+      if (heat_temp_surf.gt.0) then
+        STOP 'The implicit solver cannot be used to solve problems with a fixed temperature on the free surface'
+      else
+         call get_enthalpy_conduction(bx%lo, bx%hi, &
+                                    pin, lbound(pin), ubound(pin), &
+                                    pout, lbound(pout), ubound(pout), &
+                                    ptemp, lbound(ptemp), ubound(ptemp), &
+                                    ptempin, lbound(ptempin), ubound(ptempin), &
+                                    pac, lbound(pac), ubound(pac))
+      end if
+   
+    end subroutine conduction_correct_box
+
+    ! -----------------------------------------------------------------
+    ! Subroutine used to synchronize the idomains in the conduction 
+    ! part of the heat transfer equation
+    ! -----------------------------------------------------------------
+    subroutine conduction_synch_idomain(lev, phi_tmp, temp_tmp)
+        
+      use amr_data_module, only : phi_new, &
+                                 temp, &
+                                 idomain
+      use heat_transfer_domain_module, only : get_idomain
+         
+      ! Input and output variables
+      integer, intent(in) :: lev
+      type(amrex_multifab), intent(inout) :: phi_tmp
+      type(amrex_multifab), intent(inout) :: temp_tmp
+        
+      ! Local variables
+      integer :: ncomp
+      type(amrex_geometry) :: geom
+      type(amrex_mfiter) :: mfi
+      type(amrex_box) :: bx
+      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidom
+      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp_tmp
+      
+
+      ! Geometry
+      geom = amrex_geom(lev)
+   
+      ! Number of components
+      ncomp = phi_new(lev)%ncomp()
+
+      ! Synchronize enthalpy multifab with ghost points
+      call phi_tmp%copy(phi_new(lev), 1, 1, ncomp, 1) ! The last 1 is the number of ghost points
+      call phi_tmp%fill_boundary(geom)
+
+      ! Synchronize temperature multifab with ghost points
+      call temp_tmp%copy(temp(lev), 1, 1, ncomp, 1)
+      call temp_tmp%fill_boundary(geom)
+
+      !$omp parallel private(mfi, bx, pidom, ptemp_tmp)
+      call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
+      do while(mfi%next())
+         bx = mfi%validbox()
+         pidom  => idomain(lev)%dataptr(mfi)
+         ptemp_tmp   => temp_tmp%dataptr(mfi)
+         call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
+                           bx%lo, bx%hi, &
+                           pidom, lbound(pidom), ubound(pidom), &
+                           ptemp_tmp, lbound(ptemp_tmp), ubound(ptemp_tmp))
+         
+      end do
+      call amrex_mfiter_destroy(mfi)   
+      !$omp end parallel
+      
+        
+    end subroutine conduction_synch_idomain    
+    
   
   ! -----------------------------------------------------------------
   ! Subroutine used to advance of one time step the conduction part
@@ -1006,6 +949,10 @@ module heat_transfer_implicit_module
        do i = lo(1), hi(1)
           do j = lo(2), hi(2)
              do k = lo(3), hi(3)
+                if (temp_new(i,j,k).lt.1.0) then
+                  temp_new(i,j,k) = 0
+                  u_new(i,j,k) = 0
+                end if
                 if (temp_old(i,j,k).le.temp_melt .and. temp_new(i,j,k).gt.temp_melt) then
                    ubase = max(u_old(i,j,k), enth_at_melt)
                    u_new(i,j,k) = ubase + alpha(i,j,k)*(temp_new(i,j,k) - temp_melt)
@@ -1013,6 +960,12 @@ module heat_transfer_implicit_module
                    ubase = min(u_old(i,j,k), enth_at_melt+latent_heat)
                    u_new(i,j,k) = ubase + alpha(i,j,k)*(temp_new(i,j,k) - temp_melt)
                 end if
+                if (u_new(i,j,k).ne.u_new(i,j,k)) then
+                   write (*,*) 'Nan enthalpy' 
+               end if
+               if (u_new(i,j,k)-1.eq.u_new(i,j,k)) then
+                  write (*,*) 'Inf enthalpy' 
+              end if
              end do
           end do
        end do                  
@@ -1187,10 +1140,16 @@ module heat_transfer_implicit_module
       do  j = lo(2),hi(2)
          do i = lo(1),hi(1)
             u_new(i,j,k) = u_old(i,j,k) &
-                        - dt/dx(1) * (flxx(i+1,j,k) - flxx(i,j,k)) &  
-                        - dt/dx(2) * (flxy(i,j+1,k) - flxy(i,j,k)) & 
-                        - dt/dx(3) * (flxz(i,j,k+1) - flxz(i,j,k)) & 
-                        + dt*qvol(i,j,k)
+                           - dt/dx(1) * (flxx(i+1,j,k) - flxx(i,j,k)) &  
+                           - dt/dx(2) * (flxy(i,j+1,k) - flxy(i,j,k)) & 
+                           - dt/dx(3) * (flxz(i,j,k+1) - flxz(i,j,k)) & 
+                           + dt*qvol(i,j,k)
+            if (u_new(i,j,k).ne.u_new(i,j,k)) then
+               write (*,*) 'Nan enthalpy unew' 
+            end if
+            if (u_old(i,j,k).ne.u_old(i,j,k)) then
+               write (*,*) 'Nan enthalpy uold' 
+            end if
          end do
       end do
    end do

@@ -16,13 +16,13 @@ module heat_transfer_domain_module
   ! -----------------------------------------------------------------
   public :: get_idomain
   public :: get_melt_pos
+  public :: update_melt_pos
   public :: get_surf_pos
-  public :: integrate_surf
+  public :: get_face_velocity
   public :: reset_melt_pos
   public :: revaluate_heat_domain
   public :: get_local_highest_level
-  public :: get_face_velocity
-  public :: update_melt_pos
+  public :: get_surf_deformation
   
 contains
   
@@ -278,7 +278,7 @@ contains
       !    end do
       ! end do
 
-      use amr_data_module, only : surf_ind, surf_pos, surf_xlo, surf_dx  
+      use amr_data_module, only : surf_pos 
     
       ! Input and output variables
       integer, intent(in) :: lo(3), hi(3) 
@@ -289,26 +289,15 @@ contains
       ! Local variables
       integer :: i, k
       integer :: xind, zind
-      real(amrex_real) :: xpos, zpos
       
       do  i = lo(1),hi(1)
          do k = lo(3),hi(3)
-            
-            xpos = xlo(1) + (0.5 + i-lo(1))*dx(1) 
-            zpos = xlo(3) + (0.5 + k-lo(3))*dx(3)
-            
-            ! The nearest integer is taken to round of numerical
-            ! errors since we know that dx(1) is n*surf_dx(1) where
-            ! n is an integer which depends on the current level and
-            ! the refinment ratio between levels. 
-            xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
-            zind = nint((zpos - surf_dx(2)/2 - surf_xlo(2))/surf_dx(2))
-            
-            if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
-            if (xind.gt.surf_ind(1,2)) xind = surf_ind(1,2)
-            if (zind.lt.surf_ind(2,1)) zind = surf_ind(2,1)
-            if (zind.gt.surf_ind(2,2)) zind = surf_ind(2,2) 
-            
+
+            ! Map to maximum level            
+            call interp_to_max_lev(lo, xlo, dx, i, k, xind, zind)
+       
+            ! Position of the free surface in the heat transfer domain at
+            ! a given level            
             surf_pos_heat_domain(i,k) = surf_pos(xind, zind)
               
          end do
@@ -337,7 +326,48 @@ contains
     
   end subroutine reset_melt_pos
   
+  ! -----------------------------------------------------------------
+  ! Subroutine used to update the position of the bottom of the
+  ! melt pool
+  ! -----------------------------------------------------------------
+  subroutine update_melt_pos(lev)
+    
+   use amr_data_module, only : phi_new,&
+                               idomain
+
+   ! Input and output variables
+   integer, intent(in) :: lev                            
+   ! Local variables
+   type(amrex_geometry) :: geom
+   type(amrex_mfiter) :: mfi
+   type(amrex_box) :: bx
+   real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidom
+   
+   ! Find the melt position
+   if(lev .eq. amrex_max_level) then
+   
+     ! Geometry
+     geom = amrex_geom(lev)
+     
+     ! Loop through all the boxes in the level
+     !$omp parallel private(mfi, bx, pidom)
+     call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
+     do while(mfi%next())
+        bx = mfi%validbox()
+        pidom  => idomain(lev)%dataptr(mfi)
+        call get_melt_pos(bx%lo, bx%hi, &
+                          pidom, lbound(pidom), ubound(pidom), &
+                          geom)
+        
+     end do
+     call amrex_mfiter_destroy(mfi)
+     !$omp end parallel  
+   end if 
+
+   
+ end subroutine update_melt_pos  
   
+
   ! -----------------------------------------------------------------
   ! Subroutine used to get the position of the bottom of the melt
   ! pool
@@ -526,32 +556,7 @@ contains
    
  end subroutine get_upwind_column
   
-  
-  ! -----------------------------------------------------------------
-  ! Subroutine used to get the total volume of molten material
-  ! -----------------------------------------------------------------
-  subroutine integrate_surf(melt_vol)
     
-    use amr_data_module, only : melt_top, melt_pos, surf_ind, surf_dx
-    
-    ! Input and output variables
-    real(amrex_real), intent(out) :: melt_vol ! Integrated melt volume [mm3]
-    
-    ! Local variables
-    integer :: i,k 
-    
-    melt_vol = 0 
-    
-    do i =  surf_ind(1,1), surf_ind(1,2) 
-       do k = surf_ind(2,1), surf_ind(2,2)
-          melt_vol = melt_vol +  melt_top(i,k) - melt_pos(i,k)
-       end do
-    end do
-    
-    melt_vol = melt_vol*surf_dx(1)*surf_dx(2)*1E9  
-    
-  end subroutine integrate_surf
-  
 
   subroutine get_local_highest_level(xlo, dx, lo, hi, lev)
 
@@ -586,47 +591,6 @@ contains
    end do
 
   end subroutine get_local_highest_level
-
-  ! -----------------------------------------------------------------
-  ! Subroutine used to update the position of the bottom of the
-  ! melt pool
-  ! -----------------------------------------------------------------
-   subroutine update_melt_pos(lev)
-    
-    use amr_data_module, only : phi_new,&
-                                idomain
-
-    ! Input and output variables
-    integer, intent(in) :: lev                            
-    ! Local variables
-    type(amrex_geometry) :: geom
-    type(amrex_mfiter) :: mfi
-    type(amrex_box) :: bx
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidom
-    
-    ! Find the melt position
-    if(lev .eq. amrex_max_level) then
-    
-      ! Geometry
-      geom = amrex_geom(lev)
-      
-      ! Loop through all the boxes in the level
-      !$omp parallel private(mfi, bx, pidom)
-      call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
-      do while(mfi%next())
-         bx = mfi%validbox()
-         pidom  => idomain(lev)%dataptr(mfi)
-         call get_melt_pos(bx%lo, bx%hi, &
-                           pidom, lbound(pidom), ubound(pidom), &
-                           geom)
-         
-      end do
-      call amrex_mfiter_destroy(mfi)
-      !$omp end parallel  
-    end if 
-
-    
-  end subroutine update_melt_pos  
   
 
     ! -----------------------------------------------------------------
@@ -721,6 +685,42 @@ contains
       
     end subroutine get_face_velocity  
 
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to interpolate the free surface deformation as
+  ! given by the fluid solver at a given box on a given level
+  ! characterized by xlo (lower corner) and dx (grid resolution) 
+  ! -----------------------------------------------------------------     
+    subroutine get_surf_deformation(xlo, dx, lo, hi, surf_def_hd)
+
+      use amr_data_module, only : surf_deformation
+      
+      ! Input and output variables
+      integer, intent(in) :: lo(3), hi(3) 
+      real(amrex_real), intent(in) :: xlo(3)
+      real(amrex_real), intent(in) :: dx(3)
+      real(amrex_real), intent(out) :: surf_def_hd(lo(1):hi(1), lo(3):hi(3))
+  
+      ! Local variables
+      integer :: i,k
+      integer :: xind, zind
+  
+      ! Note: xlo is the lowest corner of a given box and is defined on the faces.
+      ! xpos refers to the x-coordinate of one cell center of a given box
+      ! and is defined on the centers.
+      
+      do  i = lo(1),hi(1)
+         do k = lo(3), hi(3)
+            ! Map to maximum level
+            call interp_to_max_lev(lo, xlo, dx, i, k, xind, zind)
+        
+            ! Deformation of the free surface in the heat transfer domain at
+            ! a given level
+            surf_def_hd(i,k) = surf_deformation(xind,zind)
+         end do
+      end do
+      
+    end subroutine get_surf_deformation
 
   ! -----------------------------------------------------------------
   ! Subroutine used to interpolate spatial locations to the maximum

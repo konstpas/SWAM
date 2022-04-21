@@ -21,7 +21,7 @@ module read_heat_flux_module
     ! -----------------------------------------------------------------
     subroutine construct_heat_flux_table(side_flag)
       
-      use heat_flux_module, only: plasma_flux_time_mesh, &
+      use amr_data_module, only: plasma_flux_time_mesh, &
                                   plasma_flux_surf_x_mesh, &
                                   plasma_flux_surf_z_mesh, &
                                   heat_flux_table, &

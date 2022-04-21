@@ -167,7 +167,10 @@ subroutine run_simulation()
   subroutine check_timestep_stability(lev, dt)
 
     use amr_data_module, only : max_melt_vel_x, max_melt_vel_z
-    use read_input_module, only : time_dt, heat_solver, heat_solve, time_dt
+    use read_input_module, only : num_cfl, & 
+                                  heat_solver, &
+                                  heat_solve, &
+                                  time_dt
     use material_properties_module, only : max_diffus 
 
     ! Input and output variables 
@@ -189,13 +192,13 @@ subroutine run_simulation()
     if (heat_solver.eq."explicit" .and. heat_solve) then      
       dxsqr= (1.0/dx**2 + 1.0/dy**2 + 1.0/dz**2) 
       dt = 0.5/(dxsqr*max_diffus)
-      dt = min(dt, time_dt)
+      dt = dt*num_cfl
    else
       dt = time_dt
    end if
    
    ! CFL stability condition (only checked)
-   if (max_melt_vel_x*dt.ge.dx .or. max_melt_vel_z.ge.dz) then
+   if (max_melt_vel_x*dt.ge.dx .or. max_melt_vel_z*dt.ge.dz) then
       print *, "CFL stability condition is not satisfied"
    end if   
   end subroutine check_timestep_stability

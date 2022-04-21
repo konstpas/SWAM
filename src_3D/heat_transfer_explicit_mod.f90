@@ -771,14 +771,14 @@ module heat_transfer_explicit_module
            do k = lo(3), hi(3)
  
               flxx(i,j,k) = 0_amrex_real
-              if (nint(idom(i-1,j,k)).gt.0 .and. nint(idom(i,j,k)).eq.0) then
+              if (nint(idom(i-1,j,k)).gt.0 .and. nint(idom(i,j,k)).gt.0) then
  
                   if (advection) then                
                      ! Advective component                    
                      if (vx(i,j,k).gt.0.0_amrex_real) then 
-                        flxx(i,j,k)  = u_old(i-1,j,k)*vx(i,j,k)
+                        flxx(i,j,k)  = flxx(i,j,k) + u_old(i-1,j,k)*vx(i,j,k)
                      else 
-                        flxx(i,j,k)  = u_old(i,j,k)*vx(i,j,k)
+                        flxx(i,j,k)  = flxx(i,j,k) + u_old(i,j,k)*vx(i,j,k)
                      end if
                   end if
                   
@@ -789,6 +789,9 @@ module heat_transfer_explicit_module
                      flxx(i,j,k) = flxx(i,j,k) - ktherm*(temp(i,j,k)-temp(i-1,j,k))/dx(1)
                                     
                   end if
+               end if
+               if (flxx(i,j,k).ne.flxx(i,j,k)) then
+                  write (*,*) 'Nan flxx' 
                end if
                  
            end do
@@ -801,7 +804,7 @@ module heat_transfer_explicit_module
            do k = lo(3), hi(3)
  
               flxy(i,j,k) = 0_amrex_real
-              if (nint(idom(i,j-1,k)).gt.0 .and. nint(idom(i,j,k)).eq.0) then
+              if (nint(idom(i,j-1,k)).gt.0 .and. nint(idom(i,j,k)).gt.0) then
  
                   if(conduction) then
                      
@@ -811,6 +814,9 @@ module heat_transfer_explicit_module
                      flxy(i,j,k) = -ktherm*(temp(i,j,k)-temp(i,j-1,k))/dx(2)
                                     
                   end if
+               end if
+               if (flxy(i,j,k).ne.flxy(i,j,k)) then
+                  write (*,*) 'Nan flxy' 
                end if
               
            end do
@@ -823,25 +829,28 @@ module heat_transfer_explicit_module
            do k = lo(3), hi(3)+1
  
               flxz(i,j,k) = 0_amrex_real
-              if (nint(idom(i,j,k-1)).gt.0 .and. nint(idom(i,j,k)).eq.0) then
+              if (nint(idom(i,j,k-1)).gt.0 .and. nint(idom(i,j,k)).gt.0) then
  
                   if(advection) then
                      
                      ! Advective component
                         
                      if (vz(i,j,k) .gt. 0_amrex_real) then 
-                        flxz(i,j,k)  = u_old(i,j,k-1)*vz(i,j,k)
+                        flxz(i,j,k)  = flxz(i,j,k) + u_old(i,j,k-1)*vz(i,j,k)
                      else 
-                        flxz(i,j,k)  = u_old(i,j,k)*vz(i,j,k)
+                        flxz(i,j,k)  = flxz(i,j,k) + u_old(i,j,k)*vz(i,j,k)
                      end if
                   end if
 
                   if (conduction) then                 
                      ! Diffusive component
-                     temp_face = (temp(i,j,k) + temp(i,j,k-1))/2_amrex_real
+                     temp_face = (temp(i,j,k) + temp(i,j,k-1))/2.0_amrex_real
                      call get_conductivity(temp_face, ktherm)
                      flxz(i,j,k) = flxz(i,j,k) - ktherm*(temp(i,j,k)-temp(i,j,k-1))/dx(3)
                   end if  
+              end if
+              if (flxz(i,j,k).ne.flxz(i,j,k)) then
+                 write (*,*) 'Nan flxz' 
               end if
               
            end do

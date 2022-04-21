@@ -73,7 +73,10 @@ module read_input_module
   ! Distance from the free surface that triggers regridding [m].
   ! One value for each level larger than 0 must be provided
   public :: regrid_dist
-
+  ! Free surface deformation that triggers regridding [m/s].
+  ! One value for each level larger than 0 must be provided 
+  public :: regrid_def 
+  
   ! --- Variables for the heat solver ---
 
   ! Parameters to plot the cooling fluxes as a function of
@@ -235,69 +238,86 @@ module read_input_module
   ! -----------------------------------------------------------------
   ! Default values of public variables
   ! -----------------------------------------------------------------
-  character(len=:), allocatable, save :: io_check_file
-  character(len=:), allocatable, save :: material_name
+
+  ! Length of simulation
+  integer, save :: time_step_max
+  real(amrex_real), save :: time_dt
+  real(amrex_real), save :: time_ddt_max
+  real(amrex_real), save :: time_max
+
+  ! Geometry
   character(len=:), allocatable, save :: geom_name
+  real(amrex_real), allocatable, save :: geom_cool_pipe_cntr(:)
+  real(amrex_real), save :: geom_cool_pipe_radius
+
+  ! Grid
+  integer, save :: regrid_int
+  real(amrex_real), allocatable, save :: regrid_dist(:)
+  real(amrex_real), allocatable, save :: regrid_def(:)
+
+  ! Heat solver
   character(len=:), allocatable, save :: heat_solver
-  character(len=:), allocatable, save :: sw_solver
   character(len=:), allocatable, save :: heat_plasma_flux_type
   character(len=:), allocatable, save :: heat_plasma_flux_file
   character(len=:), allocatable, save :: heat_plasma_flux_side_type
   character(len=:), allocatable, save :: heat_plasma_flux_side_file
   character(len=:), allocatable, save :: heat_phase_init
-  character(len=:), allocatable, save :: io_plot_file
-  character(len=:), allocatable, save :: io_restart
-  integer, save :: io_check_int
-  real(amrex_real) :: num_accuracy
+  logical, save :: heat_cooling_thermionic
+  logical, save :: heat_cooling_thermionic_side
+  logical, save :: heat_cooling_vaporization
+  logical, save :: heat_cooling_radiation
+  logical, save :: heat_reflux
+  logical, save :: heat_solve
+  real(amrex_real), save :: heat_sample_edge
+  real(amrex_real), save :: heat_temp_surf
+  real(amrex_real), save :: heat_temp_init
+  real(amrex_real), allocatable, save :: heat_cooling_debug(:)
+  real(amrex_real), allocatable, save :: heat_plasma_flux_params(:)
+  real(amrex_real), allocatable, save :: heat_plasma_flux_side_params(:)
+
+  ! Shallow water solver
+  logical, save :: sw_solve
+  logical, save :: sw_solve_momentum
+  real(amrex_real), save :: sw_captol
+  real(amrex_real), save :: sw_drytol
+  real(amrex_real), save :: sw_magnetic_inclination
+  real(amrex_real), save :: sw_Bx
+  real(amrex_real), save :: sw_Bz
+  real(amrex_real), allocatable, save :: sw_melt_velocity(:)
+  real(amrex_real), save :: sw_surf_pos_init
+  real(amrex_real), allocatable, save :: sw_current(:)
+  real(amrex_real), allocatable, save :: sw_pool_params(:)
+  character(len=:), allocatable, save :: sw_solver
+  real(amrex_real), save :: sw_gravity
+  integer, save :: sw_iter
+
+  ! Material properties
+  character(len=:), allocatable, save :: material_name
+  integer, save :: material_nPoints
+  real(amrex_real), save :: material_maxT
+
+  ! Numerics
   integer, save :: num_verbose
   integer, save :: num_bottom_verbose
   integer, save :: num_max_iter
   integer, save :: num_max_fmg_iter
   integer, save :: num_bottom_solver
   integer, save :: num_linop_maxorder
-  integer, save :: num_max_coarsening_level
-  integer, save :: time_step_max
-  integer, save :: material_nPoints
-  integer, save :: io_plot_int
-  integer, save :: regrid_int
-  integer, save :: sw_iter
-  integer, save :: io_verbose
-  logical, save :: heat_cooling_thermionic
-  logical, save :: heat_cooling_thermionic_side
-  logical, save :: heat_cooling_vaporization
-  logical, save :: heat_cooling_radiation
-  logical, save :: heat_reflux
   logical, save :: num_composite_solve  
   logical, save :: num_agglomeration
   logical, save :: num_consolidation
   logical, save :: num_subcycling
-  logical, save :: sw_solve
-  logical, save :: heat_solve
-  logical, save :: sw_solve_momentum
+  integer, save :: num_max_coarsening_level
   real(amrex_real), save :: num_cfl
-  real(amrex_real), save :: time_ddt_max
-  real(amrex_real), save :: time_dt
-  real(amrex_real), save :: material_maxT
-  real(amrex_real), save :: time_max
-  real(amrex_real), save :: sw_surf_pos_init
-  real(amrex_real), save :: sw_gravity
-  real(amrex_real), save :: sw_drytol
-  real(amrex_real), save :: heat_sample_edge
-  real(amrex_real), allocatable, save :: geom_cool_pipe_cntr(:)
-  real(amrex_real), save :: geom_cool_pipe_radius
-  real(amrex_real), save :: heat_temp_surf
-  real(amrex_real), save :: heat_temp_init
-  real(amrex_real), save :: sw_magnetic_inclination
-  real(amrex_real), allocatable, save :: heat_cooling_debug(:)
-  real(amrex_real), allocatable, save :: sw_melt_velocity(:)
-  real(amrex_real), allocatable, save :: regrid_dist(:)
-  real(amrex_real), save :: sw_Bx
-  real(amrex_real), save :: sw_Bz
-  real(amrex_real), save :: sw_captol
-  real(amrex_real), allocatable, save :: heat_plasma_flux_params(:)
-  real(amrex_real), allocatable, save :: heat_plasma_flux_side_params(:)
-  real(amrex_real), allocatable, save :: sw_current(:)
-  real(amrex_real), allocatable, save :: sw_pool_params(:)
+  real(amrex_real), save :: num_accuracy
+
+  ! Input/output
+  character(len=:), allocatable, save :: io_check_file
+  character(len=:), allocatable, save :: io_plot_file
+  character(len=:), allocatable, save :: io_restart
+  integer, save :: io_check_int
+  integer, save :: io_plot_int
+  integer, save :: io_verbose
   
 contains
 
@@ -321,22 +341,20 @@ contains
     call pp%query("dt_change_max", time_ddt_max)
     call amrex_parmparse_destroy(pp)
 
-    ! Parameters for the grid control
-    call amrex_parmparse_build(pp, "regrid")
-    call pp%query("regrid_int", regrid_int)
-    call pp%queryarr("regrid_dist", regrid_dist)
+    ! Parameters for the geometry
+    call amrex_parmparse_build(pp, "geometry")
+    call pp%query("name", geom_name)
+    call pp%queryarr("cool_pipe_cntr",geom_cool_pipe_cntr)
+    call pp%query("cool_pipe_radius", geom_cool_pipe_radius)
     call amrex_parmparse_destroy(pp)
 
-    ! Parameters for the input and output
-    call amrex_parmparse_build(pp, "io")
-    call pp%query("check_int", io_check_int)
-    call pp%query("plot_int", io_plot_int)
-    call pp%query("check_file", io_check_file)
-    call pp%query("plot_file", io_plot_file)
-    call pp%query("verbose", io_verbose)
-    call pp%query("restart", io_restart)
+    ! Parameters for the grid
+    call amrex_parmparse_build(pp, "regrid")
+    call pp%query("interval", regrid_int)
+    call pp%queryarr("distance", regrid_dist)
+    call pp%queryarr("deformation", regrid_def)
     call amrex_parmparse_destroy(pp)
-   
+
     ! Parameters for the heat solver
     call amrex_parmparse_build(pp, "heat")
     call pp%query("solve",heat_solve) 
@@ -357,45 +375,30 @@ contains
     call pp%query("cooling_radiation",heat_cooling_radiation)
     call pp%queryarr("cooling_debug",heat_cooling_debug)
     call pp%query("solver",heat_solver)
+    call pp%query("reflux", heat_reflux)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the shallow water solver
     call amrex_parmparse_build(pp, "sw")
+    call pp%queryarr("melt_velocity", sw_melt_velocity) 
+    call pp%query("surf_pos_init", sw_surf_pos_init) 
     call pp%query("solve", sw_solve)
-    call pp%query("solver",sw_solver)
     call pp%query("solve_momentum", sw_solve_momentum)
-    call pp%query("geoclaw_iter", sw_iter)
-    call pp%query("geoclaw_gravity", sw_gravity)
+    call pp%query("magnetic_inclination",sw_magnetic_inclination)
+    call pp%query("captol", sw_captol)
     call pp%query("drytol", sw_drytol)
+    call pp%queryarr("current", sw_current)
+    call pp%queryarr("pool_params", sw_pool_params) 
     call pp%query("Bx", sw_Bx)
     call pp%query("Bz", sw_Bz)
-    call pp%query("captol", sw_captol)
-    call pp%query("magnetic_inclination",sw_magnetic_inclination)
-    call pp%query("surf_pos_init", sw_surf_pos_init)  
+    call pp%query("solver",sw_solver)
+    call pp%query("geoclaw_iter", sw_iter)
+    call pp%query("geoclaw_gravity", sw_gravity)
     call amrex_parmparse_destroy(pp)
     
-    ! Parameters for the material
-    call amrex_parmparse_build(pp, "material")
-    call pp%query("name", material_name)
-    call pp%query("max_temperature", material_maxT)
-    call pp%query("points", material_nPoints)
-    call amrex_parmparse_destroy(pp)
-    
-    ! Parameters for the geometry
-    call amrex_parmparse_build(pp, "geometry")
-    call pp%query("name", geom_name)
-    call pp%queryarr("cool_pipe_cntr",geom_cool_pipe_cntr)
-    call pp%query("cool_pipe_radius", geom_cool_pipe_radius)
-    call amrex_parmparse_destroy(pp)
-
     ! Parameters for the numerics
     call amrex_parmparse_build(pp, "numerics")
     call pp%query("cfl", num_cfl)
-    call pp%query("heat_reflux", heat_reflux)
-    call amrex_parmparse_destroy(pp)
-
-    ! Parameters for the linear solver used for the implicit solution of the heat equation
-    call amrex_parmparse_build(pp, "numerics")
     call pp%query("accuracy", num_accuracy)
     call pp%query("composite_solve", num_composite_solve)  
     call pp%query("verbose", num_verbose)
@@ -406,8 +409,26 @@ contains
     call pp%query("linop_maxorder", num_linop_maxorder)
     call pp%query("agglomeration", num_agglomeration)
     call pp%query("consolidation", num_consolidation)
-    call pp%query("subcycling", num_subcycling)
     call pp%query("max_coarsening_level", num_max_coarsening_level)
+    call pp%query("subcycling", num_subcycling)
+    call amrex_parmparse_destroy(pp)
+
+    ! Parameters for the material
+    call amrex_parmparse_build(pp, "material")
+    call pp%query("name", material_name)
+    call pp%query("max_temperature", material_maxT)
+    call pp%query("points", material_nPoints)
+    call amrex_parmparse_destroy(pp)
+
+    ! Parameters for the input and output
+    call amrex_parmparse_build(pp, "io")
+    call pp%query("check_int", io_check_int)
+    call pp%query("plot_int", io_plot_int)
+    call pp%query("check_file", io_check_file)
+    call pp%query("plot_file", io_plot_file)
+    call pp%query("verbose", io_verbose)
+    call pp%query("restart", io_restart)
+    call amrex_parmparse_destroy(pp)
     
   end subroutine read_input_file
 
@@ -463,6 +484,7 @@ contains
 
     regrid_int = 1
     regrid_dist = 0.0_amrex_real
+    regrid_def = 0.0_amrex_real
     
   end subroutine set_default_regrid
 
@@ -596,6 +618,7 @@ contains
   subroutine allocate_regrid_variables()
     
     allocate(regrid_dist(1:amrex_max_level))
+    allocate(regrid_def(1:amrex_max_level))
         
   end subroutine allocate_regrid_variables
 

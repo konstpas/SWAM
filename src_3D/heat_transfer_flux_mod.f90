@@ -17,25 +17,6 @@ module heat_flux_module
   public :: get_boundary_heat_flux
   public :: debug_cooling_fluxes
    
-   ! ------------------------------------------------------------------
-   ! Public variables
-   ! ------------------------------------------------------------------
-  public :: plasma_flux_time_mesh
-  public :: plasma_flux_surf_x_mesh
-  public :: plasma_flux_surf_z_mesh
-  public :: heat_flux_table
-  public :: plasma_side_flux_time_mesh
-  public :: plasma_side_flux_surf_y_mesh
-  public :: plasma_side_flux_surf_z_mesh
-  public :: heat_side_flux_table
-  real(amrex_real), allocatable, dimension(:), save :: plasma_flux_time_mesh
-  real(amrex_real), allocatable, dimension(:), save :: plasma_flux_surf_x_mesh
-  real(amrex_real), allocatable, dimension(:), save :: plasma_flux_surf_z_mesh
-  real(amrex_real), allocatable, dimension(:,:,:), save :: heat_flux_table
-  real(amrex_real), allocatable, dimension(:), save :: plasma_side_flux_time_mesh
-  real(amrex_real), allocatable, dimension(:), save :: plasma_side_flux_surf_y_mesh
-  real(amrex_real), allocatable, dimension(:), save :: plasma_side_flux_surf_z_mesh
-  real(amrex_real), allocatable, dimension(:,:,:), save :: heat_side_flux_table
   
 contains
   
@@ -366,6 +347,16 @@ contains
    ! input file.
    ! -----------------------------------------------------------------   
     subroutine file_heat_flux(time, xpos, zpos, side_flag, qb) 
+
+      use amr_data_module, only : heat_flux_table, &
+                                  plasma_flux_time_mesh, &
+                                  plasma_flux_surf_x_mesh, &
+                                  plasma_flux_surf_z_mesh, &
+                                  heat_side_flux_table, &
+                                  plasma_side_flux_time_mesh, &
+                                  plasma_side_flux_surf_y_mesh, &
+                                  plasma_side_flux_surf_z_mesh
+
       
       ! Input and output variables
       real(amrex_real), intent(in) :: time
