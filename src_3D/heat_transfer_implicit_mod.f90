@@ -960,12 +960,6 @@ module heat_transfer_implicit_module
                    ubase = min(u_old(i,j,k), enth_at_melt+latent_heat)
                    u_new(i,j,k) = ubase + alpha(i,j,k)*(temp_new(i,j,k) - temp_melt)
                 end if
-                if (u_new(i,j,k).ne.u_new(i,j,k)) then
-                   write (*,*) 'Nan enthalpy' 
-               end if
-               if (u_new(i,j,k)-1.eq.u_new(i,j,k)) then
-                  write (*,*) 'Inf enthalpy' 
-              end if
              end do
           end do
        end do                  
@@ -1144,12 +1138,6 @@ module heat_transfer_implicit_module
                            - dt/dx(2) * (flxy(i,j+1,k) - flxy(i,j,k)) & 
                            - dt/dx(3) * (flxz(i,j,k+1) - flxz(i,j,k)) & 
                            + dt*qvol(i,j,k)
-            if (u_new(i,j,k).ne.u_new(i,j,k)) then
-               write (*,*) 'Nan enthalpy unew' 
-            end if
-            if (u_old(i,j,k).ne.u_old(i,j,k)) then
-               write (*,*) 'Nan enthalpy uold' 
-            end if
          end do
       end do
    end do

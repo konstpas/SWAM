@@ -790,9 +790,6 @@ module heat_transfer_explicit_module
                                     
                   end if
                end if
-               if (flxx(i,j,k).ne.flxx(i,j,k)) then
-                  write (*,*) 'Nan flxx' 
-               end if
                  
            end do
         end do
@@ -814,9 +811,6 @@ module heat_transfer_explicit_module
                      flxy(i,j,k) = -ktherm*(temp(i,j,k)-temp(i,j-1,k))/dx(2)
                                     
                   end if
-               end if
-               if (flxy(i,j,k).ne.flxy(i,j,k)) then
-                  write (*,*) 'Nan flxy' 
                end if
               
            end do
@@ -848,9 +842,6 @@ module heat_transfer_explicit_module
                      call get_conductivity(temp_face, ktherm)
                      flxz(i,j,k) = flxz(i,j,k) - ktherm*(temp(i,j,k)-temp(i,j,k-1))/dx(3)
                   end if  
-              end if
-              if (flxz(i,j,k).ne.flxz(i,j,k)) then
-                 write (*,*) 'Nan flxz' 
               end if
               
            end do

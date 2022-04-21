@@ -724,12 +724,6 @@ module material_properties_module
                if (idx.ge.material_nPoints) then
                    STOP 'Temperature table exceeded' 
                end if
-               if (ui(i,j,k).ne.ui(i,j,k)) then
-                  write (*,*) 'Nan enthalpy' 
-              end if
-              if (ui(i,j,k)-1.eq.ui(i,j,k)) then
-                 write (*,*) 'Inf enthalpy' 
-             end if
                
                int_coeff = (ui(i,j,k)-enth_table(idx-1))/ &
                            (enth_table(idx)-enth_table(idx-1))
@@ -755,12 +749,6 @@ module material_properties_module
                if (idx.ge.material_nPoints) then
                   STOP 'Temperature table exceeded' 
                end if
-               if (temp(i,j,k).ne.temp(i,j,k)) then
-                  write (*,*) 'Nan temperature' 
-              end if
-              if (temp(i,j,k)-1.eq.temp(i,j,k)) then
-                 write (*,*) 'Inf temperature' 
-             end if
                
                int_coeff = (temp(i,j,k)-temp_table(idx-1))/ &
                            (temp_table(idx)-temp_table(idx-1))
