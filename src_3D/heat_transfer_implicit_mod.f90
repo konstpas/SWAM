@@ -141,13 +141,19 @@ module heat_transfer_implicit_module
     ! New temperature via implicit update
     call conduction_get_temperature(lev, ba, dm, dt, alpha, beta, &
                                     rhs, temp_tmp_lm1, temp_tmp)
-    
+   !  print *, 'Solved conduction'
+   !  call check_ghost_points(lev, temp_tmp)
+
     ! Corrector step on all levels
     call conduction_correct(lev, phi_tmp, temp_tmp, alpha)
+   !  print *, 'Corrected conduction'
+   !  call check_ghost_points(lev, temp_tmp)
 
     ! Synchronize idomains
     call conduction_synch_idomain(lev, phi_tmp, temp_tmp)
-    
+   !  print *, 'Synched idomains'
+   !  call check_ghost_points(lev, temp_tmp)
+
     ! Clean memory
     call conduction_free_memory(rhs, alpha, beta, dm)
     
@@ -176,7 +182,9 @@ module heat_transfer_implicit_module
     type(amrex_fab) :: flux(amrex_spacedim)
     type(amrex_geometry) :: geom
     type(amrex_mfiter) :: mfi
-        
+    integer :: domain_lo(3)
+    integer :: domain_hi(3)        
+
     ! Get geometry
     geom = amrex_geom(lev)
 
@@ -191,7 +199,10 @@ module heat_transfer_implicit_module
 
     call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
     do while(mfi%next())
-       call advection_box(lev, dt, substep, mfi, geom, ncomp, &
+      domain_lo = geom%domain%lo(1:amrex_spacedim)
+      domain_hi = geom%domain%hi(1:amrex_spacedim)
+
+       call advection_box(lev, dt, substep, mfi, geom, ncomp, domain_lo, domain_hi, &
                           phi_tmp, temp_tmp, flux, fluxes)
     end do
     call amrex_mfiter_destroy(mfi)
@@ -661,11 +672,11 @@ module heat_transfer_implicit_module
       ncomp = phi_new(lev)%ncomp()
 
       ! Synchronize enthalpy multifab with ghost points
-      call phi_tmp%copy(phi_new(lev), 1, 1, ncomp, 1) ! The last 1 is the number of ghost points
+      call phi_tmp%copy(phi_new(lev), 1, 1, ncomp, 0) ! The last 1 is the number of ghost points
       call phi_tmp%fill_boundary(geom)
 
       ! Synchronize temperature multifab with ghost points
-      call temp_tmp%copy(temp(lev), 1, 1, ncomp, 1)
+      call temp_tmp%copy(temp(lev), 1, 1, ncomp, 0)
       call temp_tmp%fill_boundary(geom)
 
       !$omp parallel private(mfi, bx, pidom, ptemp_tmp)
@@ -949,10 +960,13 @@ module heat_transfer_implicit_module
        do i = lo(1), hi(1)
           do j = lo(2), hi(2)
              do k = lo(3), hi(3)
-                if (temp_new(i,j,k).lt.1.0) then
+               
+                ! Avoid bugs caused by numerical accuracy at ghost points
+                if (temp_new(i,j,k).lt.10.0) then
                   temp_new(i,j,k) = 0
                   u_new(i,j,k) = 0
                 end if
+
                 if (temp_old(i,j,k).le.temp_melt .and. temp_new(i,j,k).gt.temp_melt) then
                    ubase = max(u_old(i,j,k), enth_at_melt)
                    u_new(i,j,k) = ubase + alpha(i,j,k)*(temp_new(i,j,k) - temp_melt)
@@ -975,7 +989,7 @@ module heat_transfer_implicit_module
   ! Subroutine used for an explicit update of the advective part
   ! of the heat equation on a box of a given level
   ! -----------------------------------------------------------------  
-  subroutine advection_box(lev, dt, substep, mfi, geom, ncomp, &
+  subroutine advection_box(lev, dt, substep, mfi, geom, ncomp, domain_lo, domain_hi, &
                            phi_tmp, temp_tmp, flux, fluxes)
 
     use amr_data_module, only : phi_new, &
@@ -988,6 +1002,8 @@ module heat_transfer_implicit_module
     integer, intent(in) :: lev
     integer, intent(in) :: substep
     integer, intent(in) :: ncomp
+    integer, intent(in) :: domain_lo(3)
+    integer, intent(in) :: domain_hi(3)
     real(amrex_real), intent(in) :: dt
     type(amrex_mfiter), intent(in) :: mfi
     type(amrex_geometry), intent(in) :: geom
@@ -1010,6 +1026,8 @@ module heat_transfer_implicit_module
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pfz
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pf
     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pfab
+
+
         
     ! Box
     bx = mfi%validbox()
@@ -1030,8 +1048,10 @@ module heat_transfer_implicit_module
     pfy => flux(2)%dataptr()
     pfz => flux(3)%dataptr()
 
+
     ! Update the enthalpy
     call get_enthalpy_advection(bx%lo, bx%hi, &
+                                domain_lo, domain_hi, &
                                 pin, lbound(pin), ubound(pin), &
                                 pout, lbound(pout), ubound(pout), &
                                 ptempin, lbound(ptempin), ubound(ptempin), &
@@ -1069,6 +1089,7 @@ module heat_transfer_implicit_module
   ! of the heat equation on a box of a given level
   ! -----------------------------------------------------------------  
   subroutine get_enthalpy_advection(lo, hi, &
+                                    domain_lo, domain_hi, &
                                     u_old,  uo_lo, uo_hi, &
                                     u_new, un_lo, un_hi, &
                                     temp, t_lo, t_hi, &
@@ -1084,6 +1105,7 @@ module heat_transfer_implicit_module
  
     ! Input and output variables
     integer, intent(in) :: lo(3), hi(3) 
+    integer, intent(in) :: domain_lo(3), domain_hi(3) 
     integer, intent(in) :: uo_lo(3), uo_hi(3)
     integer, intent(in) :: un_lo(3), un_hi(3)
     integer, intent(in) :: t_lo(3), t_hi(3)  
@@ -1115,6 +1137,7 @@ module heat_transfer_implicit_module
     
     ! Get enthalpy flux (only advective component)
     call get_face_flux(dx, lo_phys, lo, hi, &
+                       domain_lo, domain_hi, &
                        u_old, uo_lo, uo_hi, &
                        flxx, fx_lo, fx_hi, &
                        flxy, fy_lo, fy_hi, &
@@ -1171,102 +1194,6 @@ module heat_transfer_implicit_module
    end do
 
   end subroutine get_enthalpy_advection
-
-
-
-   ! ! -----------------------------------------------------------------  
-   ! ! Subroutine used for an explicit update of the temperature
-   ! ! equation only with heat advection and no heat conduction.
-   ! ! -----------------------------------------------------------------  
-   ! subroutine get_enthalpy_advection(lo_phys, lo, hi, dt, dx, &
-   !                          idom, id_lo, id_hi, &
-   !                          u_new, un_lo, un_hi, &
-   !                          temp_old, to_lo, to_hi, &
-   !                          temp, t_lo, t_hi)
- 
-   !   use material_properties_module, only : get_temp, get_enthalpy
-   !   use heat_transfer_domain_module, only: get_face_velocity
- 
-   !   ! Input and output variables
-   !   integer, intent(in) :: lo(3)
-   !   integer, intent(in) :: hi(3)
-   !   integer, intent(in) :: t_lo(3)
-   !   integer, intent(in) :: t_hi(3)
-   !   integer, intent(in) :: to_lo(3)
-   !   integer, intent(in) :: to_hi(3)
-   !   integer, intent(in) :: id_lo(3)
-   !   integer, intent(in) :: id_hi(3)
-   !   integer, intent(in) :: un_lo(3)
-   !   integer, intent(in) :: un_hi(3)
-   !   real(amrex_real), intent(in) :: lo_phys(3)
-   !   real(amrex_real), intent(in) :: dt
-   !   real(amrex_real), intent(in) :: dx(3)
-   !   real(amrex_real), intent(inout) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2),id_lo(3):id_hi(3))
-   !   real(amrex_real), intent(inout) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3))
-   !   real(amrex_real), intent(in) :: temp_old(to_lo(1):to_hi(1),to_lo(2):to_hi(2),to_lo(3):to_hi(3))
-   !   real(amrex_real), intent(inout) :: u_new(un_lo(1):un_hi(1),un_lo(2):un_hi(2),un_lo(3):un_hi(3))
-     
-   !   ! Local variables
-   !   integer :: i,j,k
-   !   integer :: ux_lo(3), ux_hi(3), uz_lo(3), uz_hi(3)
-   !   real(amrex_real) :: ux(lo(1):hi(1)+1,lo(2):hi(2),lo(3):hi(3))
-   !   real(amrex_real) :: uz(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3)+1)
-   !   real(amrex_real) :: vx_l, vx_r, vz_l, vz_r
-   !   real(amrex_real) :: partial_x
-   !   real(amrex_real) :: partial_z
- 
-     
-   !   ux_lo = lo
-   !   ux_hi = hi
-   !   ux_hi(1) = hi(1)+1
-   !   uz_lo = lo
-   !   uz_hi = hi
-   !   uz_hi(3) = hi(3)+1
-     
-   !   ! Construct 2D melt velocity profile from the 2D shallow water solution
-   !   call get_face_velocity(lo_phys, lo, hi, dx, &
-   !                          ux, ux_lo, ux_hi, &
-   !                          uz, uz_lo, uz_hi, &
-   !                          idom, id_lo, id_hi)
- 
-   !   ! Update temperature profile
-   !   do i = lo(1), hi(1)
-   !      do j = lo(2), hi(2)
-   !        do k = lo(3), hi(3)
-   !           vx_l = ux(i,j,k)
-   !           vx_r = ux(i+1,j,k)
-   !           vz_l = uz(i,j,k)
-   !           vz_r = uz(i,j,k+1)
- 
-   !           if (nint(idom(i,j,k)).ge.2) then
-   !              partial_x = 0.0_amrex_real
-   !              partial_z = 0.0_amrex_real
-   !              ! Partial update based on motion in the x direction
-   !              if (vx_l.gt.0 .and. nint(idom(i-1,j,k)).ge.2) then
-   !                 partial_x = - dt/dx(1) * (vx_l+ABS(vx_l))*(temp_old(i,j,k)-temp_old(i-1,j,k))/2.0_amrex_real
-   !              end if
-   !              if (vx_r.lt.0 .and. nint(idom(i+1,j,k)).ge.2) then
-   !                 partial_x = partial_x - dt/dx(1) * (vx_r-ABS(vx_r))*(temp_old(i+1,j,k)-temp_old(i,j,k))/2.0_amrex_real
-   !              end if
-   !              ! Partial update based on motion in the z direction
-   !              if ((vz_l.gt.0 .and. nint(idom(i,j,k-1)).ge.2)) then
-   !                 partial_z =  - dt/dx(3) * (vz_l+ABS(vz_l))*(temp_old(i,j,k)-temp_old(i,j,k-1))/2.0_amrex_real
-   !              end if
-   !              if (vz_r.lt.0 .and. nint(idom(i,j,k+1)).ge.2) then
-   !                 partial_z = partial_z - dt/dx(3) * (vz_r-ABS(vz_r))*(temp_old(i,j,k+1)-temp_old(i,j,k))/2.0_amrex_real
-   !              end if
-   !              temp(i,j,k) = temp_old(i,j,k) + partial_x + partial_z
-   !           end if
-   !           if(temp(i,j,k).ne.temp_old(i,j,k)) then
-   !              call get_enthalpy(temp(i,j,k),u_new(i,j,k))
-   !           end if
-             
-   !        end do
-   !      end do
-   !   end do
-     
-   ! end subroutine get_enthalpy_advection  
- 
 
   end module heat_transfer_implicit_module
   

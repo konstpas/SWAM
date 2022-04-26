@@ -341,7 +341,8 @@ contains
       end if
       
     end subroutine uniform_heat_flux   
-   
+    
+
    ! -----------------------------------------------------------------
    ! Subroutine used to prescribe a heat flux defined in an
    ! input file.
@@ -369,10 +370,6 @@ contains
       integer :: i_z, i_x, i_t, k, n, m
       real(amrex_real) :: z(2), x(2), t(2), val(8)
       real(amrex_real) :: txz_query(3)
-      real(amrex_real), allocatable, dimension(:) :: spatial_mesh_1
-      real(amrex_real), allocatable, dimension(:) :: spatial_mesh_2
-      real(amrex_real), allocatable, dimension(:) :: temporal_mesh
-      real(amrex_real), allocatable, dimension(:,:,:) :: heat_flux
       
       
       qb = 0_amrex_real
@@ -381,207 +378,126 @@ contains
          n = size(plasma_side_flux_time_mesh,1)
          m = size(plasma_side_flux_surf_y_mesh,1)
          k = size(plasma_side_flux_surf_z_mesh,1)
-         allocate (heat_flux(1:n,1:m,1:k))
-         allocate (temporal_mesh(1:n))
-         allocate (spatial_mesh_1(1:m))
-         allocate (spatial_mesh_2(1:k))
-         spatial_mesh_1 = plasma_side_flux_surf_y_mesh
-         spatial_mesh_2 = plasma_side_flux_surf_z_mesh
-         temporal_mesh = plasma_side_flux_time_mesh
-         heat_flux = heat_side_flux_table
       else
          n = size(plasma_flux_time_mesh,1)
          m = size(plasma_flux_surf_x_mesh,1)
          k = size(plasma_flux_surf_z_mesh,1)
-         allocate (heat_flux(1:n,1:m,1:k))
-         allocate (temporal_mesh(1:n))
-         allocate (spatial_mesh_1(1:m))
-         allocate (spatial_mesh_2(1:k))
-         spatial_mesh_1 = plasma_flux_surf_x_mesh
-         spatial_mesh_2 = plasma_flux_surf_z_mesh
-         temporal_mesh = plasma_flux_time_mesh
-         heat_flux = heat_flux_table
       end if
 
-      ! Find the maximum index i_t such that the time
-      ! falls in-between temporal_mesh(i_t) and
-      ! temporal_mesh(i_t+1). Similar for i_x and i_z      
-      call bisection(temporal_mesh, n, time, i_t)
-      call bisection(spatial_mesh_1, m, xpos, i_x)
-      call bisection(spatial_mesh_2, k, zpos, i_z)
+      ! Assign the querry points passed by input
+      txz_query(1) = time
+      txz_query(2) = xpos
+      txz_query(3) = zpos
 
-      ! Check if the query falls outside the domain
-      ! defined by the heat flux mesh.
-      if (i_t.eq.0 .or. i_x.eq.0 .or. i_z.eq.0 .or.&
-          i_t.eq.n .or. i_x.eq.m .or. i_z.eq.k) then
+      if (side_flag) then   
 
-         ! If query point is outside the 6 bounds
-         ! then take the closest of the 8 corners
-         if(i_t.eq.0 .and. i_x.eq.0 .and. i_z.eq.0) then
-            qb = heat_flux(1,1,1)
-         elseif(i_t.eq.0 .and. i_x.eq.0 .and. i_z.eq.k) then
-            qb = heat_flux(1,1,k)
-         elseif(i_t.eq.0 .and. i_x.eq.m .and. i_z.eq.0) then
-            qb = heat_flux(1,m,1)
-         elseif(i_t.eq.0 .and. i_x.eq.m .and. i_z.eq.k) then
-            qb = heat_flux(1,m,k)
-         elseif(i_t.eq.n .and. i_x.eq.0 .and. i_z.eq.0) then
-            qb = heat_flux(n,1,1)
-         elseif(i_t.eq.n .and. i_x.eq.0 .and. i_z.eq.k) then
-            qb = heat_flux(n,1,k)
-         elseif(i_t.eq.n .and. i_x.eq.m .and. i_z.eq.0) then
-            qb = heat_flux(n,m,1)
-         elseif(i_t.eq.n .and. i_x.eq.m .and. i_z.eq.k) then
-            qb = heat_flux(n,m,k)
+         ! Find the maximum index i_t such that the time
+         ! falls in-between temporal_mesh(i_t) and
+         ! temporal_mesh(i_t+1). Similar for i_x and i_z   
+         call bisection(plasma_side_flux_time_mesh, n, time, i_t)
+         call bisection(plasma_side_flux_surf_y_mesh, m, xpos, i_x)
+         call bisection(plasma_side_flux_surf_z_mesh, k, zpos, i_z)
 
-         ! If query point is outside 2 bounds then
-         ! linear interpolation on one of the 12 edges
-         elseif (i_t.eq.0 .and. i_x.eq.0) then
-            z(1) = spatial_mesh_2(i_z)
-            z(2) = spatial_mesh_2(i_z+1)
-            val(1) = heat_flux(1, 1, i_z)
-            val(2) = heat_flux(1, 1, i_z+1)
-            call lin_intrp(z, val(1:2), zpos, qb)
-         elseif (i_t.eq.0 .and. i_x.eq.m) then
-            z(1) = spatial_mesh_2(i_z)
-            z(2) = spatial_mesh_2(i_z+1)
-            val(1) = heat_flux(1, m, i_z)
-            val(2) = heat_flux(1, m, i_z+1)
-            call lin_intrp(z, val(1:2), zpos, qb)
-         elseif (i_t.eq.n .and. i_x.eq.0) then
-            z(1) = spatial_mesh_2(i_z)
-            z(2) = spatial_mesh_2(i_z+1)
-            val(1) = heat_flux(n, 1, i_z)
-            val(2) = heat_flux(n, 1, i_z+1)
-            call lin_intrp(z, val(1:2), zpos, qb)
-         elseif (i_t.eq.n .and. i_x.eq.m) then
-            z(1) = spatial_mesh_2(i_z)
-            z(2) = spatial_mesh_2(i_z+1)
-            val(1) = heat_flux(n, m, i_z)
-            val(2) = heat_flux(n, m, i_z+1)
-            call lin_intrp(z, val(1:2), zpos, qb)
-
-
-         elseif (i_t.eq.0 .and. i_z.eq.0) then
-            x(1) = spatial_mesh_1(i_x)
-            x(2) = spatial_mesh_1(i_x+1)
-            val(1) = heat_flux(1, i_x, 1)
-            val(2) = heat_flux(1, i_x+1, 1)
-            call lin_intrp(x, val(1:2), xpos, qb)
-         elseif (i_t.eq.0 .and. i_z.eq.k) then
-            x(1) = spatial_mesh_1(i_x)
-            x(2) = spatial_mesh_1(i_x+1)
-            val(1) = heat_flux(1, i_x, k)
-            val(2) = heat_flux(1, i_x+1, k)
-            call lin_intrp(x, val(1:2), xpos, qb)
-         elseif (i_t.eq.n .and. i_z.eq.0) then
-            x(1) = spatial_mesh_1(i_x)
-            x(2) = spatial_mesh_1(i_x+1)
-            val(1) = heat_flux(n, i_x, 1)
-            val(2) = heat_flux(n, i_x+1, 1)
-            call lin_intrp(x, val(1:2), xpos, qb)
-         elseif (i_t.eq.n .and. i_z.eq.k) then
-            x(1) = spatial_mesh_1(i_x)
-            x(2) = spatial_mesh_1(i_x+1)
-            val(1) = heat_flux(n, i_x, k)
-            val(2) = heat_flux(n, i_x+1, k)
-            call lin_intrp(x, val(1:2), xpos, qb)
-
-
-         elseif (i_x.eq.0 .and. i_z.eq.0) then
-            t(1) = temporal_mesh(i_t)
-            t(2) = temporal_mesh(i_t+1)
-            val(1) = heat_flux(i_t, 1, 1)
-            val(2) = heat_flux(i_t+1, 1, 1)
-            call lin_intrp(t, val(1:2), time, qb)
-         elseif (i_x.eq.0 .and. i_z.eq.k) then
-            t(1) = temporal_mesh(i_t)
-            t(2) = temporal_mesh(i_t+1)
-            val(1) = heat_flux(i_t, 1, k)
-            val(2) = heat_flux(i_t+1, 1, k)
-            call lin_intrp(t, val(1:2), time, qb)   
-         elseif (i_x.eq.m .and. i_z.eq.0) then
-            t(1) = temporal_mesh(i_t)
-            t(2) = temporal_mesh(i_t+1)
-            val(1) = heat_flux(i_t, m, 1)
-            val(2) = heat_flux(i_t+1, m, 1)
-            call lin_intrp(t, val(1:2), time, qb) 
-         elseif (i_x.eq.m .and. i_z.eq.k) then
-            t(1) = temporal_mesh(i_t)
-            t(2) = temporal_mesh(i_t+1)
-            val(1) = heat_flux(i_t, m, k)
-            val(2) = heat_flux(i_t+1, m, k)
-            call lin_intrp(t, val(1:2), time, qb)
-            
-         ! If query point outside one of the domain bounds
-         ! then bilinear interpolation in one the 6 surfaces.
-         elseif(i_z.eq.0 .or. i_z.eq.k) then
-            if (i_z.eq.0) i_z=1
-            t(1) = temporal_mesh(i_t)
-            t(2) = temporal_mesh(i_t+1)
-            x(1) = spatial_mesh_1(i_x)
-            x(2) = spatial_mesh_1(i_x+1)
-            val(1) = heat_flux(i_t,i_x,i_z)
-            val(2) = heat_flux(i_t+1,i_x,i_z)
-            val(3) = heat_flux(i_t+1,i_x+1,i_z)
-            val(4) = heat_flux(i_t,i_x+1,i_z)
-            txz_query(1) = time
-            txz_query(2) = xpos
-            call bilin_intrp(t, x, val(1:4), txz_query(1:2), qb)
-
-         elseif(i_x.eq.0 .or. i_x.eq.m) then
-            if (i_x.eq.0) i_x=1
-            t(1) = temporal_mesh(i_t)
-            t(2) = temporal_mesh(i_t+1)
-            z(1) = spatial_mesh_2(i_z)
-            z(2) = spatial_mesh_2(i_z+1)
-            val(1) = heat_flux(i_t,i_x,i_z)
-            val(2) = heat_flux(i_t+1,i_x,i_z)
-            val(3) = heat_flux(i_t+1,i_x,i_z+1)
-            val(4) = heat_flux(i_t,i_x,i_z+1)
-            txz_query(1) = time
-            txz_query(2) = zpos
-            call bilin_intrp(t, z, val(1:4), txz_query(1:2), qb)
-
-         elseif(i_t.eq.0 .or. i_t.eq.n) then
-            if (i_t.eq.0) i_t=1
-            x(1) = spatial_mesh_1(i_x)
-            x(2) = spatial_mesh_1(i_x+1)
-            z(1) = spatial_mesh_2(i_z)
-            z(2) = spatial_mesh_2(i_z+1)
-            val(1) = heat_flux(i_t,i_x,i_z)
-            val(2) = heat_flux(i_t,i_x+1,i_z)
-            val(3) = heat_flux(i_t,i_x+1,i_z+1)
-            val(4) = heat_flux(i_t,i_x,i_z+1)
-            txz_query(1) = xpos
-            txz_query(2) = zpos
-            call bilin_intrp(x, z, val(1:4), txz_query(1:2), qb)
-         endif
-      
-      ! In all other cases, trilinear interpolation   
+         ! If query point is out of bounds, bring it on the bound
+         ! to avoid extrapolation
+         if(i_t.eq.0) then 
+            txz_query(1) = plasma_side_flux_time_mesh(1)
+            i_t = 1
+         end if
+         if(i_t.eq.n) then 
+            txz_query(1) = plasma_side_flux_time_mesh(n)
+            i_t = n-1
+         end if
+         if(i_x.eq.0) then
+            txz_query(2) = plasma_side_flux_surf_y_mesh(1)
+            i_x = 1
+         end if
+         if(i_x.eq.m) then 
+            txz_query(2) = plasma_side_flux_surf_y_mesh(m)
+            i_x = m-1
+         end if
+         if(i_z.eq.0) then 
+            txz_query(3) = plasma_side_flux_surf_z_mesh(1)
+            i_z = 1
+         end if
+         if(i_z.eq.k) then 
+            txz_query(3) = plasma_side_flux_surf_z_mesh(k)
+            i_z = k-1
+         end if
       else
-         t(1) = temporal_mesh(i_t)
-         t(2) = temporal_mesh(i_t+1)
-         x(1) = spatial_mesh_1(i_x)
-         x(2) = spatial_mesh_1(i_x+1)
-         z(1) = spatial_mesh_2(i_z)
-         z(2) = spatial_mesh_2(i_z+1)
-         val(1) = heat_flux(i_t,i_x,i_z)
-         val(2) = heat_flux(i_t+1,i_x,i_z)
-         val(3) = heat_flux(i_t+1,i_x+1,i_z)
-         val(4) = heat_flux(i_t,i_x+1,i_z)
-         val(5) = heat_flux(i_t,i_x,i_z+1)
-         val(6) = heat_flux(i_t+1,i_x,i_z+1)
-         val(7) = heat_flux(i_t+1,i_x+1,i_z+1)
-         val(8) = heat_flux(i_t,i_x+1,i_z+1)
-         txz_query(1) = time
-         txz_query(2) = xpos
-         txz_query(3) = zpos
-         call trilin_intrp(t, x, z, val, txz_query, qb)
-      endif
+
+         ! Find the maximum index i_t such that the time
+         ! falls in-between temporal_mesh(i_t) and
+         ! temporal_mesh(i_t+1). Similar for i_x and i_z   
+         call bisection(plasma_flux_time_mesh, n, time, i_t)
+         call bisection(plasma_flux_surf_x_mesh, m, xpos, i_x)
+         call bisection(plasma_flux_surf_z_mesh, k, zpos, i_z)
+         
+         ! If query point is out of bounds, bring it on the bound
+         ! to avoid extrapolation
+         if(i_t.eq.0) then 
+            txz_query(1) = plasma_flux_time_mesh(1)
+            i_t = 1
+         end if
+         if(i_t.eq.n) then 
+            txz_query(1) = plasma_flux_time_mesh(n)
+            i_t = n-1
+         end if
+         if(i_x.eq.0) then
+            txz_query(2) = plasma_flux_surf_x_mesh(1)
+            i_x = 1
+         end if
+         if(i_x.eq.m) then 
+            txz_query(2) = plasma_flux_surf_x_mesh(m)
+            i_x = m-1
+         end if
+         if(i_z.eq.0) then 
+            txz_query(3) = plasma_flux_surf_z_mesh(1)
+            i_z = 1
+         end if
+         if(i_z.eq.k) then 
+            txz_query(3) = plasma_flux_surf_z_mesh(k)
+            i_z = k-1
+         end if
+      end if
+
+      if (side_flag) then
+         t(1) = plasma_side_flux_time_mesh(i_t)
+         t(2) = plasma_side_flux_time_mesh(i_t+1)
+         x(1) = plasma_side_flux_surf_y_mesh(i_x)
+         x(2) = plasma_side_flux_surf_y_mesh(i_x+1)
+         z(1) = plasma_side_flux_surf_z_mesh(i_z)
+         z(2) = plasma_side_flux_surf_z_mesh(i_z+1)
+         val(1) = heat_side_flux_table(i_t,i_x,i_z)
+         val(2) = heat_side_flux_table(i_t+1,i_x,i_z)
+         val(3) = heat_side_flux_table(i_t+1,i_x+1,i_z)
+         val(4) = heat_side_flux_table(i_t,i_x+1,i_z)
+         val(5) = heat_side_flux_table(i_t,i_x,i_z+1)
+         val(6) = heat_side_flux_table(i_t+1,i_x,i_z+1)
+         val(7) = heat_side_flux_table(i_t+1,i_x+1,i_z+1)
+         val(8) = heat_side_flux_table(i_t,i_x+1,i_z+1)
+      else
+         t(1) = plasma_flux_time_mesh(i_t)
+         t(2) = plasma_flux_time_mesh(i_t+1)
+         x(1) = plasma_flux_surf_x_mesh(i_x)
+         x(2) = plasma_flux_surf_x_mesh(i_x+1)
+         z(1) = plasma_flux_surf_z_mesh(i_z)
+         z(2) = plasma_flux_surf_z_mesh(i_z+1)
+         val(1) = heat_flux_table(i_t,i_x,i_z)
+         val(2) = heat_flux_table(i_t+1,i_x,i_z)
+         val(3) = heat_flux_table(i_t+1,i_x+1,i_z)
+         val(4) = heat_flux_table(i_t,i_x+1,i_z)
+         val(5) = heat_flux_table(i_t,i_x,i_z+1)
+         val(6) = heat_flux_table(i_t+1,i_x,i_z+1)
+         val(7) = heat_flux_table(i_t+1,i_x+1,i_z+1)
+         val(8) = heat_flux_table(i_t,i_x+1,i_z+1)
+      end if
+
+      call trilin_intrp(t, x, z, val, txz_query, qb)
 
       
-    end subroutine file_heat_flux    
+    end subroutine file_heat_flux  
+
 
    ! -----------------------------------------------------------------
    ! Subroutine used to find the surface cooling flux due to 
@@ -777,51 +693,6 @@ contains
          j=jl
       endif
    end subroutine bisection
-
-   ! -----------------------------------------------------------------
-   ! Bilinear interpolation. Values "val" are ordered so that 
-   ! val(1)->val(4) correspond to accesing the grid starting from the 
-   ! bottom left corner and moving counter clockwise (x1,y1)->(x2,y1)
-   ! (x2->y2)->(x1,y2).
-   ! -----------------------------------------------------------------
-   subroutine bilin_intrp(x, y, val, xy_query, val_query)
-      ! Input and output variables
-      real(amrex_real), intent(in) :: x(1:2)
-      real(amrex_real), intent(in) :: y(1:2)
-      real(amrex_real), intent(in) :: val(1:4)
-      real(amrex_real), intent(in) :: xy_query(1:2)
-      real(amrex_real), intent(out) :: val_query
-
-      ! Local variables
-      real(amrex_real) t, u
-
-      t = (xy_query(1)-x(1))/(x(2)-x(1))
-      u = (xy_query(2)-y(1))/(y(2)-y(1))
-
-      val_query = (1-t)*(1-u)*val(1) + t*(1-u)*val(2) &
-                  + t*u*val(3) + (1-t)*u*val(4)
-
-   end subroutine bilin_intrp
-
-   ! -----------------------------------------------------------------
-   ! Linear interpolation. Values should be passed so that x1->val1
-   ! x2->val2.
-   ! -----------------------------------------------------------------
-   subroutine lin_intrp(x, val, x_query, val_query)
-      ! Input and output variables
-      real(amrex_real), intent(in) :: x(1:2)
-      real(amrex_real), intent(in) :: val(1:2)
-      real(amrex_real), intent(in) :: x_query
-      real(amrex_real), intent(out) :: val_query
-
-      ! Local variables
-      real(amrex_real) t
-
-      t = (x_query-x(1))/(x(2)-x(1))
-
-      val_query = (1-t)*val(1) + t*val(2)
-
-   end subroutine lin_intrp
 
    ! -----------------------------------------------------------------
    ! Trilinear interpolation. Values "val" are ordered so that 

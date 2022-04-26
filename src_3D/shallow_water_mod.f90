@@ -32,17 +32,21 @@ module shallow_water_module
      real(amrex_real), intent(in) :: time
 
      ! Local variables
+     integer :: lev
      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pid
      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: penth
      type(amrex_mfiter) :: mfi
      type(amrex_box) :: bx
 
+     ! Current level = maximum level
+     lev = amrex_max_level
+
      if(heat_solve) then
       ! Compute terms that depend on the temperature. Since the temperature
       ! is a multifab, it must be accessed in blocks according to the rules
       ! defined by amrex
-      call amrex_mfiter_build(mfi, idomain(amrex_max_level), tiling=.false.)        
+      call amrex_mfiter_build(mfi, idomain(lev), tiling=.false.)        
       do while(mfi%next())
          
          ! Box
@@ -116,6 +120,10 @@ module shallow_water_module
                  ! Evaporation flux
                  if (heat_cooling_vaporization) then
                     call get_evaporation_flux(temp(i,j,k), surf_evap_flux(i,k))
+                    if (surf_evap_flux(i,k).ne.surf_evap_flux(i,k)) then
+                        STOP 'Nan mass flux'
+                    end if
+
                  end if
 
                  ! Surface temperature
@@ -281,6 +289,9 @@ module shallow_water_module
                            - dt/surf_dx(1) * (height_flux(i+1,k,1) - height_flux(i,k,1)) &
                            - dt/surf_dx(2) * (height_flux(i,k+1,2) - height_flux(i,k,2)) &
                            - dt*surf_evap_flux(i,k)
+            if (surf_pos(i,k).ne.surf_pos(i,k)) then
+               print *, 'nan surf_pos'
+            end if
         end do
      end do
      
@@ -299,7 +310,7 @@ module shallow_water_module
                                   melt_vel, &
                                   surf_current
       
-      use read_input_module, only : sw_Bx, sw_Bz, sw_captol
+      use read_input_module, only : sw_Bx, sw_Bz, sw_captol, geom_name
   
       use material_properties_module, only : get_mass_density, &
                                              get_viscosity
@@ -322,12 +333,21 @@ module shallow_water_module
       real(amrex_real) :: max_vel_x, max_vel_z
       real(amrex_real) :: J_face
       real(amrex_real) :: laplacian_term
+      real(amrex_real) :: curv_scale
       
       ! Initialize advective and source terms
       adv_term_x = 0.0_amrex_real
       adv_term_z = 0.0_amrex_real
       src_term_x = 0.0_amrex_real
       src_term_z = 0.0_amrex_real
+
+      ! If the geometry is leading edge, scale the current
+      ! by 4, see Thoren et al 2018 Nucl Fusion 58 106003
+      if (geom_name.eq.'West') then
+         curv_scale = 0.25
+      else
+         curv_scale = 1.0
+      end if
       
       ! Compute column height (defined on staggered grid)
       melt_height = surf_pos - melt_pos 
@@ -412,7 +432,7 @@ module shallow_water_module
                   laplacian_term  = laplacian_term + visc*(melt_vel(i,j+1,1)-2*melt_vel(i,j,1)+melt_vel(i,j-1,1)/surf_dx(2)**2)
                end if
                ! Update source term for accelerationin the x direction
-               src_term_x(i,j) =  sw_Bz*J_face/4 & ! Lorentz force
+               src_term_x(i,j) =  sw_Bz*J_face*curv_scale & ! Lorentz force
                                  + laplacian_term
                ! Fix dimensionality
                src_term_x(i,j) = src_term_x(i,j)/rho
@@ -447,7 +467,7 @@ module shallow_water_module
                   laplacian_term  = laplacian_term + visc*(melt_vel(i,j+1,2)-2*melt_vel(i,j,2)+melt_vel(i,j-1,2))/surf_dx(2)**2
                end if
                ! Update source term for accelerationin the z direction
-               src_term_z(i,j) =  -sw_Bx*J_face/4 & ! Lorentz force
+               src_term_z(i,j) =  -sw_Bx*J_face*curv_scale & ! Lorentz force
                                   + laplacian_term
                
                ! Fix dimensionality
@@ -560,6 +580,7 @@ module shallow_water_module
                                   surf_dx, &
                                   surf_evap_flux, &
                                   surf_pos, &
+                                  surf_deformation, &
                                   melt_pos, &
                                   melt_vel, &
                                   domain_top
@@ -668,14 +689,16 @@ module shallow_water_module
       do  i = surf_ind(1,1),surf_ind(1,2)
          do j = surf_ind(2,1), surf_ind(2,2)
          
-            surf_pos(i,j) = surf_pos(i,j) & 
-                        - dt/surf_dx(1) * (height_flux(i+1,j,1) - height_flux(i,j,1)) &
-                        - dt/surf_dx(2) * (height_flux(i,j+1,2) - height_flux(i,j,2)) &
-                        - dt*surf_evap_flux(i,j)
+
+            surf_deformation(i,j) = - 1.0/surf_dx(1) * (height_flux(i+1,j,1) - height_flux(i,j,1)) &
+                                    - 1.0/surf_dx(2) * (height_flux(i,j+1,2) - height_flux(i,j,2)) &
+                                    - 1.0*surf_evap_flux(i,j)
+            surf_pos(i,j) = surf_pos(i,j) + dt * surf_deformation(i,j)
 
             if (surf_pos(i,j).ge.domain_top) then
                write(*,*) 'WARNING: Bore reached the top of the simulation box.'
             end if
+
 
          end do         
       end do
@@ -723,6 +746,7 @@ module shallow_water_module
                                  surf_evap_flux, &
                                  surf_pos, &
                                  surf_temperature, &
+                                 surf_deformation, &
                                  melt_pos, &
                                  melt_vel, &
                                  qnew, &
@@ -731,22 +755,18 @@ module shallow_water_module
      
      use material_properties_module, only : get_viscosity, get_mass_density
      use read_input_module, only : heat_cooling_vaporization, &
-                                   sw_iter, &
-                                   sw_gravity, &
                                    sw_drytol, &
                                    sw_Bx, &
                                    sw_Bz, &
-                                   sw_captol
+                                   sw_captol, &
+                                   geom_name
 
      ! Input and output variables
      real(amrex_real), intent(in) :: dt
      
      ! Local variables
-     integer :: i,j,m,mw,ibc,jbc
-     real(amrex_real) :: hL,hR,huL,huR,hvL,hvR,bL,bR,pL,pR,uL,vL,phiL,uR,vR,phiR,sL,sR,uhat,chat,sRoe1,sRoe2,sE1,sE2
-     real(amrex_real) :: wall(1:3), sw(1:3), fw(1:3,1:3)
-     real(amrex_real) :: hstar,s1m,s2m,rare1,rare2,hstartest
-     real(amrex_real) , allocatable :: q1d(:,:),s(:,:),qadd(:,:),amdq(:,:),apdq(:,:),fadd(:,:),aux1d(:,:),fwave(:,:,:)
+     integer :: i,j
+     real(amrex_real) :: uR,uL
      real(amrex_real) , dimension(1:3,surf_ind(1,1)-3:surf_ind(1,2)+3,surf_ind(2,1)-3:surf_ind(2,2)+3) :: qold
      real(amrex_real) , dimension(surf_ind(1,1)-3:surf_ind(1,2)+3,surf_ind(2,1)-3:surf_ind(2,2)+3) :: hold,uold,vold,aux
      real(amrex_real) , dimension(1:3,surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2)) :: Srce
@@ -759,6 +779,15 @@ module shallow_water_module
      real(amrex_real) :: height
      real(amrex_real) :: old_height
      integer :: dim
+     real(amrex_real) :: curv_scale
+
+     ! If the geometry is leading edge, the current should be
+     ! by 4 due to its curving, see Thoren et al 2018 Nucl Fusion 58 106003
+     if (geom_name.eq.'West') then
+      curv_scale = 0.25
+     else
+       curv_scale = 1.0
+     end if
 
      ! Define grid and time-step
      dx = surf_dx(1)
@@ -826,12 +855,12 @@ module shallow_water_module
                Srce(1,i,j) = -surf_evap_flux(i,j)
             end if
             ! Source terms for the momentum equation along x
-            Srce(2,i,j) = surf_current(i,j)*sw_Bz/4 &
+            Srce(2,i,j) = surf_current(i,j)*sw_Bz*curv_scale &
                           + visc * ( (uold(i+1,j) + uold(i-1,j) - 2.*uold(i,j))/(dx**2) & 
                           + (uold(i,j+1) + uold(i,j-1) - 2.*uold(i,j))/(dy**2))
             Srce(2,i,j) = Srce(2,i,j)/rho
             ! Source terms for the momentum equation along z
-            Srce(3,i,j) = -surf_current(i,j)*sw_Bx/4 &
+            Srce(3,i,j) = -surf_current(i,j)*sw_Bx*curv_scale &
                           + visc * ( (vold(i+1,j) + vold(i-1,j) - 2.*vold(i,j))/(dx**2) & 
                           + (vold(i,j+1) + vold(i,j-1) - 2.*vold(i,j))/(dy**2))
             Srce(3,i,j) = Srce(3,i,j)/rho
@@ -873,6 +902,7 @@ module shallow_water_module
     ! Update surface position
     do j=surf_ind(2,1),surf_ind(2,2)
        do i=surf_ind(1,1),surf_ind(1,2)
+         surf_deformation(i,j) = (qnew(1,i,j) - surf_pos(i,j))/dt
          surf_pos(i,j) = melt_pos(i,j) + qnew(1,i,j)
          if (surf_pos(i,j).ge.domain_top) then
             write(*,*) 'WARNING: Bore reached the top of the simulation box.'

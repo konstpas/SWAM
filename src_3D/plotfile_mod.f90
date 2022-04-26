@@ -11,6 +11,7 @@ module plotfile_module
                               t_new, &
                               surf_pos, &
                               surf_temperature, &
+                              surf_deformation, &
                               melt_pos, &
                               melt_top, &
                               surf_ind, &
@@ -108,8 +109,8 @@ contains
       name = "melt_thickness_" //trim(current_step)//".dat"
       open(2, file = name, status = 'unknown', action = "write")
       write(2, *) 'x-coordinate  z-coordinate   Free Surface     Melt Bottom     Melt top     Free Surface Temperature', &
-          '    Max temperat'
-      dashfmt = '(6(es13.6, 4x))'
+          '    Surface deformation    Max temperature'
+      dashfmt = '(7(es13.6, 4x))'
       do i=surf_ind(1,1), surf_ind(1,2)
           do k=surf_ind(2,1), surf_ind(2,2)
               ! i starts from 0 so to output the x-coord at the center of the cell add 0.5
@@ -117,9 +118,10 @@ contains
               xpos = (i+0.5)*surf_dx(1)
               zpos = (k+0.5)*surf_dx(2)
               if(i.eq.surf_ind(1,1) .and. k.eq.surf_ind(2,1)) then
-                write(2, '(7(es13.6, 4x))') xpos, zpos, surf_pos(i,k), melt_pos(i,k), melt_top(i,k), surf_temperature(i,k), max_temp
+                write(2, '(8(es13.6, 4x))') xpos, zpos, surf_pos(i,k), melt_pos(i,k), melt_top(i,k), &
+                surf_temperature(i,k), surf_deformation(i,k), max_temp
               else
-              write(2, dashfmt) xpos, zpos, surf_pos(i,k), melt_pos(i,k), melt_top(i,k), surf_temperature(i,k)
+              write(2, dashfmt) xpos, zpos, surf_pos(i,k), melt_pos(i,k), melt_top(i,k), surf_temperature(i,k),surf_deformation(i,k)
             end if
           end do
       end do

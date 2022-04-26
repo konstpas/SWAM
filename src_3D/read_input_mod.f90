@@ -546,6 +546,7 @@ contains
     sw_solve = .true.
     sw_solve_momentum = .true.
     sw_surf_pos_init = 0.5*Ly
+    ! sw_surf_pos_init = 0.006*Ly
     sw_iter = 1000
     sw_gravity = 1.0_amrex_real
     sw_Bx = 0.0

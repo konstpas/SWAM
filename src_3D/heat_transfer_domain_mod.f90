@@ -603,10 +603,7 @@ contains
                                  vz, vz_lo, vz_hi, &
                                  idom, id_lo, id_hi)
  
-     use amr_data_module, only : surf_dx, &
-                                 surf_xlo, &
-                                 surf_ind, &
-                                 melt_vel
+     use amr_data_module, only : melt_vel
      
      ! Input and output variables
      integer, intent(in) :: lo(3), hi(3)
@@ -622,7 +619,6 @@ contains
      ! Local variables
      integer :: i,j,k
      integer :: xind, zind
-     real(amrex_real) :: xpos, zpos
      
      ! Assign x-component of the velocity 
      do i = lo(1), hi(1)+1
@@ -631,17 +627,7 @@ contains
               
               if (nint(idom(i,j,k)).ge.2 .and. nint(idom(i-1,j,k)).ge.2) then
  
-                 ! Interpolation similar to the one used to find the free
-                 ! surface position in the heat transfer domain. See
-                 ! subroutine get_surf_pos in the domain module
-                 xpos = lo_phys(1) + (0.5 + i-lo(1))*dx(1) 
-                 zpos = lo_phys(3) + (0.5 + k-lo(3))*dx(3)
-                 xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
-                 zind = nint((zpos - surf_dx(2)/2 - surf_xlo(2))/surf_dx(2))
-                 if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
-                 if (xind.gt.surf_ind(1,2)) xind = surf_ind(1,2) 
-                 if (zind.lt.surf_ind(2,1)) zind = surf_ind(2,1)
-                 if (zind.gt.surf_ind(2,2)) zind = surf_ind(2,2) 
+                call interp_to_max_lev(lo, lo_phys, dx, i, k, xind, zind)
                  vx(i,j,k) = melt_vel(xind,zind,1)
                 !  vx(i,j,k) = melt_vel(i,k,1)
                  
@@ -660,19 +646,8 @@ contains
               
               if (nint(idom(i,j,k)).ge.2 .and. nint(idom(i,j,k-1)).ge.2) then
  
-                 ! Interpolation similar to the one used to find the free
-                 ! surface position in the heat transfer domain. See
-                 ! subroutine get_surf_pos in the domain module
-                 xpos = lo_phys(1) + (0.5 + i-lo(1))*dx(1) 
-                 zpos = lo_phys(3) + (0.5 + k-lo(3))*dx(3)
-                 xind = nint((xpos - surf_dx(1)/2 - surf_xlo(1))/surf_dx(1)) 
-                 zind = nint((zpos - surf_dx(2)/2 - surf_xlo(2))/surf_dx(2))
-                 if (xind.lt.surf_ind(1,1)) xind = surf_ind(1,1)
-                 if (xind.gt.surf_ind(1,2)) xind = surf_ind(1,2) 
-                 if (zind.lt.surf_ind(2,1)) zind = surf_ind(2,1)
-                 if (zind.gt.surf_ind(2,2)) zind = surf_ind(2,2) 
+                 call interp_to_max_lev(lo, lo_phys, dx, i, k, xind, zind)
                  vz(i,j,k) = melt_vel(xind,zind,2)
-                !  vz(i,j,k) = melt_vel(i,k,2)
                  
               else
                  vz(i,j,k) = 0.0_amrex_real

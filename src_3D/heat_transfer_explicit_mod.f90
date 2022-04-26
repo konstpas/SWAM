@@ -189,6 +189,8 @@ module heat_transfer_explicit_module
     type(amrex_fab) :: flux(amrex_spacedim)
     type(amrex_geometry) :: geom
     type(amrex_mfiter) :: mfi
+    integer :: domain_lo(3)
+    integer :: domain_hi(3) 
 
     ! Get geometry
     geom = amrex_geom(lev)
@@ -204,8 +206,10 @@ module heat_transfer_explicit_module
 
     call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)  
     do while(mfi%next())
+       domain_lo = geom%domain%lo(1:amrex_spacedim)
+       domain_hi = geom%domain%hi(1:amrex_spacedim)
        call advance_box(lev, time, dt, substep, mfi, &
-                        geom, ncomp, phi_tmp, temp_tmp, &
+                        geom, ncomp, domain_lo, domain_hi, phi_tmp, temp_tmp, &
                         idomain_tmp, flux, fluxes)
     end do
     call amrex_mfiter_destroy(mfi)
@@ -333,7 +337,7 @@ module heat_transfer_explicit_module
     ! a given box on a given level via an explicit update
     ! -----------------------------------------------------------------
     subroutine advance_box(lev, time, dt, substep, mfi, &
-                           geom, ncomp, phi_tmp, temp_tmp, &
+                           geom, ncomp, domain_lo, domain_hi, phi_tmp, temp_tmp, &
                            idomain_tmp, flux, fluxes)
   
       use amr_data_module, only : phi_new, &
@@ -351,6 +355,8 @@ module heat_transfer_explicit_module
       ! Input and output variables
       integer, intent(in) :: lev
       integer, intent(in) :: ncomp
+      integer, intent(in) :: domain_lo(3)
+      integer, intent(in) :: domain_hi(3)
       integer, intent(in) :: substep
       real(amrex_real), intent(in) :: dt
       real(amrex_real), intent(in) :: time
@@ -433,6 +439,7 @@ module heat_transfer_explicit_module
                                 geom, dt)
       else
          call get_enthalpy(time, bx%lo, bx%hi, &
+                           domain_lo, domain_hi, &
                            pin, lbound(pin), ubound(pin),  &
                            pout, lbound(pout), ubound(pout),    &
                            ptempin, lbound(ptempin), ubound(ptempin), &
@@ -485,6 +492,7 @@ module heat_transfer_explicit_module
     ! a given box of a certain level via an explicit update
     ! -----------------------------------------------------------------
     subroutine get_enthalpy(time, lo, hi, &
+                            domain_lo, domain_hi, &
                             u_old,  uo_lo, uo_hi, &
                             u_new, un_lo, un_hi, &
                             temp, t_lo, t_hi, &
@@ -500,6 +508,7 @@ module heat_transfer_explicit_module
  
        ! Input and output variables
        integer, intent(in) :: lo(3), hi(3) ! bounds of current tile box
+       integer, intent(in) :: domain_lo(3), domain_hi(3) ! bounds of the domain
        integer, intent(in) :: uo_lo(3), uo_hi(3) ! bounds of input enthalpy box 
        integer, intent(in) :: un_lo(3), un_hi(3) ! bounds of output enthalpy box   
        integer, intent(in) :: t_lo (3), t_hi (3) ! bounds of the temperature box
@@ -539,13 +548,14 @@ module heat_transfer_explicit_module
  
        ! Get enthalpy flux 
        call get_face_flux(dx, lo_phys, lo, hi, &
-                             u_old, uo_lo, uo_hi, &
-                             flxx, fx_lo, fx_hi, &
-                             flxy, fy_lo, fy_hi, &
-                             flxz, fz_lo, fz_hi, &
-                             temp, t_lo, t_hi, &
-                             idom, id_lo, id_hi, &
-                             .true., .true.)
+                          domain_lo, domain_hi, &
+                          u_old, uo_lo, uo_hi, &
+                          flxx, fx_lo, fx_hi, &
+                          flxy, fy_lo, fy_hi, &
+                          flxz, fz_lo, fz_hi, &
+                          temp, t_lo, t_hi, &
+                          idom, id_lo, id_hi, &
+                          .true., .true.)
  
        ! Prescribe external heat flux on the free surface
        call get_boundary_heat_flux(time, lo_phys, &
@@ -564,16 +574,20 @@ module heat_transfer_explicit_module
        ! Compute enthalpy at the new timestep
        do   i = lo(1),hi(1)
           do  j = lo(2),hi(2) 
-             do k = lo(3),hi(3)
-               ! if(qbound(i,j,k).gt.10) then
-               !    write(*,*) 'dbg'
-               ! end if
+             do k = lo(3),hi(3)  
                 u_new(i,j,k) = u_old(i,j,k) &
                 - dt/dx(1) * (flxx(i+1,j,k) - flxx(i,j,k)) &	! flux divergence x-direction 
                 - dt/dx(2) * (flxy(i,j+1,k) - flxy(i,j,k)) &	! flux divergence y-direction 
                 - dt/dx(3) * (flxz(i,j,k+1) - flxz(i,j,k)) &	! flux divergence z-direction
                 + dt*qbound(i,j,k) & ! 'boundary volumetric' source
                 + dt*qvol(i,j,k)  ! volumetric source
+
+               !  if (u_new(i,j,k) .ne. u_new(i,j,k)) then
+               !    write (*,*) 'Nan enthalpy update'
+               !  end if
+               !  if (u_new(i,j,k) .eq. u_new(i,j,k)-1) then
+               !    write (*,*) 'Inf enthalpy update'
+               !  end if
              end do
           end do
        end do
@@ -722,19 +736,21 @@ module heat_transfer_explicit_module
    ! Subroutine used to the enthalpy fluxes on the edges of the grid
    ! -----------------------------------------------------------------  
    subroutine get_face_flux(dx, lo_phys, lo, hi, &
-                               u_old, uo_lo, uo_hi, &
-                               flxx, fx_lo, fx_hi, &
-                               flxy, fy_lo, fy_hi, &
-                               flxz, fz_lo, fz_hi, &
-                               temp, t_lo, t_hi, &
-                               idom, id_lo, id_hi, &
-                               conduction, advection)
+                            domain_lo, domain_hi, &
+                            u_old, uo_lo, uo_hi, &
+                            flxx, fx_lo, fx_hi, &
+                            flxy, fy_lo, fy_hi, &
+                            flxz, fz_lo, fz_hi, &
+                            temp, t_lo, t_hi, &
+                            idom, id_lo, id_hi, &
+                            conduction, advection)
                    
      use material_properties_module, only: get_conductivity
      use heat_transfer_domain_module, only: get_face_velocity
  
      ! Input and output variables
      integer, intent(in) :: lo(3), hi(3)  
+     integer, intent(in) :: domain_lo(3), domain_hi(3) ! bounds of the domain
      integer, intent(in) :: uo_lo(3), uo_hi(3)
      integer, intent(in) :: t_lo(3), t_hi(3)
      integer, intent(in) :: fx_lo(3), fx_hi(3)
@@ -773,14 +789,16 @@ module heat_transfer_explicit_module
               flxx(i,j,k) = 0_amrex_real
               if (nint(idom(i-1,j,k)).gt.0 .and. nint(idom(i,j,k)).gt.0) then
  
-                  if (advection) then                
+                  if (advection .and. i.gt.domain_lo(1) .and. i.lt.domain_hi(1)) then                
                      ! Advective component                    
                      if (vx(i,j,k).gt.0.0_amrex_real) then 
                         flxx(i,j,k)  = flxx(i,j,k) + u_old(i-1,j,k)*vx(i,j,k)
-                     else 
+                     elseif (vx(i,j,k) .lt. 0_amrex_real) then
                         flxx(i,j,k)  = flxx(i,j,k) + u_old(i,j,k)*vx(i,j,k)
                      end if
                   end if
+               end if
+               if (nint(idom(i-1,j,k)).gt.0 .and. nint(idom(i,j,k)).gt.0) then
                   
                   if (conduction) then
                      ! Diffusive component
@@ -825,16 +843,19 @@ module heat_transfer_explicit_module
               flxz(i,j,k) = 0_amrex_real
               if (nint(idom(i,j,k-1)).gt.0 .and. nint(idom(i,j,k)).gt.0) then
  
-                  if(advection) then
+                  if(advection .and. k.gt.domain_lo(3) .and. k.lt.domain_hi(3)) then
                      
                      ! Advective component
                         
                      if (vz(i,j,k) .gt. 0_amrex_real) then 
                         flxz(i,j,k)  = flxz(i,j,k) + u_old(i,j,k-1)*vz(i,j,k)
-                     else 
+                     elseif (vz(i,j,k) .lt. 0_amrex_real) then
                         flxz(i,j,k)  = flxz(i,j,k) + u_old(i,j,k)*vz(i,j,k)
                      end if
                   end if
+              end if
+
+               if (nint(idom(i,j,k-1)).gt.0 .and. nint(idom(i,j,k)).gt.0) then
 
                   if (conduction) then                 
                      ! Diffusive component
