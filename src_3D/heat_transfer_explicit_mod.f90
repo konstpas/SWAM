@@ -789,14 +789,14 @@ module heat_transfer_explicit_module
               flxx(i,j,k) = 0_amrex_real
               if (nint(idom(i-1,j,k)).gt.0 .and. nint(idom(i,j,k)).gt.0) then
  
-                  if (advection .and. i.gt.domain_lo(1) .and. i.lt.domain_hi(1)) then                
+                  ! if (advection .and. i.gt.domain_lo(1) .and. i.lt.domain_hi(1)) then                
                      ! Advective component                    
                      if (vx(i,j,k).gt.0.0_amrex_real) then 
                         flxx(i,j,k)  = flxx(i,j,k) + u_old(i-1,j,k)*vx(i,j,k)
                      elseif (vx(i,j,k) .lt. 0_amrex_real) then
                         flxx(i,j,k)  = flxx(i,j,k) + u_old(i,j,k)*vx(i,j,k)
                      end if
-                  end if
+                  ! end if
                end if
                if (nint(idom(i-1,j,k)).gt.0 .and. nint(idom(i,j,k)).gt.0) then
                   
@@ -843,7 +843,7 @@ module heat_transfer_explicit_module
               flxz(i,j,k) = 0_amrex_real
               if (nint(idom(i,j,k-1)).gt.0 .and. nint(idom(i,j,k)).gt.0) then
  
-                  if(advection .and. k.gt.domain_lo(3) .and. k.lt.domain_hi(3)) then
+                  ! if(advection .and. k.gt.domain_lo(3) .and. k.lt.domain_hi(3)) then
                      
                      ! Advective component
                         
@@ -852,7 +852,7 @@ module heat_transfer_explicit_module
                      elseif (vz(i,j,k) .lt. 0_amrex_real) then
                         flxz(i,j,k)  = flxz(i,j,k) + u_old(i,j,k)*vz(i,j,k)
                      end if
-                  end if
+                  ! end if
               end if
 
                if (nint(idom(i,j,k-1)).gt.0 .and. nint(idom(i,j,k)).gt.0) then
