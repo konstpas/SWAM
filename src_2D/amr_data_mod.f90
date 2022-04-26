@@ -81,6 +81,9 @@ module amr_data_module
   ! Variable used to check when to regrid
   public :: last_regrid_step
 
+  ! Electrostatic potential
+  public :: psi
+  
   ! ------------------------------------------------------------------
   ! Declare public variables
   ! ------------------------------------------------------------------
@@ -129,7 +132,9 @@ module amr_data_module
 
   ! Flux registers
   type(amrex_fluxregister), allocatable, save :: flux_reg(:)
-  
+
+  ! Electrostatic potential
+  type(amrex_multifab), allocatable, save :: psi(:)
 contains
 
   ! ------------------------------------------------------------------
@@ -209,6 +214,7 @@ contains
     allocate(phi_new(0:amrex_max_level))
     allocate(phi_old(0:amrex_max_level))
     allocate(temp(0:amrex_max_level))
+    allocate(psi(0:amrex_max_level))
     
   end subroutine allocate_multifabs
 
@@ -342,6 +348,7 @@ contains
        call amrex_multifab_destroy(phi_new(lev))
        call amrex_multifab_destroy(phi_old(lev))
        call amrex_multifab_destroy(temp(lev))
+       call amrex_multifab_destroy(psi(lev))
     
     end do
     

@@ -39,6 +39,7 @@ module material_properties_module
   public :: get_heat_capacity
   public :: finalize_mat_prop
   public :: get_viscosity
+  public :: get_electrical_resistivity
   
   ! -----------------------------------------------------------------
   ! Declare public variables

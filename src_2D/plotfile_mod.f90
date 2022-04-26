@@ -35,7 +35,8 @@ contains
                                 melt_top, &
                                 surf_ind, &
                                 surf_dx, &
-                                stepno
+                                stepno, &
+                                psi
     
     use read_input_module, only : io_plot_file
     
@@ -82,6 +83,14 @@ contains
     name = trim(io_plot_file) // "_idomain_" //current_step 
     call amrex_string_build(varname(1), "idomain")
     call amrex_write_plotfile(name, nlevs, idomain, &
+                              varname, amrex_geom, &
+                              t_new(0), stepno, &
+                              amrex_ref_ratio)
+
+    ! Output electrostatic potential
+    name = trim(io_plot_file) // "_potential_" //current_step 
+    call amrex_string_build(varname(1), "psi")
+    call amrex_write_plotfile(name, nlevs, psi, &
                               varname, amrex_geom, &
                               t_new(0), stepno, &
                               amrex_ref_ratio)

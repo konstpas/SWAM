@@ -389,6 +389,7 @@ contains
     use shallow_water_module, only : advance_SW
     use heat_transfer_module, only : advance_heat_solver_explicit, &
                                      advance_heat_solver_implicit
+    use electrostatics_module, only : advance_electrostatics
     
     ! Input and output variables
     real(amrex_real), intent(in) :: dt
@@ -409,6 +410,8 @@ contains
           STOP "Unknown heat solver specified in input"
        end if
     end if
+
+    call advance_electrostatics()
     
   end subroutine advance_all_levels
 

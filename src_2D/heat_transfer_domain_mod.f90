@@ -22,6 +22,7 @@ module heat_transfer_domain_module
   public :: reset_melt_pos
   public :: revaluate_heat_domain
   public :: get_surf_deformation
+  public :: interp_to_max_lev
   
 contains
   
