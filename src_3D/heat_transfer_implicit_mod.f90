@@ -54,13 +54,11 @@ module heat_transfer_implicit_module
   subroutine advance_heat_solver_implicit_level(lev, time, dt, substep, &
                                                 temp_tmp_lm1)
 
-    use amr_data_module, only : nsubsteps
     use heat_transfer_domain_module, only : reset_melt_pos, &
                                             update_melt_pos
     use heat_transfer_explicit_module, only : init_tmp_multifab, &
                                               free_memory, &
                                               update_flux_registers
-    use read_input_module, only : num_subcycling
     
     ! Input and output variables
     integer, intent(in) :: lev
@@ -83,7 +81,7 @@ module heat_transfer_implicit_module
     
     ! Advance the conductive part of the heat equation
     call advance_conduction(lev, time, dt, phi_tmp, temp_tmp, &
-                            temp_tmp_lm1(lev-1), idomain_tmp)
+                            temp_tmp_lm1, idomain_tmp)
 
     ! Advance the advective part of the heat equation
     call advance_advection(lev, dt, substep, temp_tmp, phi_tmp, fluxes)
@@ -91,14 +89,6 @@ module heat_transfer_implicit_module
     ! Update flux registers 
     call update_flux_registers(lev, fluxes)
 
-    ! Update temperature multifab at level lev-1
-    if (num_subcycling) then
-      if (substep.eq.nsubsteps(lev)) then
-         call update_temperature_lm1(lev, temp_tmp, temp_tmp_lm1(lev))
-      end if
-   else
-      call update_temperature_lm1(lev, temp_tmp, temp_tmp_lm1(lev))
-   end if
    
    ! Update melt position
    call update_melt_pos(lev)
@@ -119,7 +109,7 @@ module heat_transfer_implicit_module
     integer, intent(in) :: lev
     real(amrex_real), intent(in) :: dt
     real(amrex_real), intent(in) :: time
-    type(amrex_multifab), intent(in) :: temp_tmp_lm1
+    type(amrex_multifab), intent(inout) :: temp_tmp_lm1(0:amrex_max_level)
     type(amrex_multifab), intent(inout) :: phi_tmp
     type(amrex_multifab), intent(inout) :: temp_tmp
     type(amrex_multifab), intent(inout) :: idomain_tmp 
@@ -140,19 +130,16 @@ module heat_transfer_implicit_module
     
     ! New temperature via implicit update
     call conduction_get_temperature(lev, ba, dm, dt, alpha, beta, &
-                                    rhs, temp_tmp_lm1, temp_tmp)
-   !  print *, 'Solved conduction'
-   !  call check_ghost_points(lev, temp_tmp)
+                                    rhs, temp_tmp_lm1(lev-1), temp_tmp)
+
+    ! Call temperature multifab at level-1
+    call update_temperature_lm1(lev, temp_tmp, temp_tmp_lm1(lev))
 
     ! Corrector step on all levels
     call conduction_correct(lev, phi_tmp, temp_tmp, alpha)
-   !  print *, 'Corrected conduction'
-   !  call check_ghost_points(lev, temp_tmp)
 
     ! Synchronize idomains
     call conduction_synch_idomain(lev, phi_tmp, temp_tmp)
-   !  print *, 'Synched idomains'
-   !  call check_ghost_points(lev, temp_tmp)
 
     ! Clean memory
     call conduction_free_memory(rhs, alpha, beta, dm)
@@ -181,9 +168,7 @@ module heat_transfer_implicit_module
     integer :: idim
     type(amrex_fab) :: flux(amrex_spacedim)
     type(amrex_geometry) :: geom
-    type(amrex_mfiter) :: mfi
-    integer :: domain_lo(3)
-    integer :: domain_hi(3)        
+    type(amrex_mfiter) :: mfi     
 
     ! Get geometry
     geom = amrex_geom(lev)
@@ -199,10 +184,8 @@ module heat_transfer_implicit_module
 
     call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
     do while(mfi%next())
-      domain_lo = geom%domain%lo(1:amrex_spacedim)
-      domain_hi = geom%domain%hi(1:amrex_spacedim)
 
-       call advection_box(lev, dt, substep, mfi, geom, ncomp, domain_lo, domain_hi, &
+       call advection_box(lev, dt, substep, mfi, geom, ncomp, &
                           phi_tmp, temp_tmp, flux, fluxes)
     end do
     call amrex_mfiter_destroy(mfi)
@@ -223,8 +206,7 @@ module heat_transfer_implicit_module
   subroutine update_temperature_lm1(lev, temp_tmp, temp_tmp_lm1)
 
    use heat_transfer_domain_module, only : reset_melt_pos
-   use amr_data_module, only : phi_new, &
-                               temp
+   use amr_data_module, only : phi_new
 
    ! Input and output variables
    integer, intent(in) :: lev
@@ -242,11 +224,7 @@ module heat_transfer_implicit_module
    ba = phi_new(lev)%ba
    dm = phi_new(lev)%dm
    geom = amrex_geom(lev)
-   
-   ! Synchronize temperature with ghost points
-   call temp_tmp%copy(temp(lev), 1, 1, ncomp, 1)
-   call temp_tmp%fill_boundary(geom)
-   
+      
    ! Destroy previous definitions of the lm1 multifab
    if (lev > 0) call amrex_multifab_destroy(temp_tmp_lm1)
 
@@ -255,6 +233,7 @@ module heat_transfer_implicit_module
 
    ! Copy temperature of the current level to the lm1 multifab
    call temp_tmp_lm1%copy(temp_tmp, 1, 1, ncomp, 1) 
+   call temp_tmp_lm1%fill_boundary(geom)
    
  end subroutine update_temperature_lm1
 
@@ -989,7 +968,7 @@ module heat_transfer_implicit_module
   ! Subroutine used for an explicit update of the advective part
   ! of the heat equation on a box of a given level
   ! -----------------------------------------------------------------  
-  subroutine advection_box(lev, dt, substep, mfi, geom, ncomp, domain_lo, domain_hi, &
+  subroutine advection_box(lev, dt, substep, mfi, geom, ncomp, &
                            phi_tmp, temp_tmp, flux, fluxes)
 
     use amr_data_module, only : phi_new, &
@@ -1002,8 +981,6 @@ module heat_transfer_implicit_module
     integer, intent(in) :: lev
     integer, intent(in) :: substep
     integer, intent(in) :: ncomp
-    integer, intent(in) :: domain_lo(3)
-    integer, intent(in) :: domain_hi(3)
     real(amrex_real), intent(in) :: dt
     type(amrex_mfiter), intent(in) :: mfi
     type(amrex_geometry), intent(in) :: geom
@@ -1051,7 +1028,6 @@ module heat_transfer_implicit_module
 
     ! Update the enthalpy
     call get_enthalpy_advection(bx%lo, bx%hi, &
-                                domain_lo, domain_hi, &
                                 pin, lbound(pin), ubound(pin), &
                                 pout, lbound(pout), ubound(pout), &
                                 ptempin, lbound(ptempin), ubound(ptempin), &
@@ -1089,7 +1065,6 @@ module heat_transfer_implicit_module
   ! of the heat equation on a box of a given level
   ! -----------------------------------------------------------------  
   subroutine get_enthalpy_advection(lo, hi, &
-                                    domain_lo, domain_hi, &
                                     u_old,  uo_lo, uo_hi, &
                                     u_new, un_lo, un_hi, &
                                     temp, t_lo, t_hi, &
@@ -1105,7 +1080,6 @@ module heat_transfer_implicit_module
  
     ! Input and output variables
     integer, intent(in) :: lo(3), hi(3) 
-    integer, intent(in) :: domain_lo(3), domain_hi(3) 
     integer, intent(in) :: uo_lo(3), uo_hi(3)
     integer, intent(in) :: un_lo(3), un_hi(3)
     integer, intent(in) :: t_lo(3), t_hi(3)  
@@ -1137,7 +1111,6 @@ module heat_transfer_implicit_module
     
     ! Get enthalpy flux (only advective component)
     call get_face_flux(dx, lo_phys, lo, hi, &
-                       domain_lo, domain_hi, &
                        u_old, uo_lo, uo_hi, &
                        flxx, fx_lo, fx_hi, &
                        flxy, fy_lo, fy_hi, &
