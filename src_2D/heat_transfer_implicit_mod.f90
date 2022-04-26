@@ -83,22 +83,13 @@ contains
     
     ! Advance the conductive part of the heat equation
     call advance_conduction(lev, time, dt, phi_tmp, temp_tmp, &
-                            temp_tmp_lm1(lev-1), idomain_tmp)
+                            temp_tmp_lm1, idomain_tmp)
   
     ! Advance the advective part of the heat equation
     call advance_advection(lev, dt, substep, temp_tmp, phi_tmp, fluxes)
 
     ! Update flux registers 
     call update_flux_registers(lev, fluxes)
-    
-    ! Update temperature multifab at level lev-1
-    if (num_subcycling) then
-       if (substep.eq.nsubsteps(lev)) then
-          call update_temperature_lm1(lev, temp_tmp, temp_tmp_lm1(lev))
-       end if
-    else
-       call update_temperature_lm1(lev, temp_tmp, temp_tmp_lm1(lev))
-    end if
     
     ! Update melt position
     call update_melt_pos(lev)
@@ -119,7 +110,7 @@ contains
     integer, intent(in) :: lev
     real(amrex_real), intent(in) :: dt
     real(amrex_real), intent(in) :: time
-    type(amrex_multifab), intent(in) :: temp_tmp_lm1
+    type(amrex_multifab), intent(inout) :: temp_tmp_lm1(0:amrex_max_level)
     type(amrex_multifab), intent(inout) :: phi_tmp
     type(amrex_multifab), intent(inout) :: temp_tmp
     type(amrex_multifab), intent(inout) :: idomain_tmp 
@@ -140,7 +131,10 @@ contains
     
     ! New temperature via implicit update
     call conduction_get_temperature(lev, ba, dm, dt, alpha, beta, &
-                                    rhs, temp_tmp_lm1, temp_tmp)
+                                    rhs, temp_tmp_lm1(lev-1), temp_tmp)
+
+    ! Update temperature multifab at level lev-1
+    call update_temperature_lm1(lev, temp_tmp, temp_tmp_lm1(lev))
     
     ! Corrector step on all levels
     call conduction_correct(lev, phi_tmp, temp_tmp, alpha)
@@ -231,14 +225,10 @@ contains
     dm = phi_new(lev)%dm
     geom = amrex_geom(lev)
     
-    ! Synchronize temperature with ghost points
-    call temp_tmp%copy(temp(lev), 1, 1, ncomp, 1)
-    call temp_tmp%fill_boundary(geom)
-    
     ! Destroy previous definitions of the lm1 multifab
     if (lev > 0) call amrex_multifab_destroy(temp_tmp_lm1)
 
-    ! Rebuild the multifab to store the temperature data of the current level
+    ! ! Rebuild the multifab to store the temperature data of the current level
     call amrex_multifab_build(temp_tmp_lm1, ba, dm, ncomp, nghost)
 
     ! Copy temperature of the current level to the lm1 multifab
