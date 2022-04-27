@@ -70,6 +70,7 @@ contains
     
     if (heat_solve) then
 
+       !$omp parallel private(mfi, bx, pid, ptemp, penth)
        ! Loop through the boxes on the maximum level
        call amrex_mfiter_build(mfi, idomain(lev), tiling=.false.)
        do while(mfi%next())
@@ -90,6 +91,7 @@ contains
           
        end do
        call amrex_mfiter_destroy(mfi)
+       !$omp end parallel
        
     else
        
@@ -369,7 +371,7 @@ contains
                                 melt_vel, &
                                 max_melt_vel
                                 
-    use read_input_module, only : sw_magnetic_magnitude, sw_captol
+    use read_input_module, only : sw_magnetic_magnitude, sw_captol, geom_name
 
     use material_properties_module, only : get_mass_density, &
                                            get_viscosity
@@ -390,6 +392,7 @@ contains
     real(amrex_real) :: J_face
     real(amrex_real) :: laplacian_term
     integer :: adv_flag1, adv_flag2
+    real(amrex_real) :: curv_scale
 
     ! Reset maximum melt velocity
     max_melt_vel = 0.0
@@ -397,7 +400,15 @@ contains
     ! Initialize advective and source terms
     adv_term = 0.0_amrex_real
     src_term = 0.0_amrex_real
-    
+
+   ! If the geometry is leading edge, scale the current
+   ! by 4, see Thoren et al 2018 Nucl Fusion 58 106003
+    if (geom_name.eq.'West') then
+       curv_scale = 0.25
+    else
+       curv_scale = 1.0
+    end if    
+
     ! Compute column height (defined on staggered grid)
     melt_height = surf_pos - melt_pos 
 
@@ -442,7 +453,7 @@ contains
          end if
          
           ! Update source term
-          src_term(i) =  sw_magnetic_magnitude * J_face/4.0 & ! Lorentz force
+          src_term(i) =  sw_magnetic_magnitude * J_face*curv_scale & ! Lorentz force
                          + laplacian_term
           
           ! Fix dimensionality
