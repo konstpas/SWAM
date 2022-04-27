@@ -255,21 +255,24 @@ contains
     ! This is set up to have homogeneous Neumann BC
     call abeclap%set_domain_bc([amrex_lo_dirichlet, amrex_lo_dirichlet], &
                                [amrex_lo_dirichlet, amrex_lo_dirichlet])
+    ! call abeclap%set_domain_bc([amrex_lo_neumann, amrex_lo_neumann], &
+    !                            [amrex_lo_neumann, amrex_lo_neumann])
     
     ! Coarse-fine interface  (for problem with pure homogeneous Neumann BC we can pass an empty multifab)
     if (lev > 0) then
        ! use coarse level data to set up bc at corase/fine boundary
        call abeclap % set_coarse_fine_bc(psi(lev-1), amrex_ref_ratio(lev-1))
     end if
+    !call abeclap%set_level_bc(0, psi(lev))
     call abeclap%set_level_bc(0, nullmf)
     
     ! Set A and B scalar
-    call abeclap%set_scalars(0.0_amrex_real, 1.0_amrex_real)
+    call abeclap%set_scalars(1.0_amrex_real, -1.0_amrex_real)
     
     ! Set alpha and beta matrices
     call abeclap%set_acoeffs(0, alpha)
     call abeclap%set_bcoeffs(0, beta)
-    
+
     ! Build multigrid solver
     call amrex_multigrid_build(multigrid, abeclap)
     call multigrid%set_verbose(num_verbose)
@@ -372,7 +375,7 @@ contains
                  call get_electrical_resistivity(temp_melt, beta(i,j))
                  beta(i,j) = 1.0/beta(i,j)
              end if
-
+             
           end do
        end do
 
@@ -381,15 +384,19 @@ contains
           do i = lo(1), hi(1)
         
              if(nint(idom(i,j-1)).eq.0 .or. nint(idom(i,j)).eq.0 .or. &
-                nint(idom(i,j-1)).eq.-1 .or. nint(idom(i,j)).eq.-1) then
-                 beta(i,j) = 0_amrex_real ! Suppress flux at the free surface and cooling pipe surface
+                  nint(idom(i,j-1)).eq.-1 .or. nint(idom(i,j)).eq.-1) then
+                call get_electrical_resistivity(temp_melt, beta(i,j))
+                beta(i,j) = 0.1/beta(i,j)
+                 !beta(i,j) = 0.0_amrex_real ! Suppress flux at the free surface and cooling pipe surface
              else
                 ! temp_face = (temp(i,j) + temp(i,j-1))/2_amrex_real
                 ! call get_conductivity(temp_face, beta(i,j))
                 call get_electrical_resistivity(temp_melt, beta(i,j))
                 beta(i,j) = 1.0/beta(i,j)
              end if
-             
+             ! call get_electrical_resistivity(temp_melt, beta(i,j))
+             ! beta(i,j) = 1.0/beta(i,j)
+
           end do
        end do
 
@@ -427,7 +434,7 @@ contains
        do i = lo(1), hi(1)
           if(nint(idom(i,j)).ne.0 .and. nint(idom(i,j+1)).eq.0) then
              call interp_to_max_lev(lo, lo_phys, dx, i, xind)
-             rhs(i,j) = surf_current(xind)/dx(2) 
+             rhs(i,j) = surf_current(xind)/dx(2)
           else
              rhs(i,j) = 0.0_amrex_real
           end if
