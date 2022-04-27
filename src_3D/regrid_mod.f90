@@ -48,9 +48,9 @@ module regrid_module
    ! -----------------------------------------------------------------
    subroutine my_make_new_level_from_scratch(lev, time, pba, pdm) bind(c)
  
-     use read_input_module, only : do_reflux
+     use read_input_module, only : heat_reflux
      use material_properties_module, only : get_temp
-     use domain_module, only : get_idomain
+     use heat_transfer_domain_module, only : get_idomain
  
      ! Input and output variables
      integer, intent(in), value :: lev
@@ -88,7 +88,7 @@ module regrid_module
      call amrex_multifab_build(idomain(lev), ba, dm, ncomp, nghost)
         
      ! Build the flux registers
-     if (lev > 0 .and. do_reflux) then
+     if (lev > 0 .and. heat_reflux) then
         call amrex_fluxregister_build(flux_reg(lev), ba, dm, &
                                       amrex_ref_ratio(lev-1), lev, ncomp)
      end if
@@ -127,7 +127,7 @@ module regrid_module
    subroutine init_phi(lo, hi, &
                        phi, phi_lo, phi_hi)
  
-     use read_input_module, only : temp_init
+     use read_input_module, only : heat_temp_init
      use material_properties_module, only : get_enthalpy
  
      ! Input and output variables
@@ -140,7 +140,7 @@ module regrid_module
      real(amrex_real) :: enth_init
  
      ! Get enthalpy consistent with the initialization temperature
-     call get_enthalpy(temp_init,enth_init)
+     call get_enthalpy(heat_temp_init,enth_init)
  
      do k=lo(3),hi(3)
         do j=lo(2),hi(2)
@@ -160,9 +160,9 @@ module regrid_module
    ! -----------------------------------------------------------------
    subroutine my_make_new_level_from_coarse(lev, time, pba, pdm) bind(c)
  
-     use read_input_module, only : do_reflux
+     use read_input_module, only : heat_reflux
      use material_properties_module, only : get_temp
-     use domain_module, only : get_idomain
+     use heat_transfer_domain_module, only : get_idomain
  
      ! Input and output variables    
      integer, intent(in), value :: lev
@@ -200,7 +200,7 @@ module regrid_module
      call amrex_multifab_build(idomain(lev), ba, dm, ncomp, nghost)
      
      ! Build the flux registers
-     if (lev > 0 .and. do_reflux) then
+     if (lev > 0 .and. heat_reflux) then
         call amrex_fluxregister_build(flux_reg(lev), ba, dm, &
                                       amrex_ref_ratio(lev-1), lev, ncomp)
      end if
@@ -312,9 +312,9 @@ module regrid_module
    ! -----------------------------------------------------------------
    subroutine my_remake_level(lev, time, pba, pdm) bind(c)
  
-     use read_input_module, only : do_reflux
+     use read_input_module, only : heat_reflux
      use material_properties_module, only : get_temp
-     use domain_module, only : get_idomain
+     use heat_transfer_domain_module, only : get_idomain
  
      ! Input and output variables    
      integer, intent(in), value :: lev
@@ -357,7 +357,7 @@ module regrid_module
      call amrex_multifab_build(idomain(lev), ba, dm, ncomp, nghost)
      
      ! Build the flux registers
-     if (lev > 0 .and. do_reflux) then
+     if (lev > 0 .and. heat_reflux) then
         call amrex_fluxregister_build(flux_reg(lev), ba, dm, &
                                       amrex_ref_ratio(lev-1), lev, ncomp)
      end if
@@ -435,7 +435,7 @@ module regrid_module
    ! -----------------------------------------------------------------
    subroutine my_clear_level(lev) bind(c)
  
-     use read_input_module, only : do_reflux
+     use read_input_module, only : heat_reflux
      
      integer, intent(in), value :: lev
      
@@ -443,7 +443,7 @@ module regrid_module
      call amrex_multifab_destroy(phi_old(lev))
      call amrex_multifab_destroy(temp(lev))
      call amrex_multifab_destroy(idomain(lev))
-     if (do_reflux) then
+     if (heat_reflux) then
         call amrex_fluxregister_destroy(flux_reg(lev))
      end if
      
@@ -455,7 +455,7 @@ module regrid_module
    ! -----------------------------------------------------------------
    subroutine my_error_estimate(lev, cp, t, settag, cleartag) bind(c)
  
-     use read_input_module,  only : surfdist 
+     use read_input_module,  only : regrid_dist, regrid_def 
  
      ! Input and output variables
      character(kind=c_char), intent(in), value :: cleartag
@@ -488,7 +488,8 @@ module regrid_module
         
         call tag_phi_error(bx%lo, bx%hi, &
                            geom%get_physical_location(bx%lo), &
-                           geom%dx, surfdist(lev+1), & 
+                           geom%dx, regrid_dist(lev+1), & 
+                           regrid_def(lev+1), &
                            phiarr, lbound(phiarr), ubound(phiarr), &
                            tagarr, lbound(tagarr), ubound(tagarr), &
                            settag)
@@ -503,11 +504,11 @@ module regrid_module
    ! Subroutine used to tag the grid points that need regridding
    ! -----------------------------------------------------------------  
    subroutine tag_phi_error(lo, hi, xlo, dx, surfdist, &
-                            phi, philo, phihi, &
+                            regrid_def, phi, philo, phihi, &
                             tag, taglo, taghi, &
                             settag)
      
-     use domain_module, only : get_surf_pos   
+     use heat_transfer_domain_module, only : get_surf_pos, get_surf_deformation   
      use material_properties_module, only : enth_at_melt
  
      ! Input and output variables
@@ -518,17 +519,20 @@ module regrid_module
      real(amrex_real), intent(in) :: phi(philo(1):phihi(1),philo(2):phihi(2),philo(3):phihi(3))
      real(amrex_real), intent(in) :: xlo(3)
      real(amrex_real), intent(in) :: surfdist
+     real(amrex_real), intent(in) :: regrid_def
      character(kind=c_char), intent(inout) :: tag(taglo(1):taghi(1),taglo(2):taghi(2),taglo(3):taghi(3))
      character(kind=c_char), intent(in) :: settag
      
      ! Local variables
      integer :: i,j,k
-     real(amrex_real) :: surfpos(lo(1):hi(1),lo(3):hi(3)) 
+     real(amrex_real) :: surf_pos(lo(1):hi(1),lo(3):hi(3)) 
+     real(amrex_real) :: surf_def(lo(1):hi(1),lo(3):hi(3)) 
      real(amrex_real) :: ydist
  
  
      ! Get position of the free surface
-     call get_surf_pos(xlo, dx, lo, hi, surfpos)
+     call get_surf_pos(xlo, dx, lo, hi, surf_pos)
+     call get_surf_deformation(xlo, dx, lo, hi, surf_def)
  
      ! Loop through the domain
      do k = lo(3), hi(3)
@@ -536,8 +540,8 @@ module regrid_module
            do i = lo(1), hi(1)
            
               ! Regrid based on the distance from the free surface
-              ydist = abs(xlo(2) + (j-lo(2))*dx(2) - surfpos(i,k) ) 
-              if (ydist .le. surfdist) then 
+              ydist = xlo(2) + (j-lo(2))*dx(2) - surf_pos(i,k)
+              if (abs(ydist) .le. surfdist) then 
                  tag(i,j,k) = settag
               endif
            
@@ -546,6 +550,12 @@ module regrid_module
               if (phi(i,j,k).ge.enth_at_melt) then
                  tag(i,j,k) = settag  
               endif
+
+               ! Regrid based on the free surface deformation
+               if (ydist.gt.0 .and. surf_def(i,k).gt.regrid_def) then
+                  tag(i,j,k) = settag
+               end if
+
             end do           
         enddo
      enddo

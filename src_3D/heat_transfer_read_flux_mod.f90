@@ -21,7 +21,7 @@ module read_heat_flux_module
     ! -----------------------------------------------------------------
     subroutine construct_heat_flux_table(side_flag)
       
-      use heat_flux_module, only: plasma_flux_time_mesh, &
+      use amr_data_module, only: plasma_flux_time_mesh, &
                                   plasma_flux_surf_x_mesh, &
                                   plasma_flux_surf_z_mesh, &
                                   heat_flux_table, &
@@ -29,8 +29,8 @@ module read_heat_flux_module
                                   plasma_side_flux_surf_y_mesh, &
                                   plasma_side_flux_surf_z_mesh, &
                                   heat_side_flux_table
-      use read_input_module, only: plasma_flux_input_file, &
-                                   plasma_side_flux_input_file
+      use read_input_module, only: heat_plasma_flux_file, &
+                                   heat_plasma_flux_side_file
       
       implicit none
 
@@ -41,24 +41,24 @@ module read_heat_flux_module
       integer :: dims(1:3)
       
       if(side_flag) then
-         call get_mesh_dimensions (plasma_side_flux_input_file, len(plasma_side_flux_input_file), dims)
+         call get_mesh_dimensions (heat_plasma_flux_side_file, len(heat_plasma_flux_side_file), dims)
 
         allocate (plasma_side_flux_time_mesh(1:dims(1)))
         allocate (plasma_side_flux_surf_y_mesh(1:dims(2)))
         allocate (plasma_side_flux_surf_z_mesh(1:dims(3)))
         allocate (heat_side_flux_table(1:dims(1),1:dims(2),1:dims(3)) )
         
-        call read_heatflux_file(plasma_side_flux_input_file, len(plasma_side_flux_input_file), plasma_side_flux_time_mesh, &
+        call read_heatflux_file(heat_plasma_flux_side_file, len(heat_plasma_flux_side_file), plasma_side_flux_time_mesh, &
                                 plasma_side_flux_surf_y_mesh, plasma_side_flux_surf_z_mesh, heat_side_flux_table)
       else
-        call get_mesh_dimensions (plasma_flux_input_file, len(plasma_flux_input_file), dims)
+        call get_mesh_dimensions (heat_plasma_flux_file, len(heat_plasma_flux_file), dims)
 
         allocate (plasma_flux_time_mesh(1:dims(1)))
         allocate (plasma_flux_surf_x_mesh(1:dims(2)))
         allocate (plasma_flux_surf_z_mesh(1:dims(3)))
         allocate (heat_flux_table(1:dims(1),1:dims(2),1:dims(3)) )
      
-        call read_heatflux_file(plasma_flux_input_file, len(plasma_flux_input_file), plasma_flux_time_mesh, &
+        call read_heatflux_file(heat_plasma_flux_file, len(heat_plasma_flux_file), plasma_flux_time_mesh, &
                                 plasma_flux_surf_x_mesh, plasma_flux_surf_z_mesh, heat_flux_table)
       end if
       

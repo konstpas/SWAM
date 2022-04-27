@@ -21,7 +21,7 @@ module material_properties_test_evaporation_module
   public :: get_mass_density_test_evaporation
   public :: get_electrical_resistivity_test_evaporation
   public :: get_emissivity_test_evaporation
-  public :: get_Richardson_test_evaporation
+  public :: get_richardson_constant_test_evaporation
   public :: get_surface_tension_test_evaporation
   public :: get_viscosity_test_evaporation
   public :: get_work_function_test_evaporation
@@ -220,13 +220,13 @@ contains
   ! -----------------------------------------------------------------
   ! Subroutine used to compute Richardson constant
   ! -----------------------------------------------------------------
-  subroutine get_Richardson_test_evaporation(Aeff)
+  subroutine get_richardson_constant_test_evaporation(Aeff)
     
     real(amrex_real), intent(out) :: Aeff ! Richardson constant [A/m^2*K^2]
 
     Aeff = 120E4
     
-  end subroutine get_Richardson_test_evaporation
+  end subroutine get_richardson_constant_test_evaporation
 
 
   ! -----------------------------------------------------------------

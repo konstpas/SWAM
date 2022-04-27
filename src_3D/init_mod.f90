@@ -27,13 +27,13 @@ contains
   subroutine run_init()
 
     use amr_data_module, only : amr_data_init
-    use read_input_module, only : cooling_debug, &
+    use read_input_module, only : heat_cooling_debug, &
                                   read_input_file, &
-                                  restart, &
-                                  plasma_flux_type, &
-                                  plasma_side_flux_type, &
-                                  geometry_name, &
-                                  solve_heat
+                                  io_restart, &
+                                  heat_plasma_flux_type, &
+                                  heat_plasma_flux_side_type, &
+                                  geom_name, &
+                                  heat_solve
     use read_heat_flux_module, only : construct_heat_flux_table
     use material_properties_module, only : init_mat_prop
     use heat_flux_module, only : debug_cooling_fluxes
@@ -57,11 +57,16 @@ contains
     call init_mat_prop
 
     ! Print cooling fluxes to table if debug is on
-    if (nint(cooling_debug(1)) .eq. 1) call debug_cooling_fluxes
+    if (nint(heat_cooling_debug(1)) .eq. 1) call debug_cooling_fluxes
     
     ! Read in the heat flux file, if necessery
-    if (plasma_flux_type.eq.'Input_file') call construct_heat_flux_table(.false.)
-    if (geometry_name.eq.'West' .and. plasma_side_flux_type.eq.'Input_file') call construct_heat_flux_table(.true.)
+    if (heat_plasma_flux_type.eq.'Input_file') then
+       call construct_heat_flux_table(.false.)
+    end if
+
+    if (geom_name.eq.'West' .and. heat_plasma_flux_side_type.eq.'Input_file') then 
+      call construct_heat_flux_table(.true.)
+    end if
 
     ! Generate file to write the heat fluxes in it
     call initialize_heatfluxes_file()
@@ -70,7 +75,7 @@ contains
     call amr_data_init
 
     ! Initialize melt pool if thermal response is not simulated
-    if (.not.solve_heat) call init_melt_pos
+    if (.not.heat_solve) call init_melt_pos
 
     ! Initialize amrex functions to generate grid
     call amrex_init_virtual_functions(my_make_new_level_from_scratch, &
@@ -80,7 +85,7 @@ contains
                                       my_error_estimate)
     
     ! Start new simulation or read restart file
-    if (len_trim(restart) .eq. 0) then
+    if (len_trim(io_restart) .eq. 0) then
        call amrex_init_from_scratch(0.0_amrex_real)
        call averagedown      
     else

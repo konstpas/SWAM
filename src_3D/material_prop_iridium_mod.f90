@@ -22,7 +22,7 @@ module material_properties_iridium_module
   public :: get_electrical_resistivity_iridium
   public :: get_emissivity_iridium
   public :: get_enthalpy_of_vaporization_iridium
-  public :: get_Richardson_iridium
+  public :: get_richardson_constant_iridium
   public :: get_surface_tension_iridium
   public :: get_thermelectric_power_iridium
   public :: get_vapor_pressure_iridium
@@ -284,7 +284,7 @@ contains
   ! -----------------------------------------------------------------
   ! Subroutine used to compute Richardson constant
   ! -----------------------------------------------------------------
-  subroutine get_Richardson_iridium(Aeff)
+  subroutine get_richardson_constant_iridium(Aeff)
 
     ! Relatively good agreement on the Richardson constant value, after correcting for small work function
     ! discrepancies see for instance V. S. Fomenko, The Handbook of thermionic properties, Plenum, New
@@ -295,7 +295,7 @@ contains
    
     Aeff = 100E4
    
-  end subroutine get_Richardson_iridium
+  end subroutine get_richardson_constant_iridium
 
 
   ! -----------------------------------------------------------------
