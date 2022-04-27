@@ -54,13 +54,12 @@ contains
   subroutine advance_heat_solver_implicit_level(lev, time, dt, substep, &
                                                 temp_tmp_lm1)
 
-    use amr_data_module, only : nsubsteps
     use heat_transfer_domain_module, only : reset_melt_pos, &
                                             update_melt_pos
     use heat_transfer_explicit_module, only : init_tmp_multifab, &
                                               free_memory, &
                                               update_flux_registers
-    use read_input_module, only : num_subcycling
+
     ! Input and output variables
     integer, intent(in) :: lev
     integer, intent(in) :: substep
@@ -205,8 +204,7 @@ contains
   subroutine update_temperature_lm1(lev, temp_tmp, temp_tmp_lm1)
 
     use heat_transfer_domain_module, only : reset_melt_pos
-    use amr_data_module, only : phi_new, &
-                                temp
+    use amr_data_module, only : phi_new
 
     ! Input and output variables
     integer, intent(in) :: lev
@@ -232,7 +230,7 @@ contains
     call amrex_multifab_build(temp_tmp_lm1, ba, dm, ncomp, nghost)
 
     ! Copy temperature of the current level to the lm1 multifab
-    call temp_tmp_lm1%copy(temp_tmp, 1, 1, ncomp, 1) 
+    call temp_tmp_lm1%copy(temp_tmp, 1, 1, ncomp, nghost) 
     
   end subroutine update_temperature_lm1
  
