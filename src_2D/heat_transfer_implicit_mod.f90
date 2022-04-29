@@ -176,7 +176,8 @@ contains
     ncomp = phi_new(lev)%ncomp()
 
     ! Update heat equation
-    !$omp parallel private(mfi, flux)    
+    !$omp parallel private(mfi, flux)
+    
     do idim = 1, amrex_spacedim
        call flux(idim)%reset_omp_private()
     end do
@@ -187,13 +188,15 @@ contains
                           phi_tmp, temp_tmp, flux, fluxes)
     end do
     call amrex_mfiter_destroy(mfi)
-    !$omp end parallel
 
     ! Clean memory
     do idim = 1, amrex_spacedim
        call amrex_fab_destroy(flux(idim))
     end do
-       
+      
+    !$omp end parallel
+
+     
   end subroutine advance_advection
 
 
