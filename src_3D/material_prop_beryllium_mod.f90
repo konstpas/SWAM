@@ -23,6 +23,7 @@ module material_properties_beryllium_module
   public :: get_emissivity_beryllium
   public :: get_richardson_constant_beryllium
   public :: get_surface_tension_beryllium
+  public :: get_temp_deriv_surface_tension_beryllium
   public :: get_viscosity_beryllium
   public :: get_work_function_beryllium
   public :: get_enthalpy_of_vaporization_beryllium
@@ -191,6 +192,31 @@ contains
     
   end subroutine get_surface_tension_beryllium
 
+  ! -----------------------------------------------------------------
+  ! Subroutine used to computed the derivative of the surface tension
+  ! with respect to the temperature.
+  ! -----------------------------------------------------------------
+  subroutine get_temp_deriv_surface_tension_beryllium(temp,dsigma_dT)
+
+   ! Liquid phase beryllium data adopted from Thermophysical Properties of Materials For Nuclear
+   ! Engineering: A Tutorial and Collection of Data (IAEA, Vienna, 2008). Only two data points available, one
+   ! also reported in Iida and Guthrie, The thermophysical properties of metallic liquids Vol. 2 (Oxford
+   ! University Press, Oxford, 2015).
+   ! Linear fit around the melting point. This fit leads to a prediction of 7275K for the critical point which is
+   ! relatively close to the 8080K prediction of Fortov and collaborators as quoted by Apfelbaum, Estimate of
+   ! Beryllium Critical Point on the Basis of Correspondence between the Critical and Zeno-Line Parameters, J.
+   ! Phys. Chem. B 116, 14660−14666 (2012).
+   
+   real(amrex_real), intent(in) :: temp    ! Temperature [K]
+   real(amrex_real), intent(out) :: dsigma_dT  ! Surface tension [N/(K*m)] 
+   
+   if (temp.lt.1560.0) then
+       dsigma_dT = 0.0
+   else 
+       dsigma_dT = - 0.20E-3
+   end if
+   
+ end subroutine get_temp_deriv_surface_tension_beryllium
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute vapor pressure

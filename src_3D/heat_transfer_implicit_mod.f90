@@ -653,7 +653,7 @@ module heat_transfer_implicit_module
       ncomp = phi_new(lev)%ncomp()
 
       ! Synchronize enthalpy multifab with ghost points
-      call phi_tmp%copy(phi_new(lev), 1, 1, ncomp, 0) ! The last 1 is the number of ghost points
+      call phi_tmp%copy(phi_new(lev), 1, 1, ncomp, 0) ! The last 0 is the number of ghost points
       call phi_tmp%fill_boundary(geom)
 
       ! Synchronize temperature multifab with ghost points

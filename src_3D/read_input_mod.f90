@@ -177,6 +177,8 @@ module read_input_module
   public :: sw_iter
   ! Acceleration due to gravity. Used only if the sw_solver is geoclaw [m/s^2]
   public :: sw_gravity
+  ! Include Marangoni flow when solving shallow water equation (1 = yes, 0 = no) 
+  public :: sw_marangoni
 
   ! --- Variables for the material properties ---
 
@@ -278,6 +280,7 @@ module read_input_module
   ! Shallow water solver
   logical, save :: sw_solve
   logical, save :: sw_solve_momentum
+  logical, save :: sw_marangoni
   real(amrex_real), save :: sw_captol
   real(amrex_real), save :: sw_drytol
   real(amrex_real), save :: sw_magnetic_inclination
@@ -384,6 +387,7 @@ contains
     call pp%query("surf_pos_init", sw_surf_pos_init) 
     call pp%query("solve", sw_solve)
     call pp%query("solve_momentum", sw_solve_momentum)
+    call pp%query("marangoni", sw_marangoni)
     call pp%query("magnetic_inclination",sw_magnetic_inclination)
     call pp%query("captol", sw_captol)
     call pp%query("drytol", sw_drytol)
@@ -545,6 +549,7 @@ contains
     sw_pool_params(3) = 1.0
     sw_solve = .true.
     sw_solve_momentum = .true.
+    sw_marangoni = .true.
     sw_surf_pos_init = 0.5*Ly
     ! sw_surf_pos_init = 0.006*Ly
     sw_iter = 1000

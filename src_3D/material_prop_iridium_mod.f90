@@ -24,6 +24,7 @@ module material_properties_iridium_module
   public :: get_enthalpy_of_vaporization_iridium
   public :: get_richardson_constant_iridium
   public :: get_surface_tension_iridium
+  public :: get_temp_deriv_surface_tension_iridium
   public :: get_thermelectric_power_iridium
   public :: get_vapor_pressure_iridium
   public :: get_viscosity_iridium
@@ -173,6 +174,28 @@ contains
     end if
     
   end subroutine get_surface_tension_iridium
+
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to computed the surface tension
+  ! -----------------------------------------------------------------
+  subroutine get_temp_deriv_surface_tension_iridium(temp,dsigma_dT)
+
+   ! Liquid phase Iridium data and fits adopted from Paradis, Ishikawa and Okada, Thermophysical Properties
+   ! of Platinum Group Metals in their Liquid Undercooled and Superheated Phases, Johnson Matthey Technol.
+   ! Rev. 58, 124–136 (2014).
+   ! Linear fit around the melting point.
+   
+   real(amrex_real), intent(in) :: temp    ! Temperature [K]
+   real(amrex_real), intent(out) :: dsigma_dT  ! Surface tension [N/(K*m)] 
+   
+   if (temp.lt.2719.0) then
+      dsigma_dT = 0.0
+   else 
+      dsigma_dT =  - 0.28E-3
+   end if
+   
+ end subroutine get_temp_deriv_surface_tension_iridium
 
 
   ! -----------------------------------------------------------------

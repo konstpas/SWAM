@@ -19,6 +19,7 @@ module material_properties_module
                                                    get_enthalpy_of_vaporization_tungsten, &
                                                    get_richardson_constant_tungsten, &
                                                    get_surface_tension_tungsten, &
+                                                   get_temp_deriv_surface_tension_tungsten, &
                                                    get_thermelectric_power_tungsten, &
                                                    get_vapor_pressure_tungsten, &
                                                    get_viscosity_tungsten, &
@@ -63,6 +64,7 @@ module material_properties_module
                                                       ! get_hcp_to_bcc_point_beryllium, &
                                                       get_richardson_constant_beryllium, &
                                                       get_surface_tension_beryllium, &
+                                                      get_temp_deriv_surface_tension_beryllium, &
                                                       get_thermelectric_power_beryllium, &
                                                       get_vapor_pressure_beryllium, &
                                                       get_viscosity_beryllium, &
@@ -78,6 +80,7 @@ module material_properties_module
                                                   get_mass_density_iridium, &
                                                   get_richardson_constant_iridium, &
                                                   get_surface_tension_iridium, &
+                                                  get_temp_deriv_surface_tension_iridium, &
                                                   get_thermelectric_power_iridium, &
                                                   get_vapor_pressure_iridium, &
                                                   get_viscosity_iridium, &
@@ -93,6 +96,7 @@ module material_properties_module
                                                   get_mass_density_niobium, &
                                                   get_richardson_constant_niobium, &
                                                   get_surface_tension_niobium, &
+                                                  get_temp_deriv_surface_tension_niobium, &
                                                   get_thermelectric_power_niobium, &
                                                   get_vapor_pressure_niobium, &
                                                   get_viscosity_niobium, &
@@ -132,6 +136,7 @@ module material_properties_module
    public :: get_heat_capacity
    public :: finalize_mat_prop
    public :: get_viscosity
+   public :: get_temp_deriv_surface_tension
  
    ! -----------------------------------------------------------------
    ! Declare public variables
@@ -345,6 +350,32 @@ module material_properties_module
       endif
 
     end subroutine get_surface_tension
+
+   ! ------------------------------------------------------------------
+   ! Subroutine used to compute the temperature derivatice of the 
+   ! surface tension.
+   ! ------------------------------------------------------------------ 
+    subroutine get_temp_deriv_surface_tension(temp, dsigma_dT)
+     
+      real(amrex_real), intent(in) :: temp    ! Temperature [K]
+      real(amrex_real), intent(out) :: dsigma_dT  ! Surface tension [N/(K*m)]
+
+      if (material_name.eq.'Tungsten') then
+         call get_temp_deriv_surface_tension_tungsten(temp, dsigma_dT)
+      elseif (material_name.eq.'Beryllium') then
+         call get_temp_deriv_surface_tension_beryllium(temp, dsigma_dT)
+      elseif (material_name.eq.'Iridium') then
+         call get_temp_deriv_surface_tension_iridium(temp, dsigma_dT)
+      elseif (material_name.eq.'Niobium') then
+         call get_temp_deriv_surface_tension_niobium(temp, dsigma_dT)
+      elseif (material_name.eq.'Test_melting_one_phase' .or. material_name.eq.'Test_melting_two_phase' &
+         .or. material_name.eq.'Test_Evaporation') then
+            dsigma_dT = 0 ! surface tension not defined for test materials, placeholder value
+      else
+         STOP 'Unknown material'
+      endif
+
+    end subroutine get_temp_deriv_surface_tension
 
 
    ! ------------------------------------------------------------------

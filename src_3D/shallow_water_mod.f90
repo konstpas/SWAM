@@ -47,6 +47,8 @@ module shallow_water_module
       else
          call advance_SW_fixed_velocity(dt(amrex_max_level))
       end if
+
+      call get_surface_normal()
       
    end subroutine advance_SW 
 
@@ -335,10 +337,15 @@ module shallow_water_module
                                   melt_vel, &
                                   surf_current
       
-      use read_input_module, only : sw_Bx, sw_Bz, sw_captol, geom_name
+      use read_input_module, only : sw_Bx, &
+                                    sw_Bz, &
+                                    sw_captol, &
+                                    sw_marangoni, &
+                                    geom_name
   
       use material_properties_module, only : get_mass_density, &
-                                             get_viscosity
+                                             get_viscosity, &
+                                             get_temp_deriv_surface_tension
       
       ! Input and output variables
       real(amrex_real), intent(in) :: dt
@@ -358,6 +365,8 @@ module shallow_water_module
       real(amrex_real) :: max_vel_x, max_vel_z
       real(amrex_real) :: J_face
       real(amrex_real) :: laplacian_term
+      real(amrex_real) :: marangoni_term
+      real(amrex_real) :: dsigma_dT
       real(amrex_real) :: curv_scale
       
       ! Initialize advective and source terms
@@ -456,9 +465,18 @@ module shallow_water_module
                if (j.gt.surf_ind(2,1) .and. j.lt.surf_ind(2,2) .and. melt_vel(i,j-1,1).ne.0.0 .and. melt_vel(i,j+1,1).ne.0.0) then
                   laplacian_term  = laplacian_term + visc*(melt_vel(i,j+1,1)-2*melt_vel(i,j,1)+melt_vel(i,j-1,1)/surf_dx(2)**2)
                end if
+
+               ! Calculate the contribution of the Marangoni term
+               marangoni_term = 0.0
+               if(sw_marangoni) then
+                  call get_temp_deriv_surface_tension(temp_face, dsigma_dT)
+                  marangoni_term = 3/(2*max(hh, sw_captol))*dsigma_dT*(surf_temperature(i,j) - surf_temperature(i-1,j))/surf_dx(1)
+               end if
+               
                ! Update source term for accelerationin the x direction
                src_term_x(i,j) =  sw_Bz*J_face*curv_scale & ! Lorentz force
-                                 + laplacian_term
+                                 + laplacian_term &
+                                 + marangoni_term
                ! Fix dimensionality
                src_term_x(i,j) = src_term_x(i,j)/rho
             end if
@@ -491,9 +509,18 @@ module shallow_water_module
                if (melt_vel(i,j-1,2).ne.0.0 .and. melt_vel(i,j+1,2).ne.0.0) then
                   laplacian_term  = laplacian_term + visc*(melt_vel(i,j+1,2)-2*melt_vel(i,j,2)+melt_vel(i,j-1,2))/surf_dx(2)**2
                end if
+
+               ! Calculate the contribution of the Marangoni term
+               marangoni_term = 0.0
+               if(sw_marangoni) then
+                  call get_temp_deriv_surface_tension(temp_face, dsigma_dT)
+                  marangoni_term = 3/(2*max(hh, sw_captol))*dsigma_dT*(surf_temperature(i,j) - surf_temperature(i,j-1))/surf_dx(2)
+               end if
+
                ! Update source term for accelerationin the z direction
                src_term_z(i,j) =  -sw_Bx*J_face*curv_scale & ! Lorentz force
-                                  + laplacian_term
+                                  + laplacian_term &
+                                  + marangoni_term
                
                ! Fix dimensionality
                src_term_z(i,j) = src_term_z(i,j)/rho
@@ -558,31 +585,31 @@ module shallow_water_module
       ! x-component
       do j = surf_ind(2,1), surf_ind(2,2)
          ! Lower bound
-         if ( melt_vel(surf_ind(1,1)+1, j, 1).lt.0 ) then 
+         if ( melt_vel(surf_ind(1,1)+1, j, 1).lt.0.0 ) then 
             melt_vel(surf_ind(1,1), j, 1) = melt_vel(surf_ind(1,1)+1, j, 1)
          else
-            melt_vel(surf_ind(1,1), j, 1) = 0
+            melt_vel(surf_ind(1,1), j, 1) = 0.0
          end if
          ! Upper bound
-         if ( melt_vel(surf_ind(1,2), j, 1).gt.0 ) then 
+         if ( melt_vel(surf_ind(1,2), j, 1).gt.0.0) then 
             melt_vel(surf_ind(1,2)+1, j, 1) = melt_vel(surf_ind(1,2), j, 1)
          else
-            melt_vel(surf_ind(1,2), j, 1) = 0
+            melt_vel(surf_ind(1,2), j, 1) = 0.0
          end if
       end do
       ! z-component
       do i = surf_ind(1,1), surf_ind(1,2)
          ! Lower bound
-         if ( melt_vel(i, surf_ind(2,1)+1, 2).lt.0 ) then 
+         if ( melt_vel(i, surf_ind(2,1)+1, 2).lt.0.0 ) then 
             melt_vel(i, surf_ind(2,1), 2) = melt_vel(i, surf_ind(2,1)+1, 2)
          else
-            melt_vel(i, surf_ind(2,1), 2) = 0
+            melt_vel(i, surf_ind(2,1), 2) = 0.0
          end if
          ! Upper bound
-         if ( melt_vel(i, surf_ind(2,2), 2).gt.0 ) then 
+         if ( melt_vel(i, surf_ind(2,2), 2).gt.0.0 ) then 
             melt_vel(i, surf_ind(2,2)+1, 2) = melt_vel(i, surf_ind(2,2), 2)
          else
-            melt_vel(i, surf_ind(2,2)+1, 2) = 0
+            melt_vel(i, surf_ind(2,2)+1, 2) = 0.0
          end if
       end do
 
@@ -1396,6 +1423,7 @@ module shallow_water_module
   ! in not calculated.
   ! -----------------------------------------------------------------
    subroutine init_melt_pos()
+      ! use read_input_module, only : sw_pool_params
       use amr_data_module, only : melt_pos, &
                                   surf_pos, &
                                   surf_dx, &
@@ -1783,5 +1811,62 @@ module shallow_water_module
       ! deallocate(fwave(1:3,1:3,lo_tang-3:hi_tang+3)) 
 
    end subroutine geoclaw_update
+
+   ! -----------------------------------------------------------------
+   ! Subroutine used to calculate the local surface normals
+   ! -----------------------------------------------------------------
+   subroutine get_surface_normal()
+      use amr_data_module, only : surf_normal, &
+                                  surf_pos, &
+                                  surf_ind, &
+                                  surf_dx
+
+      ! Local variables
+      real(amrex_real) :: db1dx(surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2))
+      real(amrex_real) :: db1dz(surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2))
+      integer :: i,j
+
+      db1dx = 0.0
+      db1dz = 0.0
+
+      ! Derivatives along x-direction
+      ! For edge points use non-central difference
+      do j = surf_ind(2,1),surf_ind(2,2)
+         i =  surf_ind(1,1)
+         db1dx(i,j) = (surf_pos(i+1,j) - surf_pos(i,j))/surf_dx(1)
+         i =  surf_ind(1,2)
+         db1dx(i,j) = (surf_pos(i,j) - surf_pos(i-1,j))/surf_dx(1)
+      end do
+      ! For the rest of the points use central 
+      do i = surf_ind(1,1)+1,surf_ind(1,2)-1
+         do j = surf_ind(2,1),surf_ind(2,2)
+            db1dx(i,j) = (surf_pos(i+1,j) - surf_pos(i-1,j))/(2*surf_dx(1))
+         end do
+      end do
+
+      ! Derivatives along z-direction
+      ! For edge points use non-central difference
+      do i = surf_ind(1,1),surf_ind(1,2)
+         j = surf_ind(2,1)
+         db1dz(i,j) = (surf_pos(i,j+1) - surf_pos(i,j))/surf_dx(2)
+         j = surf_ind(2,2)
+         db1dz(i,j) = (surf_pos(i,j) - surf_pos(i,j-1))/surf_dx(2)
+      end do
+      ! For the rest of the points use central 
+      do i = surf_ind(1,1),surf_ind(1,2)
+         do j = surf_ind(2,1)+1,surf_ind(2,2)-1
+            db1dz(i,j) = (surf_pos(i,j+1) - surf_pos(i,j-1))/(2*surf_dx(2))
+         end do
+      end do
+
+
+      ! Update the angle of the surface normals
+      do i = surf_ind(1,1),surf_ind(1,2)
+         do j = surf_ind(2,1),surf_ind(2,2)
+            surf_normal(i,j) = sqrt(1+db1dx(i,j)**2+db1dz(i,j)**2)
+         end do
+      end do
+
+   end subroutine get_surface_normal
 
  end module shallow_water_module

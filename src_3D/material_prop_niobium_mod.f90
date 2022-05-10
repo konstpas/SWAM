@@ -23,6 +23,7 @@ module material_properties_niobium_module
   public :: get_emissivity_niobium
   public :: get_richardson_constant_niobium
   public :: get_surface_tension_niobium
+  public :: get_temp_deriv_surface_tension_niobium
   public :: get_viscosity_niobium
   public :: get_work_function_niobium
   public :: get_enthalpy_of_vaporization_niobium
@@ -183,6 +184,27 @@ contains
     end if
     
   end subroutine get_surface_tension_niobium
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to computed the derivative of the surface tension
+  ! with respect to the temperature.
+  ! -----------------------------------------------------------------
+  subroutine get_temp_deriv_surface_tension_niobium(temp,dsigma_dT)
+
+    ! Liquid phase niobium data and fits adopted from Ishikawa, Paradis, Okada and Watanabe, Viscosity
+    ! measurements of molten refractory metals using an electrostatic levitator, Meas. Sci. Technol. 23, 025305
+    ! (2012). Linear fit around the melting point
+    
+    real(amrex_real), intent(in) :: temp    ! Temperature [K]
+    real(amrex_real), intent(out) :: dsigma_dT  ! Surface tension [N/(K*m)] 
+    
+    if (temp.lt.2745.0) then
+       dsigma_dT = 0.0
+    else 
+       dsigma_dT = - 0.17E-3
+    end if
+    
+  end subroutine get_temp_deriv_surface_tension_niobium
 
 
   ! -----------------------------------------------------------------
