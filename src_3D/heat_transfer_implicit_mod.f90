@@ -189,12 +189,14 @@ module heat_transfer_implicit_module
                           phi_tmp, temp_tmp, flux, fluxes)
     end do
     call amrex_mfiter_destroy(mfi)
-    !$omp end parallel
+
 
     ! Clean memory
     do idim = 1, amrex_spacedim
-       call amrex_fab_destroy(flux(idim))
-    end do
+      call amrex_fab_destroy(flux(idim))
+   end do
+    !$omp end parallel
+
        
   end subroutine advance_advection
 

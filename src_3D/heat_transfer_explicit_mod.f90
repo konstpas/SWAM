@@ -209,13 +209,14 @@ module heat_transfer_explicit_module
                         idomain_tmp, flux, fluxes)
     end do
     call amrex_mfiter_destroy(mfi)
-    
-    !$omp end parallel
 
     ! Clean memory
     do idim = 1, amrex_spacedim
       call amrex_fab_destroy(flux(idim))
    end do
+
+    !$omp end parallel
+
    
   end subroutine advance
 
@@ -277,7 +278,7 @@ module heat_transfer_explicit_module
    ncomp = phi_new(lev)%ncomp()
    
    ! Synchronize temperature with ghost points
-   call temp_tmp%copy(temp(lev), 1, 1, ncomp, 1) ! The last 1 is the number of ghost points
+   call temp_tmp%copy(temp(lev), 1, 1, ncomp, 0) ! The last 1 is the number of ghost points
    call temp_tmp%fill_boundary(geom)
    
    !$omp parallel private(mfi, bx, pidom, ptemp_tmp)

@@ -18,59 +18,24 @@ module shallow_water_module
    public :: init_melt_pos
    
  contains 
- 
+
    ! -----------------------------------------------------------------
    ! Subroutine used to advance the shallow water equations in time
    ! for the entire maximum level  
    ! -----------------------------------------------------------------
    subroutine advance_SW(time)
- 
-     use amr_data_module, only : idomain, temp, phi_new, dt
-     use read_input_module, only : sw_solve_momentum, sw_solver, heat_solve
-     
-     ! Input variables
-     real(amrex_real), intent(in) :: time
 
-     ! Local variables
-     integer :: lev
-     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pid
-     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
-     real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: penth
-     type(amrex_mfiter) :: mfi
-     type(amrex_box) :: bx
+      use amr_data_module, only : dt
+      use read_input_module, only : sw_solve_momentum, sw_solver
 
-     ! Current level = maximum level
-     lev = amrex_max_level
+      ! Input and output variables
+      real(amrex_real), intent(in) :: time
+      
+      ! Compute terms that are coupled to the heat response
+      call compute_SW_temperature_terms(time)
 
-     if(heat_solve) then
-      ! Compute terms that depend on the temperature. Since the temperature
-      ! is a multifab, it must be accessed in blocks according to the rules
-      ! defined by amrex
-      call amrex_mfiter_build(mfi, idomain(lev), tiling=.false.)        
-      do while(mfi%next())
-         
-         ! Box
-         bx = mfi%validbox()   
-         
-         ! Pointers
-         ptemp => temp(amrex_max_level)%dataptr(mfi)
-         penth => phi_new(amrex_max_level)%dataptr(mfi)
-         pid   => idomain(amrex_max_level)%dataptr(mfi)
-         
-         ! Terms that depend on the temperature
-         call compute_SW_temperature_terms(bx%lo, bx%hi, &
-                                             ptemp, lbound(ptemp), ubound(ptemp), &
-                                             pid, lbound(pid), ubound(pid), &
-                                             penth, lbound(penth), ubound(penth))
-         
-      end do
-      call amrex_mfiter_destroy(mfi) 
-   else 
-      call compute_SW_temperature_terms_decoupled(time)   
-   end if
-
-     ! Advance shallow water equations in time
-     if (sw_solve_momentum) then
+      ! Advance shallow water equations in time
+      if (sw_solve_momentum) then
          if (sw_solver.eq.'geoclaw') then
             call advance_SW_geoclaw(dt(amrex_max_level))
          else if (sw_solver.eq.'explicit') then
@@ -79,22 +44,81 @@ module shallow_water_module
          else
             STOP 'Unknown shallow water solver'
          end if
+      else
+         call advance_SW_fixed_velocity(dt(amrex_max_level))
+      end if
+      
+   end subroutine advance_SW 
 
-     else
-        call advance_SW_fixed_velocity(dt(amrex_max_level))
-     end if
-     
-   end subroutine advance_SW
-   
+   ! -----------------------------------------------------------------
+   ! Subroutine used to compute the temperature dependent terms
+   ! in the shallow water equations
+   ! -----------------------------------------------------------------
+   subroutine compute_SW_temperature_terms(time)
+
+      use amr_data_module, only : phi_new, &
+                                 temp, &
+                                 idomain
+      use read_input_module, only : heat_solve
+
+      ! Input and output variables
+      real(amrex_real), intent(in) :: time
+      
+      ! Local variables
+      integer :: lev
+      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pid
+      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
+      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: penth
+      type(amrex_mfiter) :: mfi
+      type(amrex_box) :: bx
+      
+      ! Current level = maximum level
+      lev = amrex_max_level
+      
+      if (heat_solve) then
+
+!         !$omp parallel private(mfi, bx, pid, ptemp, penth)
+         ! Loop through the boxes on the maximum level
+         call amrex_mfiter_build(mfi, idomain(lev), tiling=.false.)
+         do while(mfi%next())
+         
+            ! Box
+            bx = mfi%validbox()   
+            
+            ! Pointers
+            ptemp => temp(lev)%dataptr(mfi)
+            penth => phi_new(lev)%dataptr(mfi)
+            pid   => idomain(lev)%dataptr(mfi)
+            
+            ! Terms that depend on the temperature
+            call SW_temperature_terms(bx%lo, bx%hi, &
+                                      ptemp, lbound(ptemp), ubound(ptemp), &
+                                      pid, lbound(pid), ubound(pid), &
+                                      penth, lbound(penth), ubound(penth))
+            
+         end do
+         call amrex_mfiter_destroy(mfi) 
+!         !$omp end parallel
+         
+      else
+         
+         call SW_temperature_terms_decoupled(time)
+
+      end if
+    
+   end subroutine compute_SW_temperature_terms
+
+
+  
  
    ! -----------------------------------------------------------------
    ! Subroutine used to compute the temperatuer dependent terms in
    ! the shallow water equations
    ! -----------------------------------------------------------------
-   subroutine compute_SW_temperature_terms(lo, hi, &
-                                           temp, temp_lo, temp_hi, &
-                                           idom, id_lo, id_hi, &
-                                           enth, enth_lo, enth_hi)
+   subroutine SW_temperature_terms(lo, hi, &
+                                   temp, temp_lo, temp_hi, &
+                                   idom, id_lo, id_hi, &
+                                   enth, enth_lo, enth_hi)
      
      use amr_data_module, only : surf_temperature, surf_evap_flux, surf_enthalpy
      use read_input_module, only : heat_cooling_vaporization
@@ -123,18 +147,19 @@ module shallow_water_module
                     if (surf_evap_flux(i,k).ne.surf_evap_flux(i,k)) then
                         STOP 'Nan mass flux'
                     end if
-
                  end if
 
                  ! Surface temperature
                  surf_temperature(i,k) = temp(i,j,k)
+
+                 ! Surface enthalpy
                  surf_enthalpy(i,k) = enth(i,j,k)
               end if
            end do
         end do 
      end do  
      
-   end subroutine compute_SW_temperature_terms
+   end subroutine SW_temperature_terms
  
    
    ! -----------------------------------------------------------------
@@ -174,7 +199,7 @@ module shallow_water_module
   ! Subroutine used to compute the temperature dependent terms
   ! in the shallow water equations
   ! -----------------------------------------------------------------
-   subroutine compute_SW_temperature_terms_decoupled(time)
+   subroutine SW_temperature_terms_decoupled(time)
     
       use amr_data_module, only : surf_temperature, surf_evap_flux, surf_enthalpy, surf_current
       use material_properties_module, only : get_enthalpy
@@ -196,7 +221,7 @@ module shallow_water_module
          surf_current = 0
       end if
     
-  end subroutine compute_SW_temperature_terms_decoupled   
+  end subroutine SW_temperature_terms_decoupled   
 
    ! -----------------------------------------------------------------
    ! Subroutine used to advance the shallow water equations in time

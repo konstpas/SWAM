@@ -358,6 +358,7 @@ contains
                                   plasma_side_flux_surf_y_mesh, &
                                   plasma_side_flux_surf_z_mesh
 
+      use read_input_module, only : sw_magnetic_inclination
       
       ! Input and output variables
       real(amrex_real), intent(in) :: time
@@ -370,6 +371,7 @@ contains
       integer :: i_z, i_x, i_t, k, n, m
       real(amrex_real) :: z(2), x(2), t(2), val(8)
       real(amrex_real) :: txz_query(3)
+      real(amrex_real) :: pi = 3.1415927
       
       
       qb = 0_amrex_real
@@ -495,6 +497,8 @@ contains
 
       call trilin_intrp(t, x, z, val, txz_query, qb)
 
+      qb = qb*SIN(sw_magnetic_inclination*pi/180)
+
       
     end subroutine file_heat_flux  
 
@@ -548,6 +552,7 @@ contains
      real(amrex_real) :: e = 1.60217662E-19
      real(amrex_real) :: pi = 3.1415927
      real(amrex_real) :: J
+     real(amrex_real) :: q_parallel
      
      call get_work_function(Wf)
      call get_richardson_constant(Aeff)
@@ -555,8 +560,10 @@ contains
      ! Nominal thermionic current from the Richardson-Dushman formula
      Jth_nom = Aeff*EXP(-Wf/(kb*Ts))*Ts**2
 
+     ! Reconstruct q_parallel
+     q_parallel = q_plasma/SIN(sw_magnetic_inclination/180*pi)
      ! Space-charge limited current (semi-empirical expression)
-     Jth_lim = 1.51e4 * q_plasma**(1.0/3.0) * (SIN(sw_magnetic_inclination/180*pi))**2
+     Jth_lim = 1.51e4 * q_parallel**(1.0/3.0) * (SIN(sw_magnetic_inclination/180*pi))**2
 
      ! Minimum between nominal and space-charge limited
      J = MIN(Jth_lim, Jth_nom)
