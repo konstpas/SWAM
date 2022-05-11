@@ -179,6 +179,11 @@ module read_input_module
   public :: sw_gravity
   ! Include Marangoni flow when solving shallow water equation (1 = yes, 0 = no) 
   public :: sw_marangoni
+  ! Flag to control whether the free surface is read from a file (1 = yes, 0 = no) 
+  public :: sw_read_free_surface_file
+  ! Name of file that containt the coordinates for the free surface
+  ! (used only if the read_free_surface_file is on)
+  public :: sw_free_surface_file
 
   ! --- Variables for the material properties ---
 
@@ -281,6 +286,7 @@ module read_input_module
   logical, save :: sw_solve
   logical, save :: sw_solve_momentum
   logical, save :: sw_marangoni
+  logical, save :: sw_read_free_surface_file
   real(amrex_real), save :: sw_captol
   real(amrex_real), save :: sw_drytol
   real(amrex_real), save :: sw_magnetic_inclination
@@ -293,6 +299,7 @@ module read_input_module
   character(len=:), allocatable, save :: sw_solver
   real(amrex_real), save :: sw_gravity
   integer, save :: sw_iter
+  character(len=:), allocatable, save :: sw_free_surface_file
 
   ! Material properties
   character(len=:), allocatable, save :: material_name
@@ -388,6 +395,7 @@ contains
     call pp%query("solve", sw_solve)
     call pp%query("solve_momentum", sw_solve_momentum)
     call pp%query("marangoni", sw_marangoni)
+    call pp%query("read_free_surface_file", sw_read_free_surface_file)
     call pp%query("magnetic_inclination",sw_magnetic_inclination)
     call pp%query("captol", sw_captol)
     call pp%query("drytol", sw_drytol)
@@ -396,6 +404,7 @@ contains
     call pp%query("Bx", sw_Bx)
     call pp%query("Bz", sw_Bz)
     call pp%query("solver",sw_solver)
+    call pp%query("free_surface_file",sw_free_surface_file)
     call pp%query("geoclaw_iter", sw_iter)
     call pp%query("geoclaw_gravity", sw_gravity)
     call amrex_parmparse_destroy(pp)
@@ -550,6 +559,7 @@ contains
     sw_solve = .true.
     sw_solve_momentum = .true.
     sw_marangoni = .true.
+    sw_read_free_surface_file = .false.
     sw_surf_pos_init = 0.5*Ly
     ! sw_surf_pos_init = 0.006*Ly
     sw_iter = 1000
@@ -557,6 +567,7 @@ contains
     sw_Bx = 0.0
     sw_Bz = 0.0    
     sw_solver = "explicit"
+    sw_free_surface_file = "free_surface.dat"
     
   end subroutine set_default_sw
 
@@ -649,7 +660,8 @@ contains
     allocate(sw_current(3))
     allocate(sw_pool_params(3))
     allocate(sw_melt_velocity(1:2))
-    allocate(character(len=8)::sw_solver)   
+    allocate(character(len=8)::sw_solver)  
+    allocate(character(len=25)::sw_free_surface_file)    
         
   end subroutine allocate_sw_variables
 
@@ -678,6 +690,7 @@ contains
     deallocate(io_check_file)
     deallocate(heat_solver)
     deallocate(sw_solver)
+    deallocate(sw_free_surface_file)
     deallocate(material_name)
     deallocate(geom_name)
     deallocate(heat_phase_init)

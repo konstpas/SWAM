@@ -350,7 +350,7 @@ contains
      geom = amrex_geom(lev)
      
      ! Loop through all the boxes in the level
-!     !$omp parallel private(mfi, bx, pidom)
+    !$omp parallel private(mfi, bx, pidom)
      call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
      do while(mfi%next())
         bx = mfi%validbox()
@@ -361,7 +361,7 @@ contains
         
      end do
      call amrex_mfiter_destroy(mfi)
-!     !$omp end parallel  
+    !$omp end parallel  
    end if 
 
    

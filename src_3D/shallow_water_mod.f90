@@ -79,7 +79,7 @@ module shallow_water_module
       
       if (heat_solve) then
 
-!         !$omp parallel private(mfi, bx, pid, ptemp, penth)
+         !$omp parallel private(mfi, bx, pid, ptemp, penth)
          ! Loop through the boxes on the maximum level
          call amrex_mfiter_build(mfi, idomain(lev), tiling=.false.)
          do while(mfi%next())
@@ -100,7 +100,7 @@ module shallow_water_module
             
          end do
          call amrex_mfiter_destroy(mfi) 
-!         !$omp end parallel
+         !$omp end parallel
          
       else
          
@@ -368,6 +368,7 @@ module shallow_water_module
       real(amrex_real) :: marangoni_term
       real(amrex_real) :: dsigma_dT
       real(amrex_real) :: curv_scale
+      real(amrex_real) :: dh
       
       ! Initialize advective and source terms
       adv_term_x = 0.0_amrex_real
@@ -444,6 +445,7 @@ module shallow_water_module
   
             ! Melt thickness - interpolation in x direction
             hh = (melt_height(i,j) + melt_height(i-1,j))/2.0_amrex_real
+            dh = abs(surf_pos(i,j)-surf_pos(i-1,j))
             temp_face = (surf_temperature(i,j) + surf_temperature(i-1,j))/2.0_amrex_real
             
             ! Compute source terms only for grid points with a finite melt thickness
@@ -470,7 +472,8 @@ module shallow_water_module
                marangoni_term = 0.0
                if(sw_marangoni) then
                   call get_temp_deriv_surface_tension(temp_face, dsigma_dT)
-                  marangoni_term = 3/(2*max(hh, sw_captol))*dsigma_dT*(surf_temperature(i,j) - surf_temperature(i-1,j))/surf_dx(1)
+                  marangoni_term = 3/(2*max(hh, sw_captol)) * dsigma_dT * & 
+                     (surf_temperature(i,j) - surf_temperature(i-1,j))/sqrt(surf_dx(1)**2+dh**2)
                end if
                
                ! Update source term for accelerationin the x direction
@@ -488,6 +491,7 @@ module shallow_water_module
          do j = surf_ind(2,1)+1,surf_ind(2,2)
             ! Melt thickness - interpolation in z direction
             hh = (melt_height(i,j) + melt_height(i,j-1))/2.0_amrex_real
+            dh = abs(surf_pos(i,j)-surf_pos(i,j-1))
             temp_face = (surf_temperature(i,j) + surf_temperature(i,j-1))/2.0_amrex_real
             
             ! Compute source terms only for grid points with a finite melt thickness
@@ -514,7 +518,8 @@ module shallow_water_module
                marangoni_term = 0.0
                if(sw_marangoni) then
                   call get_temp_deriv_surface_tension(temp_face, dsigma_dT)
-                  marangoni_term = 3/(2*max(hh, sw_captol))*dsigma_dT*(surf_temperature(i,j) - surf_temperature(i,j-1))/surf_dx(2)
+                  marangoni_term = 3/(2*max(hh, sw_captol))*dsigma_dT * &
+                     (surf_temperature(i,j) - surf_temperature(i,j-1))/sqrt(surf_dx(2)**2+dh**2)
                end if
 
                ! Update source term for accelerationin the z direction
@@ -1812,61 +1817,61 @@ module shallow_water_module
 
    end subroutine geoclaw_update
 
-   ! ! -----------------------------------------------------------------
-   ! ! Subroutine used to calculate the local surface normals
-   ! ! -----------------------------------------------------------------
-   ! subroutine get_surface_normal()
-   !    use amr_data_module, only : surf_normal, &
-   !                                surf_pos, &
-   !                                surf_ind, &
-   !                                surf_dx
+   ! -----------------------------------------------------------------
+   ! Subroutine used to calculate the local surface normals
+   ! -----------------------------------------------------------------
+   subroutine get_surface_normal()
+      use amr_data_module, only : surf_normal, &
+                                  surf_pos, &
+                                  surf_ind, &
+                                  surf_dx
 
-   !    ! Local variables
-   !    real(amrex_real) :: db1dx(surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2))
-   !    real(amrex_real) :: db1dz(surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2))
-   !    integer :: i,j
+      ! Local variables
+      real(amrex_real) :: db1dx(surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2))
+      real(amrex_real) :: db1dz(surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2))
+      integer :: i,j
 
-   !    db1dx = 0.0
-   !    db1dz = 0.0
+      db1dx = 0.0
+      db1dz = 0.0
 
-   !    ! Derivatives along x-direction
-   !    ! For edge points use non-central difference
-   !    do j = surf_ind(2,1),surf_ind(2,2)
-   !       i =  surf_ind(1,1)
-   !       db1dx(i,j) = (surf_pos(i+1,j) - surf_pos(i,j))/surf_dx(1)
-   !       i =  surf_ind(1,2)
-   !       db1dx(i,j) = (surf_pos(i,j) - surf_pos(i-1,j))/surf_dx(1)
-   !    end do
-   !    ! For the rest of the points use central 
-   !    do i = surf_ind(1,1)+1,surf_ind(1,2)-1
-   !       do j = surf_ind(2,1),surf_ind(2,2)
-   !          db1dx(i,j) = (surf_pos(i+1,j) - surf_pos(i-1,j))/(2*surf_dx(1))
-   !       end do
-   !    end do
+      ! Derivatives along x-direction
+      ! For edge points use non-central difference
+      do j = surf_ind(2,1),surf_ind(2,2)
+         i =  surf_ind(1,1)
+         db1dx(i,j) = (surf_pos(i+1,j) - surf_pos(i,j))/surf_dx(1)
+         i =  surf_ind(1,2)
+         db1dx(i,j) = (surf_pos(i,j) - surf_pos(i-1,j))/surf_dx(1)
+      end do
+      ! For the rest of the points use central 
+      do i = surf_ind(1,1)+1,surf_ind(1,2)-1
+         do j = surf_ind(2,1),surf_ind(2,2)
+            db1dx(i,j) = (surf_pos(i+1,j) - surf_pos(i-1,j))/(2*surf_dx(1))
+         end do
+      end do
 
-   !    ! Derivatives along z-direction
-   !    ! For edge points use non-central difference
-   !    do i = surf_ind(1,1),surf_ind(1,2)
-   !       j = surf_ind(2,1)
-   !       db1dz(i,j) = (surf_pos(i,j+1) - surf_pos(i,j))/surf_dx(2)
-   !       j = surf_ind(2,2)
-   !       db1dz(i,j) = (surf_pos(i,j) - surf_pos(i,j-1))/surf_dx(2)
-   !    end do
-   !    ! For the rest of the points use central 
-   !    do i = surf_ind(1,1),surf_ind(1,2)
-   !       do j = surf_ind(2,1)+1,surf_ind(2,2)-1
-   !          db1dz(i,j) = (surf_pos(i,j+1) - surf_pos(i,j-1))/(2*surf_dx(2))
-   !       end do
-   !    end do
+      ! Derivatives along z-direction
+      ! For edge points use non-central difference
+      do i = surf_ind(1,1),surf_ind(1,2)
+         j = surf_ind(2,1)
+         db1dz(i,j) = (surf_pos(i,j+1) - surf_pos(i,j))/surf_dx(2)
+         j = surf_ind(2,2)
+         db1dz(i,j) = (surf_pos(i,j) - surf_pos(i,j-1))/surf_dx(2)
+      end do
+      ! For the rest of the points use central 
+      do i = surf_ind(1,1),surf_ind(1,2)
+         do j = surf_ind(2,1)+1,surf_ind(2,2)-1
+            db1dz(i,j) = (surf_pos(i,j+1) - surf_pos(i,j-1))/(2*surf_dx(2))
+         end do
+      end do
 
 
-   !    ! Update the angle of the surface normals
-   !    do i = surf_ind(1,1),surf_ind(1,2)
-   !       do j = surf_ind(2,1),surf_ind(2,2)
-   !          surf_normal(i,j) = sqrt(1+db1dx(i,j)**2+db1dz(i,j)**2)
-   !       end do
-   !    end do
+      ! Update the angle of the surface normals
+      do i = surf_ind(1,1),surf_ind(1,2)
+         do j = surf_ind(2,1),surf_ind(2,2)
+            surf_normal(i,j) = sqrt(1+db1dx(i,j)**2+db1dz(i,j)**2)
+         end do
+      end do
 
-   ! end subroutine get_surface_normal
+   end subroutine get_surface_normal
 
  end module shallow_water_module
