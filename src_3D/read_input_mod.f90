@@ -134,6 +134,9 @@ module read_input_module
   public :: heat_temp_surf
   ! Initial uniform temperature of the sample [K]
   public :: heat_temp_init
+  ! Ratio of the parallel heat flux that satisfies the optical approximation
+  ! see Nuclear Materials and Energy 17 (2018) 194-199 E. Thoren et al.
+  public :: heat_Foa
 
   ! --- Variables for the shallow water solver ---
 
@@ -184,6 +187,8 @@ module read_input_module
   ! Name of file that containt the coordinates for the free surface
   ! (used only if the read_free_surface_file is on)
   public :: sw_free_surface_file
+  ! The direction of the incoming heat-flux
+  public :: sw_B_unity
 
   ! --- Variables for the material properties ---
 
@@ -278,6 +283,7 @@ module read_input_module
   real(amrex_real), save :: heat_sample_edge
   real(amrex_real), save :: heat_temp_surf
   real(amrex_real), save :: heat_temp_init
+  real(amrex_real), save :: heat_Foa
   real(amrex_real), allocatable, save :: heat_cooling_debug(:)
   real(amrex_real), allocatable, save :: heat_plasma_flux_params(:)
   real(amrex_real), allocatable, save :: heat_plasma_flux_side_params(:)
@@ -296,6 +302,7 @@ module read_input_module
   real(amrex_real), save :: sw_surf_pos_init
   real(amrex_real), allocatable, save :: sw_current(:)
   real(amrex_real), allocatable, save :: sw_pool_params(:)
+  real(amrex_real), allocatable, save :: sw_B_unity(:)
   character(len=:), allocatable, save :: sw_solver
   real(amrex_real), save :: sw_gravity
   integer, save :: sw_iter
@@ -371,6 +378,7 @@ contains
     call pp%queryarr("sw_melt_velocity", sw_melt_velocity)  
     call pp%query("sample_edge", heat_sample_edge)   
     call pp%query("temp_init", heat_temp_init)
+    call pp%query("optical_ratio", heat_Foa)
     call pp%query("phase_init", heat_phase_init)
     call pp%query("plasma_flux_type", heat_plasma_flux_type) 
     call pp%query("plasma_flux_side_type", heat_plasma_flux_side_type) 
@@ -401,6 +409,7 @@ contains
     call pp%query("drytol", sw_drytol)
     call pp%queryarr("current", sw_current)
     call pp%queryarr("pool_params", sw_pool_params) 
+    call pp%queryarr("B_unity", sw_B_unity) 
     call pp%query("Bx", sw_Bx)
     call pp%query("Bz", sw_Bz)
     call pp%query("solver",sw_solver)
@@ -517,6 +526,7 @@ contains
     heat_solver = "explicit"
     heat_phase_init = "undefined"
     heat_plasma_flux_file = "plasma_flux.dat"
+    heat_Foa = 0.0
     heat_plasma_flux_params(1) = 0.0
     heat_plasma_flux_params(2) = 1.0
     heat_plasma_flux_params(3) = 300E6
@@ -553,6 +563,9 @@ contains
     sw_Bx = 0.0
     sw_Bz = 0.0
     sw_melt_velocity = 0.0
+    sw_B_unity(1) = 0.0
+    sw_B_unity(2) = 1.0
+    sw_B_unity(3) = 0.0
     sw_pool_params(1) = 0.0
     sw_pool_params(2) = 0.0
     sw_pool_params(3) = 1.0
@@ -659,6 +672,7 @@ contains
 
     allocate(sw_current(3))
     allocate(sw_pool_params(3))
+    allocate(sw_B_unity(3))
     allocate(sw_melt_velocity(1:2))
     allocate(character(len=8)::sw_solver)  
     allocate(character(len=25)::sw_free_surface_file)    
@@ -704,6 +718,7 @@ contains
     deallocate(regrid_dist)
     deallocate(sw_current)
     deallocate(sw_pool_params)
+    deallocate(sw_B_unity)
 
   end subroutine deallocate_input
     

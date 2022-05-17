@@ -67,8 +67,10 @@ module amr_data_module
   public :: surf_pos 
   ! Temperature on the free surface
   public :: surf_temperature 
-  ! Orientation of the surface normal
+  ! Orientation of the surface normal after deformation
   public :: surf_normal
+  ! Orientation of the surface normal at the beginning of the simulation
+  public :: surf_normal_undeformed
   ! Enthalpy on the free surface
   public :: surf_enthalpy 
   ! Evaporation flux on the free surface
@@ -125,7 +127,8 @@ module amr_data_module
   real(amrex_real), allocatable, save :: surf_evap_flux(:,:)
   real(amrex_real), allocatable, save :: surf_pos(:,:)
   real(amrex_real), allocatable, save :: surf_temperature(:,:)
-  real(amrex_real), allocatable, save :: surf_normal(:,:)
+  real(amrex_real), allocatable, save :: surf_normal(:,:,:)
+  real(amrex_real), allocatable, save :: surf_normal_undeformed(:,:,:)
   real(amrex_real), allocatable, save :: surf_enthalpy(:,:)
   real(amrex_real), save :: surf_xlo(2)
   real(amrex_real), save :: surf_dx(2)
@@ -228,7 +231,8 @@ contains
     allocate(surf_evap_flux(lo_x:hi_x,lo_z:hi_z))
     allocate(surf_pos(lo_x:hi_x,lo_z:hi_z))
     allocate(surf_temperature(lo_x:hi_x,lo_z:hi_z))
-    allocate(surf_normal(lo_x:hi_x,lo_z:hi_z))
+    allocate(surf_normal(lo_x:hi_x,lo_z:hi_z,1:3))
+    allocate(surf_normal_undeformed(lo_x:hi_x,lo_z:hi_z,1:3))
     allocate(surf_enthalpy(lo_x:hi_x,lo_z:hi_z))
     allocate(melt_pos(lo_x:hi_x, lo_z:hi_z))
     allocate(melt_top(lo_x:hi_x, lo_z:hi_z))
@@ -287,7 +291,7 @@ contains
       
     use read_input_module, only : sw_surf_pos_init, &
                                   sw_read_free_surface_file
-    use read_free_surface_module, only :  get_free_surface
+    use free_surface_module, only :  get_free_surface
                                  
     integer ::  lo_x
     integer ::  hi_x        
@@ -308,11 +312,17 @@ contains
     surf_ind(2,1) = lo_z
     surf_ind(2,2) = hi_z 
     if(sw_read_free_surface_file) then
-      call get_free_surface(surf_ind, surf_xlo, surf_dx, melt_top, melt_pos, surf_pos)
+      call get_free_surface(surf_ind, surf_xlo, surf_dx, melt_top, melt_pos, surf_pos, surf_normal, surf_normal_undeformed)
     else
       melt_pos = sw_surf_pos_init
       melt_top = sw_surf_pos_init
       surf_pos = sw_surf_pos_init
+      surf_normal(:,:,1) = 0.0_amrex_real
+      surf_normal(:,:,2) = 1.0_amrex_real
+      surf_normal(:,:,3) = 0.0_amrex_real
+      surf_normal_undeformed(:,:,1) = 0.0_amrex_real
+      surf_normal_undeformed(:,:,2) = 1.0_amrex_real
+      surf_normal_undeformed(:,:,3) = 0.0_amrex_real
     end if
     melt_vel = 0.0_amrex_real
     max_melt_vel_x = 0.0_amrex_real
@@ -322,7 +332,6 @@ contains
     qnew(3,:,:) = 0.0_amrex_real
     surf_evap_flux = 0.0_amrex_real
     surf_temperature = 0.0_amrex_real
-    surf_normal = 0.0_amrex_real
     surf_enthalpy = 0.0_amrex_real
     domain_top = amrex_probhi(2)
     surf_current = 0.0_amrex_real
@@ -385,6 +394,7 @@ contains
     deallocate(surf_pos)
     deallocate(surf_temperature)
     deallocate(surf_normal)
+    deallocate(surf_normal_undeformed)
   
   end subroutine deallocate_free_surface_variables
   

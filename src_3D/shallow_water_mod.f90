@@ -25,8 +25,13 @@ module shallow_water_module
    ! -----------------------------------------------------------------
    subroutine advance_SW(time)
 
-      use amr_data_module, only : dt
+      use amr_data_module, only : dt, &
+                                  surf_normal, &
+                                  surf_pos, &
+                                  surf_ind, &
+                                  surf_dx
       use read_input_module, only : sw_solve_momentum, sw_solver
+      use free_surface_module, only : get_surface_normal
 
       ! Input and output variables
       real(amrex_real), intent(in) :: time
@@ -48,7 +53,7 @@ module shallow_water_module
          call advance_SW_fixed_velocity(dt(amrex_max_level))
       end if
 
-      call get_surface_normal()
+      call get_surface_normal(surf_ind, surf_dx, surf_pos, surf_normal)
       
    end subroutine advance_SW 
 
@@ -1816,62 +1821,5 @@ module shallow_water_module
       ! deallocate(fwave(1:3,1:3,lo_tang-3:hi_tang+3)) 
 
    end subroutine geoclaw_update
-
-   ! -----------------------------------------------------------------
-   ! Subroutine used to calculate the local surface normals
-   ! -----------------------------------------------------------------
-   subroutine get_surface_normal()
-      use amr_data_module, only : surf_normal, &
-                                  surf_pos, &
-                                  surf_ind, &
-                                  surf_dx
-
-      ! Local variables
-      real(amrex_real) :: db1dx(surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2))
-      real(amrex_real) :: db1dz(surf_ind(1,1):surf_ind(1,2),surf_ind(2,1):surf_ind(2,2))
-      integer :: i,j
-
-      db1dx = 0.0
-      db1dz = 0.0
-
-      ! Derivatives along x-direction
-      ! For edge points use non-central difference
-      do j = surf_ind(2,1),surf_ind(2,2)
-         i =  surf_ind(1,1)
-         db1dx(i,j) = (surf_pos(i+1,j) - surf_pos(i,j))/surf_dx(1)
-         i =  surf_ind(1,2)
-         db1dx(i,j) = (surf_pos(i,j) - surf_pos(i-1,j))/surf_dx(1)
-      end do
-      ! For the rest of the points use central 
-      do i = surf_ind(1,1)+1,surf_ind(1,2)-1
-         do j = surf_ind(2,1),surf_ind(2,2)
-            db1dx(i,j) = (surf_pos(i+1,j) - surf_pos(i-1,j))/(2*surf_dx(1))
-         end do
-      end do
-
-      ! Derivatives along z-direction
-      ! For edge points use non-central difference
-      do i = surf_ind(1,1),surf_ind(1,2)
-         j = surf_ind(2,1)
-         db1dz(i,j) = (surf_pos(i,j+1) - surf_pos(i,j))/surf_dx(2)
-         j = surf_ind(2,2)
-         db1dz(i,j) = (surf_pos(i,j) - surf_pos(i,j-1))/surf_dx(2)
-      end do
-      ! For the rest of the points use central 
-      do i = surf_ind(1,1),surf_ind(1,2)
-         do j = surf_ind(2,1)+1,surf_ind(2,2)-1
-            db1dz(i,j) = (surf_pos(i,j+1) - surf_pos(i,j-1))/(2*surf_dx(2))
-         end do
-      end do
-
-
-      ! Update the angle of the surface normals
-      do i = surf_ind(1,1),surf_ind(1,2)
-         do j = surf_ind(2,1),surf_ind(2,2)
-            surf_normal(i,j) = sqrt(1+db1dx(i,j)**2+db1dz(i,j)**2)
-         end do
-      end do
-
-   end subroutine get_surface_normal
 
  end module shallow_water_module

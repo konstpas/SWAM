@@ -40,11 +40,16 @@ contains
                                   heat_cooling_radiation, &
                                   geom_name, &
                                   heat_plasma_flux_side_type, &
-                                  heat_sample_edge
+                                  heat_sample_edge, &
+                                  sw_B_unity, &
+                                  heat_Foa
 
-    use amr_data_module, only : surf_current
+    use amr_data_module, only : surf_current, &
+                                surf_normal, &
+                                surf_normal_undeformed
 
-    use heat_transfer_domain_module, only : get_local_highest_level
+    use heat_transfer_domain_module, only : get_local_highest_level, &
+                                            interp_to_max_lev
 
     ! Input and output variables
     integer, intent(in) :: lo(3), hi(3)  
@@ -65,12 +70,14 @@ contains
     real(amrex_real), intent(out) :: qb(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3))
 
     ! Local variables
-    integer :: i, j, k
+    integer :: i, j, k, xind, zind
     real(amrex_real) :: q_plasma
     real(amrex_real) :: q_vap, q_rad, q_therm, q_cool
     real(amrex_real) :: xpos, ypos, zpos
     logical :: side_flag
     integer :: local_max_level(lo(1):hi(1), lo(2):hi(2), lo(3):hi(3))
+    real(amrex_real) :: projection
+    real(amrex_real) :: projection_undeformed
 
     qb = 0.0
     q_plasma = 0.0
@@ -103,7 +110,7 @@ contains
                 ! Location of the free surface
                 xpos = xlo(1) + (i-lo(1))*dx(1)
                 zpos = xlo(3) + (k-lo(3))*dx(3)
-                
+
                 ! Plasma flux
                 if (heat_plasma_flux_type.eq.'Gaussian') then
                    call gaussian_heat_flux(time, xpos, zpos, side_flag, q_plasma)
@@ -113,6 +120,20 @@ contains
                   call uniform_heat_flux(time, xpos, zpos, side_flag, q_plasma)
                 elseif (heat_plasma_flux_type.eq.'Input_file') then
                   call file_heat_flux(time, xpos, zpos, side_flag, q_plasma)
+                  call interp_to_max_lev(lo, xlo, dx, i, k, xind, zind)
+                  ! Project the q_// which is returned by file_heat_flux based on local surface normals
+                  projection = sw_B_unity(1)*surf_normal(xind,zind,1) + &
+                               sw_B_unity(2)*surf_normal(xind,zind,2) + &
+                               sw_B_unity(3)*surf_normal(xind,zind,3)
+
+                  projection_undeformed = sw_B_unity(1)*surf_normal_undeformed(xind,zind,1) + &
+                                          sw_B_unity(2)*surf_normal_undeformed(xind,zind,2) + &
+                                          sw_B_unity(3)*surf_normal_undeformed(xind,zind,3)
+                  if(projection.lt.0.0) then
+                     q_plasma = q_plasma*(abs(projection)*heat_Foa+(1-heat_Foa)*abs(projection_undeformed))
+                  else
+                     q_plasma = q_plasma*(1-heat_Foa)*abs(projection_undeformed)
+                  end if
                 else
                    STOP "Unknown plasma heat flux type"
                 end if
@@ -358,7 +379,6 @@ contains
                                   plasma_side_flux_surf_y_mesh, &
                                   plasma_side_flux_surf_z_mesh
 
-      use read_input_module, only : sw_magnetic_inclination
       
       ! Input and output variables
       real(amrex_real), intent(in) :: time
@@ -496,8 +516,6 @@ contains
       end if
 
       call trilin_intrp(t, x, z, val, txz_query, qb)
-
-      qb = qb*SIN(sw_magnetic_inclination*pi/180)
 
       
     end subroutine file_heat_flux  
