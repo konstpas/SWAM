@@ -38,11 +38,13 @@ contains
                                   heat_cooling_thermionic_side, &
                                   heat_cooling_vaporization, &
                                   heat_cooling_radiation, &
-                                  geom_name, &
                                   heat_plasma_flux_side_type, &
                                   heat_sample_edge, &
+                                  heat_local_surface_normals, &
+                                  heat_Foa, &
                                   sw_B_unity, &
-                                  heat_Foa
+                                  sw_magnetic_inclination, &
+                                  geom_name
 
     use amr_data_module, only : surf_current, &
                                 surf_normal, &
@@ -78,6 +80,7 @@ contains
     integer :: local_max_level(lo(1):hi(1), lo(2):hi(2), lo(3):hi(3))
     real(amrex_real) :: projection
     real(amrex_real) :: projection_undeformed
+    real(amrex_real) :: pi = 3.1415927
 
     qb = 0.0
     q_plasma = 0.0
@@ -120,19 +123,23 @@ contains
                   call uniform_heat_flux(time, xpos, zpos, side_flag, q_plasma)
                 elseif (heat_plasma_flux_type.eq.'Input_file') then
                   call file_heat_flux(time, xpos, zpos, side_flag, q_plasma)
-                  call interp_to_max_lev(lo, xlo, dx, i, k, xind, zind)
-                  ! Project the q_// which is returned by file_heat_flux based on local surface normals
-                  projection = sw_B_unity(1)*surf_normal(xind,zind,1) + &
-                               sw_B_unity(2)*surf_normal(xind,zind,2) + &
-                               sw_B_unity(3)*surf_normal(xind,zind,3)
+                  if(heat_local_surface_normals) then
+                     call interp_to_max_lev(lo, xlo, dx, i, k, xind, zind)
+                     ! Project the parallel heat-flux which is returned by file_heat_flux based on local surface normals
+                     projection = sw_B_unity(1)*surf_normal(xind,zind,1) + &
+                                  sw_B_unity(2)*surf_normal(xind,zind,2) + &
+                                  sw_B_unity(3)*surf_normal(xind,zind,3)
 
-                  projection_undeformed = sw_B_unity(1)*surf_normal_undeformed(xind,zind,1) + &
-                                          sw_B_unity(2)*surf_normal_undeformed(xind,zind,2) + &
-                                          sw_B_unity(3)*surf_normal_undeformed(xind,zind,3)
-                  if(projection.lt.0.0) then
-                     q_plasma = q_plasma*(abs(projection)*heat_Foa+(1-heat_Foa)*abs(projection_undeformed))
+                     projection_undeformed = sw_B_unity(1)*surf_normal_undeformed(xind,zind,1) + &
+                                             sw_B_unity(2)*surf_normal_undeformed(xind,zind,2) + &
+                                             sw_B_unity(3)*surf_normal_undeformed(xind,zind,3)
+                     if(projection.lt.0.0) then
+                        q_plasma = q_plasma*(abs(projection)*heat_Foa+(1-heat_Foa)*abs(projection_undeformed))
+                     else
+                        q_plasma = q_plasma*(1-heat_Foa)*abs(projection_undeformed)
+                     end if
                   else
-                     q_plasma = q_plasma*(1-heat_Foa)*abs(projection_undeformed)
+                     q_plasma = q_plasma*SIN(sw_magnetic_inclination*pi/180)
                   end if
                 else
                    STOP "Unknown plasma heat flux type"
@@ -391,7 +398,6 @@ contains
       integer :: i_z, i_x, i_t, k, n, m
       real(amrex_real) :: z(2), x(2), t(2), val(8)
       real(amrex_real) :: txz_query(3)
-      real(amrex_real) :: pi = 3.1415927
       
       
       qb = 0_amrex_real

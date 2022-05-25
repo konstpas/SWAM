@@ -344,8 +344,12 @@ module shallow_water_module
       
       use read_input_module, only : sw_Bx, &
                                     sw_Bz, &
+                                    sw_gx, &
+                                    sw_gz, &
                                     sw_captol, &
                                     sw_marangoni, &
+                                    sw_marang_cap, &
+                                    sw_surf_tension_deriv_prefactor, &
                                     geom_name
   
       use material_properties_module, only : get_mass_density, &
@@ -475,10 +479,13 @@ module shallow_water_module
 
                ! Calculate the contribution of the Marangoni term
                marangoni_term = 0.0
-               if(sw_marangoni) then
+               if(sw_marangoni(1) .or. sw_marangoni(2)) then
                   call get_temp_deriv_surface_tension(temp_face, dsigma_dT)
-                  marangoni_term = 3/(2*max(hh, sw_captol)) * dsigma_dT * & 
+                  marangoni_term = 3/(2*max(hh, sw_marang_cap)) * dsigma_dT * & 
                      (surf_temperature(i,j) - surf_temperature(i-1,j))/sqrt(surf_dx(1)**2+dh**2)
+                  if(.not.sw_marangoni(1) .and. marangoni_term.gt.0.0) marangoni_term = 0.0
+                  if(.not.sw_marangoni(2) .and. marangoni_term.lt.0.0) marangoni_term = 0.0
+                  marangoni_term = marangoni_term*sw_surf_tension_deriv_prefactor
                end if
                
                ! Update source term for accelerationin the x direction
@@ -487,6 +494,7 @@ module shallow_water_module
                                  + marangoni_term
                ! Fix dimensionality
                src_term_x(i,j) = src_term_x(i,j)/rho
+               src_term_x(i,j) = src_term_x(i,j)+sw_gx
             end if
          end do
       end do
@@ -521,10 +529,13 @@ module shallow_water_module
 
                ! Calculate the contribution of the Marangoni term
                marangoni_term = 0.0
-               if(sw_marangoni) then
+               if(sw_marangoni(3) .or. sw_marangoni(4)) then
                   call get_temp_deriv_surface_tension(temp_face, dsigma_dT)
-                  marangoni_term = 3/(2*max(hh, sw_captol))*dsigma_dT * &
+                  marangoni_term = 3/(2*max(hh, sw_marang_cap))*dsigma_dT * &
                      (surf_temperature(i,j) - surf_temperature(i,j-1))/sqrt(surf_dx(2)**2+dh**2)
+                  if(.not.sw_marangoni(3) .and. marangoni_term.gt.0.0) marangoni_term = 0.0
+                  if(.not.sw_marangoni(4) .and. marangoni_term.lt.0.0) marangoni_term = 0.0
+                  marangoni_term = marangoni_term*sw_surf_tension_deriv_prefactor
                end if
 
                ! Update source term for accelerationin the z direction
@@ -534,6 +545,7 @@ module shallow_water_module
                
                ! Fix dimensionality
                src_term_z(i,j) = src_term_z(i,j)/rho
+               src_term_z(i,j) = src_term_z(i,j)+sw_gz
    
             end if
          

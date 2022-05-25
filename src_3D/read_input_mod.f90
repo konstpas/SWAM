@@ -134,6 +134,9 @@ module read_input_module
   public :: heat_temp_surf
   ! Initial uniform temperature of the sample [K]
   public :: heat_temp_init
+  ! Flag to control if the parallel heat-flux should be scaled with the local
+  ! surface normals calculated by the code 1=on, 0=off(default)
+  public :: heat_local_surface_normals
   ! Ratio of the parallel heat flux that satisfies the optical approximation
   ! see Nuclear Materials and Energy 17 (2018) 194-199 E. Thoren et al.
   public :: heat_Foa
@@ -156,6 +159,9 @@ module read_input_module
   ! Magnitude of the magnetic field [T]
   public :: sw_Bx
   public :: sw_Bz
+  ! Magnitude of the acceleration of gravity [m/s^2]
+  public :: sw_gx
+  public :: sw_gz
   ! Fixed melt velocity [m/s]. Only used if the momentum equation
   ! is not solve, i.e. sw_solve_momentum = 0
   public :: sw_melt_velocity
@@ -180,8 +186,15 @@ module read_input_module
   public :: sw_iter
   ! Acceleration due to gravity. Used only if the sw_solver is geoclaw [m/s^2]
   public :: sw_gravity
-  ! Include Marangoni flow when solving shallow water equation (1 = yes, 0 = no) 
+  ! Include Marangoni flow when solving shallow water equation. Four elements,
+  ! first for positive x-direction, second for negative x-direction, third positive
+  ! z-direction and fourth for negative z-direction. If an element if on (1) the 
+  ! marangoni contribution in that direction is taken into account. If an element is
+  ! off (0) the Marangoni contribution in that direction is neglected. 
   public :: sw_marangoni
+  ! Capping of the 1/h pre-factor to the Marangoni contribution at the momentum
+  ! equation of the shallow water equations
+  public :: sw_marang_cap
   ! Flag to control whether the free surface is read from a file (1 = yes, 0 = no) 
   public :: sw_read_free_surface_file
   ! Name of file that containt the coordinates for the free surface
@@ -189,6 +202,9 @@ module read_input_module
   public :: sw_free_surface_file
   ! The direction of the incoming heat-flux
   public :: sw_B_unity
+  ! A prefactor to the derivative of the surface tension with respect to the temperature
+  ! due to possible uncertainties at the quantity
+  public :: sw_surf_tension_deriv_prefactor
 
   ! --- Variables for the material properties ---
 
@@ -280,6 +296,7 @@ module read_input_module
   logical, save :: heat_cooling_radiation
   logical, save :: heat_reflux
   logical, save :: heat_solve
+  logical, save :: heat_local_surface_normals
   real(amrex_real), save :: heat_sample_edge
   real(amrex_real), save :: heat_temp_surf
   real(amrex_real), save :: heat_temp_init
@@ -291,13 +308,17 @@ module read_input_module
   ! Shallow water solver
   logical, save :: sw_solve
   logical, save :: sw_solve_momentum
-  logical, save :: sw_marangoni
+  logical, allocatable, save :: sw_marangoni(:)
   logical, save :: sw_read_free_surface_file
   real(amrex_real), save :: sw_captol
   real(amrex_real), save :: sw_drytol
+  real(amrex_real), save :: sw_marang_cap
   real(amrex_real), save :: sw_magnetic_inclination
   real(amrex_real), save :: sw_Bx
   real(amrex_real), save :: sw_Bz
+  real(amrex_real), save :: sw_gx
+  real(amrex_real), save :: sw_gz
+  real(amrex_real), save :: sw_surf_tension_deriv_prefactor
   real(amrex_real), allocatable, save :: sw_melt_velocity(:)
   real(amrex_real), save :: sw_surf_pos_init
   real(amrex_real), allocatable, save :: sw_current(:)
@@ -378,6 +399,7 @@ contains
     call pp%queryarr("sw_melt_velocity", sw_melt_velocity)  
     call pp%query("sample_edge", heat_sample_edge)   
     call pp%query("temp_init", heat_temp_init)
+    call pp%query("local_surface_normals", heat_local_surface_normals)
     call pp%query("optical_ratio", heat_Foa)
     call pp%query("phase_init", heat_phase_init)
     call pp%query("plasma_flux_type", heat_plasma_flux_type) 
@@ -402,7 +424,11 @@ contains
     call pp%query("surf_pos_init", sw_surf_pos_init) 
     call pp%query("solve", sw_solve)
     call pp%query("solve_momentum", sw_solve_momentum)
-    call pp%query("marangoni", sw_marangoni)
+    call pp%query("marangoni_x_positive", sw_marangoni(1))
+    call pp%query("marangoni_x_negative", sw_marangoni(2))
+    call pp%query("marangoni_z_positive", sw_marangoni(3))
+    call pp%query("marangoni_z_negative", sw_marangoni(4))
+    call pp%query("marangoni_cap", sw_marang_cap)
     call pp%query("read_free_surface_file", sw_read_free_surface_file)
     call pp%query("magnetic_inclination",sw_magnetic_inclination)
     call pp%query("captol", sw_captol)
@@ -412,6 +438,9 @@ contains
     call pp%queryarr("B_unity", sw_B_unity) 
     call pp%query("Bx", sw_Bx)
     call pp%query("Bz", sw_Bz)
+    call pp%query("gx", sw_gx)
+    call pp%query("gz", sw_gz)
+    call pp%query("surf_tension_deriv_prefactor", sw_surf_tension_deriv_prefactor)
     call pp%query("solver",sw_solver)
     call pp%query("free_surface_file",sw_free_surface_file)
     call pp%query("geoclaw_iter", sw_iter)
@@ -523,6 +552,7 @@ contains
     heat_cooling_radiation = .true.
     heat_reflux = .true.    
     heat_cooling_thermionic_side = .false.
+    heat_local_surface_normals = .false.
     heat_solver = "explicit"
     heat_phase_init = "undefined"
     heat_plasma_flux_file = "plasma_flux.dat"
@@ -559,9 +589,12 @@ contains
     sw_captol = 0.0
     sw_current = 0.0
     sw_drytol = 0.0    
+    sw_marang_cap = 0.0
     sw_magnetic_inclination = 90.0
     sw_Bx = 0.0
     sw_Bz = 0.0
+    sw_gx = 0.0
+    sw_gz = 0.0
     sw_melt_velocity = 0.0
     sw_B_unity(1) = 0.0
     sw_B_unity(2) = 1.0
@@ -571,14 +604,16 @@ contains
     sw_pool_params(3) = 1.0
     sw_solve = .true.
     sw_solve_momentum = .true.
-    sw_marangoni = .true.
+    sw_marangoni(1) = .true.
+    sw_marangoni(2) = .true.
+    sw_marangoni(3) = .true.
+    sw_marangoni(4) = .true.
+    sw_surf_tension_deriv_prefactor = 1.0
     sw_read_free_surface_file = .false.
     sw_surf_pos_init = 0.5*Ly
     ! sw_surf_pos_init = 0.006*Ly
     sw_iter = 1000
     sw_gravity = 1.0_amrex_real
-    sw_Bx = 0.0
-    sw_Bz = 0.0    
     sw_solver = "explicit"
     sw_free_surface_file = "free_surface.dat"
     
@@ -675,7 +710,8 @@ contains
     allocate(sw_B_unity(3))
     allocate(sw_melt_velocity(1:2))
     allocate(character(len=8)::sw_solver)  
-    allocate(character(len=25)::sw_free_surface_file)    
+    allocate(character(len=25)::sw_free_surface_file)   
+    allocate(sw_marangoni(4)) 
         
   end subroutine allocate_sw_variables
 
