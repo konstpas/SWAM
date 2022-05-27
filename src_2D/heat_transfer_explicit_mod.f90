@@ -14,17 +14,41 @@ module heat_transfer_explicit_module
   ! -----------------------------------------------------------------
   ! Public subroutines
   ! -----------------------------------------------------------------
+  public :: advance_heat_solver_explicit
   public :: advance_heat_solver_explicit_level
- 
+  public :: get_volumetric_heat_source
+  public :: get_face_flux
+  public :: init_tmp_multifab
+  public :: free_memory
+  public :: update_flux_registers
+  
 contains
 
   ! -----------------------------------------------------------------
-  ! Subroutine used to compute the enthalpy at a new time step for
-  ! a given level via an explicit update.
+  ! Subroutine used to advance the heat solver on all levels
+  ! -----------------------------------------------------------------
+  subroutine advance_heat_solver_explicit(time, dt)
+
+    ! Input and output variables
+    real(amrex_real), intent(in) :: dt
+    real(amrex_real), intent(in) :: time
+
+    ! Local variables
+    integer :: ilev
+    
+    do ilev = 0, amrex_max_level
+       call advance_heat_solver_explicit_level(ilev, time, dt, 1)
+    end do
+    
+  end subroutine advance_heat_solver_explicit
+  
+  ! -----------------------------------------------------------------
+  ! Subroutine used to advance the heat solver on a given level
   ! -----------------------------------------------------------------
   subroutine advance_heat_solver_explicit_level(lev, time, dt, substep)
 
-    use heat_transfer_domain_module, only : reset_melt_pos
+    use heat_transfer_domain_module, only : reset_melt_pos, &
+                                            update_melt_pos
     
     ! Input and output variables 
     integer, intent(in) :: lev
@@ -49,17 +73,17 @@ contains
     call advance(lev, time, dt, substep, phi_tmp, temp_tmp, &
                  idomain_tmp, fluxes)
 
-    ! Update flux registers (fluxes have already been scaled by dt and area
-    ! in the advance_heat_solver_box subroutine)
+    ! Update flux registers 
     call update_flux_registers(lev, fluxes)
 
+    ! Synchronize idomains
+    call synch_idomain(lev, temp_tmp)
+    
     ! Update melt position
     call update_melt_pos(lev)
       
     ! Clean memory
-    call amrex_multifab_destroy(phi_tmp)
-    call amrex_multifab_destroy(temp_tmp)
-    call amrex_multifab_destroy(idomain_tmp)
+    call free_memory(phi_tmp, temp_tmp, idomain_tmp, fluxes)
     
   end subroutine advance_heat_solver_explicit_level
 
@@ -71,7 +95,7 @@ contains
   subroutine init_tmp_multifab(lev, time, phi_tmp, temp_tmp, &
                                idomain_tmp, fluxes)
 
-    use read_input_module, only : do_reflux
+    use read_input_module, only : heat_reflux
     use amr_data_module, only : phi_new, &
                                 phi_old, &
                                 idomain 
@@ -117,7 +141,7 @@ contains
     call amrex_multifab_swap(idomain_tmp, idomain(lev))
 
     ! Initialize fluxes  
-    if (do_reflux) then
+    if (heat_reflux) then
        do idim = 1, amrex_spacedim
           nodal = .false.
           nodal(idim) = .true.
@@ -176,13 +200,14 @@ contains
                         idomain_tmp, flux, fluxes)
     end do
     call amrex_mfiter_destroy(mfi)
-    
-    !$omp end parallel
 
     ! Clean memory
     do idim = 1, amrex_spacedim
       call amrex_fab_destroy(flux(idim))
    end do
+   
+    !$omp end parallel
+
    
   end subroutine advance
 
@@ -192,19 +217,17 @@ contains
   ! -----------------------------------------------------------------
   subroutine update_flux_registers(lev, fluxes)
 
-    use read_input_module, only : do_reflux
+    use read_input_module, only : heat_reflux
     use amr_data_module, only : flux_reg
     
     ! Input and output variables 
     integer, intent(in) :: lev
     type(amrex_multifab), intent(inout) :: fluxes(amrex_spacedim)
 
-    ! Local variables
-    integer :: idim
     
     ! Update flux registers (fluxes have already been scaled by dt and area
     ! in the advance subroutine)
-    if (do_reflux) then
+    if (heat_reflux) then
 
        if (lev > 0) then
           call flux_reg(lev)%fineadd(fluxes, 1.0_amrex_real)
@@ -213,14 +236,89 @@ contains
        if (lev < amrex_get_finest_level()) then
           call flux_reg(lev+1)%crseinit(fluxes, -1.0_amrex_real)
        end if
-
-       do idim = 1, amrex_spacedim
-          call amrex_multifab_destroy(fluxes(idim))
-       end do
        
     end if
     
   end subroutine update_flux_registers
+
+  ! -----------------------------------------------------------------
+  ! Subroutine used to synchronize the idomains
+  ! -----------------------------------------------------------------
+  subroutine synch_idomain(lev, temp_tmp)
+    
+    use amr_data_module, only : phi_new, &
+                                idomain, &
+                                temp    
+    use heat_transfer_domain_module, only : get_idomain
+        
+    ! Input and output variables
+    integer, intent(in) :: lev
+    type(amrex_multifab), intent(inout) :: temp_tmp
+    
+    ! Local variables
+    integer :: ncomp
+    type(amrex_geometry) :: geom
+    type(amrex_mfiter) :: mfi
+    type(amrex_box) :: bx
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidom
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp_tmp
+    
+    ! Geometry
+    geom = amrex_geom(lev)
+
+    ! Get number of components
+    ncomp = phi_new(lev)%ncomp()
+    
+    ! Synchronize temperature with ghost points
+    call temp_tmp%copy(temp(lev), 1, 1, ncomp, 1) ! The last 1 is the number of ghost points
+    call temp_tmp%fill_boundary(geom)
+    
+    !$omp parallel private(mfi, bx, pidom, ptemp_tmp)
+    call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
+    do while(mfi%next())
+       bx = mfi%validbox()
+       pidom  => idomain(lev)%dataptr(mfi)
+       ptemp_tmp   => temp_tmp%dataptr(mfi)
+       call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
+            bx%lo, bx%hi, &
+            pidom, lbound(pidom), ubound(pidom), &
+            ptemp_tmp, lbound(ptemp_tmp), ubound(ptemp_tmp))
+       
+    end do
+    call amrex_mfiter_destroy(mfi)   
+    !$omp end parallel
+       
+  end subroutine synch_idomain
+
+    
+  ! -----------------------------------------------------------------
+  ! Subroutine used to free memory 
+  ! -----------------------------------------------------------------
+  subroutine free_memory(phi_tmp, temp_tmp, idomain_tmp, fluxes)
+
+    use read_input_module, only: heat_reflux
+    
+    ! Input and output variables
+    type(amrex_multifab), intent(inout) :: phi_tmp
+    type(amrex_multifab), intent(inout) :: temp_tmp
+    type(amrex_multifab), intent(inout) :: idomain_tmp
+    type(amrex_multifab), intent(inout) :: fluxes(amrex_spacedim)
+    
+    ! Local variables
+    integer :: idim
+
+       
+    call amrex_multifab_destroy(phi_tmp)
+    call amrex_multifab_destroy(temp_tmp)
+    call amrex_multifab_destroy(idomain_tmp)
+    if (heat_reflux) then
+       do idim = 1, amrex_spacedim
+          call amrex_multifab_destroy(fluxes(idim))
+       end do
+    end if
+       
+    
+  end subroutine free_memory
   
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the enthalpy at a new time step for
@@ -233,10 +331,9 @@ contains
     use amr_data_module, only : phi_new, &
                                 temp, &
                                 idomain
-    use read_input_module, only : do_reflux, &
-                                  temp_fs
+    use read_input_module, only : heat_reflux, &
+                                  heat_temp_surf
     use heat_transfer_domain_module, only : get_idomain, &
-                                            get_melt_pos, &
                                             revaluate_heat_domain
     use material_properties_module, only : get_temp
     
@@ -309,8 +406,8 @@ contains
                                pin, lbound(pin), ubound(pin), &
                                ptempin, lbound(ptempin), ubound(ptempin))
     
-    ! Increment enthalpy at given box depending on the condition of the free surface
-    if (temp_fs.gt.0) then
+    ! Update the enthalpy
+    if (heat_temp_surf.gt.0) then
        call get_enthalpy_fixT(bx%lo, bx%hi, &
                               pin, lbound(pin), ubound(pin),     &
                               pout,    lbound(pout), ubound(pout),    &
@@ -330,13 +427,13 @@ contains
                          geom, dt, lev)
     end if
 
-    ! Get temperature corresponding to the new enthalpy
+    ! Update the temperature
     call get_temp(bx%lo, bx%hi, &
                   pout, lbound(pout), ubound(pout), &
                   ptemp, lbound(ptemp), ubound(ptemp), .true.) 
        
     ! Update pointers for flux registers
-    if (do_reflux) then
+    if (heat_reflux) then
        
        do idim = 1, amrex_spacedim
           
@@ -358,16 +455,17 @@ contains
   ! a given box of a certain level via an explicit update
   ! -----------------------------------------------------------------
   subroutine get_enthalpy(time, lo, hi, &
-                                   u_old,  uo_lo, uo_hi, &
-                                   u_new, un_lo, un_hi, &
-                                   temp, t_lo, t_hi, &
-                                   flxx, fx_lo, fx_hi, &
-                                   flxy, fy_lo, fy_hi, &
-                                   idom, id_lo, id_hi, &
-                                   geom, dt, lev)
+                          u_old,  uo_lo, uo_hi, &
+                          u_new, un_lo, un_hi, &
+                          temp, t_lo, t_hi, &
+                          flxx, fx_lo, fx_hi, &
+                          flxy, fy_lo, fy_hi, &
+                          idom, id_lo, id_hi, &
+                          geom, dt, lev)
 
     use heat_transfer_flux_module, only: get_boundary_heat_flux
- 
+    use read_input_module, only : num_subcycling
+    
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) ! bounds of current tile box
     integer, intent(in) :: uo_lo(2), uo_hi(2) ! bounds of input enthalpy box 
@@ -376,6 +474,7 @@ contains
     integer, intent(in) :: fx_lo(2), fx_hi(2) ! bounds of the enthalpy flux along x
     integer, intent(in) :: fy_lo(2), fy_hi(2) ! bounds of the enthalpy flux along y
     integer, intent(in) :: id_lo(2), id_hi(2) ! bounds of the idomain box
+    integer, intent(in) :: lev 
     real(amrex_real), intent(in) :: dt ! time step
     real(amrex_real), intent(in) :: time ! time
     real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2)) ! Input enthalpy 
@@ -385,7 +484,7 @@ contains
     real(amrex_real), intent(out) :: flxy(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2)) ! flux along the y direction
     real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2)) ! idomain
     type(amrex_geometry), intent(in) :: geom ! geometry
-    integer, intent(in) :: lev
+
     
     ! Local variables
     integer :: i,j
@@ -401,18 +500,20 @@ contains
     lo_phys = geom%get_physical_location(lo)
                   
     ! Get enthalpy flux 
-    call create_face_flux(dx, lo_phys, lo, hi, &
+    call get_face_flux(dx, lo_phys, lo, hi, &
                           u_old, uo_lo, uo_hi, &
                           flxx, fx_lo, fx_hi, &
                           flxy, fy_lo, fy_hi, &
                           temp, t_lo, t_hi, &
-                          idom, id_lo, id_hi)
+                          idom, id_lo, id_hi, &
+                          .true., .true.)
   				  	
     ! Prescribe external heat flux on the free surface
     call get_boundary_heat_flux(time, lo_phys, &
                                 dx, lo, hi, &
                                 idom, id_lo, id_hi, &
-                                temp, t_lo, t_hi, lev, qbound)
+                                temp, t_lo, t_hi, lev, &
+                                qbound)
 
     ! Volumetric sources
     call get_volumetric_heat_source(dx, lo_phys, lo, hi, &
@@ -435,13 +536,15 @@ contains
     ! Scale the fluxes for the flux registers
     do j = lo(2), hi(2)
        do i = lo(1), hi(1) + 1
-          flxx(i,j) = flxx(i,j) * (dt * dx(2))
+          flxx(i,j) = flxx(i,j) * dx(2)
+          if (num_subcycling) flxx(i,j) = flxx(i,j) * dt 
        end do
     end do
 
     do j = lo(2), hi(2) + 1
        do i = lo(1), hi(1)
-          flxy(i,j) = flxy(i,j) * (dt * dx(1))
+          flxy(i,j) = flxy(i,j) * dx(1)
+          if (num_subcycling) flxy(i,j) = flxy(i,j) * dt 
        end do
     end do
     
@@ -455,16 +558,16 @@ contains
   ! Case with fixed temperature at the free surface
   ! -----------------------------------------------------------------
   subroutine get_enthalpy_fixT(lo, hi, &
-                                        u_old,  uo_lo, uo_hi, &
-                                        u_new, un_lo, un_hi, &
-                                        temp, t_lo, t_hi, &
-                                        flxx, fx_lo, fx_hi, &
-                                        flxy, fy_lo, fy_hi, &
-                                        idom, id_lo, id_hi, &
-                                        geom, dt)
+                               u_old,  uo_lo, uo_hi, &
+                               u_new, un_lo, un_hi, &
+                               temp, t_lo, t_hi, &
+                               flxx, fx_lo, fx_hi, &
+                               flxy, fy_lo, fy_hi, &
+                               idom, id_lo, id_hi, &
+                               geom, dt)
     
     use material_properties_module, only : get_enthalpy
-    use read_input_module, only : temp_fs
+    use read_input_module, only : heat_temp_surf
 
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) ! bounds of current tile box
@@ -490,7 +593,7 @@ contains
     real(amrex_real) :: lo_phys(2) ! Physical location of the lowest corner of the tile box
 
     ! Enthalpy at the free surface
-    call get_enthalpy(temp_fs, u_fs)
+    call get_enthalpy(heat_temp_surf, u_fs)
     
     ! Get grid size
     dx = geom%dx(1:2) ! grid width at level 
@@ -499,7 +602,7 @@ contains
     lo_phys = geom%get_physical_location(lo)
     
     ! Get enthalpy flux 
-    call create_face_flux_fixT(dx, lo, hi, &
+    call get_face_flux_fixT(dx, lo, hi, &
                                flxx, fx_lo, fx_hi, &
                                flxy, fy_lo, fy_hi, &
                                temp, t_lo, t_hi)
@@ -544,12 +647,13 @@ contains
   ! Subroutine used to compute the enthalpy fluxes on the edges of
   ! the grid
   ! -----------------------------------------------------------------  
-  subroutine create_face_flux(dx, lo_phys, lo, hi, &
+  subroutine get_face_flux(dx, lo_phys, lo, hi, &
                               u_old, uo_lo, uo_hi, &
                               flxx, fx_lo, fx_hi, &
                               flxy, fy_lo, fy_hi, &
                               temp, t_lo, t_hi, &
-                              idom, id_lo, id_hi)
+                              idom, id_lo, id_hi, &
+                              conduction, advection)
   				
     use material_properties_module, only: get_conductivity
     use heat_transfer_domain_module, only: get_face_velocity
@@ -561,6 +665,8 @@ contains
     integer, intent(in) :: fx_lo(2), fx_hi(2)
     integer, intent(in) :: fy_lo(2), fy_hi(2)
     integer, intent(in) :: id_lo(2), id_hi(2)
+    logical, intent(in) :: conduction
+    logical, intent(in) :: advection
     real(amrex_real), intent(in) :: dx(2)
     real(amrex_real), intent(in) :: lo_phys(2)
     real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))
@@ -584,62 +690,56 @@ contains
     do j = lo(2), hi(2)          
        do i = lo(1), hi(1)+1
 
-          if (nint(idom(i-1,j)).eq.0 .or. nint(idom(i,j)).eq.0) then
+          ! Suppress flux
+          flxx(i,j) = 0.0_amrex_real
+          
+          if (nint(idom(i-1,j)).gt.0 .and. nint(idom(i,j)).gt.0) then
 
-             ! Suppress flux at the free surface
-             flxx(i,j) = 0.0_amrex_real
+             ! Advective flux
+             if (advection) then
+                if (vx(i,j).gt.0.0_amrex_real) then
+                   flxx(i,j)  = flxx(i,j) + u_old(i-1,j)*vx(i,j)
+                else
+                   flxx(i,j)  = flxx(i,j) + u_old(i,j)*vx(i,j)
+                end if
+             end if
 
-          else if (nint(idom(i-1,j)).eq.-1 .or. nint(idom(i,j)).eq.-1) then
-
-             ! Suppress flux at the surface of the cooling pipe
-             flxx(i,j) = 0.0_amrex_real
-             
-          else
-             
-             ! Advective component
-             if (vx(i,j).gt.0.0_amrex_real) then
-                flxx(i,j)  = u_old(i-1,j)*vx(i,j)
-             else
-                flxx(i,j)  = u_old(i,j)*vx(i,j)
+             ! Conductive flux
+             if (conduction) then
+                temp_face = (temp(i,j) + temp(i-1,j))/2_amrex_real
+                call get_conductivity(temp_face, ktherm)
+                flxx(i,j) = flxx(i,j) - ktherm*(temp(i,j)-temp(i-1,j))/dx(1)
              end if
              
-             ! Diffusive component
-             temp_face = (temp(i,j) + temp(i-1,j))/2_amrex_real
-             call get_conductivity(temp_face, ktherm)
-             flxx(i,j) = flxx(i,j) - ktherm*(temp(i,j)-temp(i-1,j))/dx(1)
-             
           end if
           
        end do
     end do
-    
+
     ! Flux along the y direction
-    do j = lo(2), hi(2)+1
+    do j = lo(2), hi(2)+1          
        do i = lo(1), hi(1)
 
-          if (nint(idom(i,j-1)).eq.0 .or. nint(idom(i,j)).eq.0) then
+          ! Suppress flux
+          flxy(i,j) = 0.0_amrex_real
+          
+          if (nint(idom(i,j-1)).gt.0 .and. nint(idom(i,j)).gt.0) then
 
-             ! Suppress flux at the free surface
-             flxy(i,j) = 0.0_amrex_real
+             ! No advection along the y direction
 
-          else if (nint(idom(i,j-1)).eq.-1 .or. nint(idom(i,j)).eq.-1) then
-
-             ! Suppress flux at the surface of the cooling pipe
-             flxy(i,j) = 0.0_amrex_real
-             
-          else
-             
-             ! Diffusive component (there is no advection in the y direction)
-             temp_face = (temp(i,j) + temp(i,j-1))/2_amrex_real
-             call get_conductivity(temp_face, ktherm)
-             flxy(i,j) = -ktherm*(temp(i,j)-temp(i,j-1))/dx(2)
+             ! Conductive flux
+             if (conduction) then
+                temp_face = (temp(i,j) + temp(i,j-1))/2.0_amrex_real
+                call get_conductivity(temp_face, ktherm)
+                flxy(i,j) = flxy(i,j) - ktherm*(temp(i,j)-temp(i,j-1))/dx(2)
+             end if
              
           end if
           
        end do
     end do
- 
-  end subroutine create_face_flux
+  
+  end subroutine get_face_flux
   
 
   ! -----------------------------------------------------------------
@@ -647,7 +747,7 @@ contains
   ! the grid. Case with fixed temperature at the free surface without
   ! convection
   ! -----------------------------------------------------------------  
-  subroutine create_face_flux_fixT(dx, lo, hi, &
+  subroutine get_face_flux_fixT(dx, lo, hi, &
                                    flxx, fx_lo, fx_hi, &
                                    flxy, fy_lo, fy_hi, &
                                    temp, t_lo, t_hi)
@@ -694,7 +794,7 @@ contains
        end do
     end do
  
-  end subroutine create_face_flux_fixT
+  end subroutine get_face_flux_fixT
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute the volumetric enthalpy source terms
@@ -716,6 +816,7 @@ contains
     real(amrex_real), intent(in) :: u_old(uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2))
     real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2))
     real(amrex_real), intent(out) :: qvol(lo(1):hi(1),lo(2):hi(2))
+
     ! Local variables
     integer :: i,j
     integer :: fx_lo(2), fx_hi(2)
@@ -739,46 +840,5 @@ contains
  
   end subroutine get_volumetric_heat_source
 
-  ! -----------------------------------------------------------------
-  ! Subroutine used to update the position of the bottom of the
-  ! melt pool
-  ! -----------------------------------------------------------------
-  subroutine update_melt_pos(lev)
-    
-    use amr_data_module, only : phi_new,&
-                                idomain
-    use heat_transfer_domain_module, only : get_melt_pos
-
-    ! Input variables
-    integer, intent(in) :: lev
-    
-    ! Local variables
-    type(amrex_geometry) :: geom
-    type(amrex_mfiter) :: mfi
-    type(amrex_box) :: bx
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidom
-    
-    if (lev.eq.amrex_max_level) then
-       
-       ! Geometry
-       geom = amrex_geom(lev)
-       
-       ! Loop through all the boxes in the level
-       !$omp parallel private(mfi, bx, pidom)
-       call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
-       do while(mfi%next())
-          bx = mfi%validbox()
-          pidom  => idomain(lev)%dataptr(mfi)
-          call get_melt_pos(bx%lo, bx%hi, &
-               pidom, lbound(pidom), ubound(pidom), &
-               geom)
-          
-       end do
-       call amrex_mfiter_destroy(mfi)
-       !$omp end parallel   
-
-    end if
-    
-  end subroutine update_melt_pos
   
 end module heat_transfer_explicit_module

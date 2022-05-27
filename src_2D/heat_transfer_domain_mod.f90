@@ -16,10 +16,12 @@ module heat_transfer_domain_module
   ! -----------------------------------------------------------------
   public :: get_idomain
   public :: get_melt_pos
+  public :: update_melt_pos
   public :: get_surf_pos
   public :: get_face_velocity
   public :: reset_melt_pos
   public :: revaluate_heat_domain
+  public :: get_surf_deformation
   
 contains
   
@@ -32,7 +34,7 @@ contains
                          idom, id_lo, id_hi, &
                          temp, t_lo, t_hi)
 
-    use read_input_module, only : geometry_name 
+    use read_input_module, only : geom_name 
     
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)
@@ -44,19 +46,19 @@ contains
     real(amrex_real), intent(in) :: xlo(2)
 
     ! Define idomains depending on the geometry specified in input
-    if (geometry_name .eq. "Slab") then
+    if (geom_name .eq. "Slab") then
        
        call get_slab_idomain(xlo, dx, lo, hi, &
                              idom, id_lo, id_hi, &
                              temp, t_lo, t_hi)
        
-    elseif (geometry_name .eq. "West") then
+    elseif (geom_name .eq. "West") then
       
        call get_west_idomain(xlo, dx, lo, hi, &
                              idom, id_lo, id_hi, &
                              temp, t_lo, t_hi)
        
-    elseif (geometry_name .eq. "West_rectangular") then
+    elseif (geom_name .eq. "West_rectangular") then
        
        call get_west_rectangular_idomain(xlo, dx, lo, hi, &
                                          idom, id_lo, id_hi, &
@@ -92,11 +94,11 @@ contains
     ! Local variables
     logical :: find_liquid
     integer :: i,j
-    integer :: surf_ind_heat_domain
-    real(amrex_real) :: surf_pos_heat_domain(id_lo(1):id_hi(1))
+    integer :: surf_ind_hd
+    real(amrex_real) :: surf_pos_hd(id_lo(1):id_hi(1))
  
     ! Get location of the free surface
-    call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
+    call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_hd)
 
     ! Do not distinguish between liquid and solid if the temperature
     ! multifab passed in input doesn't have ghost point. This should
@@ -113,11 +115,11 @@ contains
        do i = lo(1)-1, hi(1)+1
 
           ! Index of the free surface in the heat transfer domain
-          surf_ind_heat_domain = id_lo(2) + &
-                                 floor((surf_pos_heat_domain(i) - &
+          surf_ind_hd = id_lo(2) + &
+                                 floor((surf_pos_hd(i) - &
                                  xlo(2)+dx(2))/dx(2))
           
-          if (j .le. surf_ind_heat_domain) then
+          if (j .le. surf_ind_hd) then
              
              if (find_liquid) then
                 if (temp(i,j).gt.temp_melt) then
@@ -151,9 +153,9 @@ contains
                               temp, t_lo, t_hi)
   
     use material_properties_module, only : temp_melt  
-    use read_input_module, only : sample_edge, &
-                                  cool_pipe_cntr, &
-                                  cool_pipe_radius  
+    use read_input_module, only : heat_sample_edge, &
+                                  geom_cool_pipe_cntr, &
+                                  geom_cool_pipe_radius  
     
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)
@@ -167,13 +169,13 @@ contains
     ! Local variables
     logical :: find_liquid
     integer :: i,j
-    integer :: surf_ind_heat_domain
-    real(amrex_real) :: surf_pos_heat_domain(id_lo(1):id_hi(1))
+    integer :: surf_ind_hd
+    real(amrex_real) :: surf_pos_hd(id_lo(1):id_hi(1))
     real(amrex_real) :: xpos, ypos
     logical :: pipe_flag
     
     ! Get location of the free surface
-    call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
+    call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_hd)
     
     ! Do not distinguish between liquid and solid if the temperature
     ! multifab passed in input doesn't have ghost point. This should
@@ -190,8 +192,8 @@ contains
        do i = lo(1)-1, hi(1)+1
 
           ! Index of the free surface in the heat transfer domain
-          surf_ind_heat_domain = id_lo(2) + &
-                                 floor((surf_pos_heat_domain(i) - &
+          surf_ind_hd = id_lo(2) + &
+                                 floor((surf_pos_hd(i) - &
                                  xlo(2)+dx(2))/dx(2))
           
           ! x position of the i-th center in the current box
@@ -202,16 +204,16 @@ contains
           ypos = xlo(2) + (0.5+j-lo(2))*dx(2)
 
           ! Check if the grid point (i,j) falls inside the cooling pipe
-          if (sqrt((xpos-cool_pipe_cntr(1))**2 &
-                   +(ypos-cool_pipe_cntr(2))**2) .lt. cool_pipe_radius) then
+          if (sqrt((xpos-geom_cool_pipe_cntr(1))**2 &
+                   +(ypos-geom_cool_pipe_cntr(2))**2) .lt. geom_cool_pipe_radius) then
              pipe_flag = .true.
           else
              pipe_flag = .false.
           end if
 
           ! Set flags
-          if (j .le. surf_ind_heat_domain .and. &
-               xpos .le. sample_edge .and. &
+          if (j .le. surf_ind_hd .and. &
+               xpos .le. heat_sample_edge .and. &
                (.not.pipe_flag)) then             
              if (find_liquid) then
                 if (temp(i,j).gt.temp_melt) then
@@ -247,9 +249,9 @@ contains
                                           temp, t_lo, t_hi)
     
     use material_properties_module, only : temp_melt  
-    use read_input_module, only : sample_edge, &
-         cool_pipe_cntr, &
-         cool_pipe_radius  
+    use read_input_module, only : heat_sample_edge, &
+         geom_cool_pipe_cntr, &
+         geom_cool_pipe_radius  
     
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2)
@@ -263,14 +265,14 @@ contains
     ! Local variables
     logical :: find_liquid
     integer :: i,j
-    integer :: surf_ind_heat_domain
-    real(amrex_real) :: surf_pos_heat_domain(id_lo(1):id_hi(1))
+    integer :: surf_ind_hd
+    real(amrex_real) :: surf_pos_hd(id_lo(1):id_hi(1))
     real(amrex_real) :: xpos, ypos
     logical :: pipe_flag
     real(amrex_real), parameter :: pi = 3.14159265358979
     
     ! Get location of the free surface
-    call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_heat_domain)
+    call get_surf_pos(xlo-dx, dx, id_lo, id_hi, surf_pos_hd)
     
     ! Do not distinguish between liquid and solid if the temperature
     ! multifab passed in input doesn't have ghost point. This should
@@ -287,8 +289,8 @@ contains
        do i = lo(1)-1, hi(1)+1       
 
           ! Index of the free surface in the heat transfer domain
-          surf_ind_heat_domain = id_lo(2) + &
-                                 floor((surf_pos_heat_domain(i) - &
+          surf_ind_hd = id_lo(2) + &
+                                 floor((surf_pos_hd(i) - &
                                  xlo(2)+dx(2))/dx(2))
 
           ! x position of the i-th center in the current box
@@ -298,18 +300,18 @@ contains
           ypos = xlo(2) + (0.5+j-lo(2))*dx(2)
 
           ! Check if the grid point (i,j) falls inside the cooling pipe
-          if((xpos.lt.cool_pipe_cntr(1)+(pi)*cool_pipe_radius/4) .and. & 
-               (xpos.gt.cool_pipe_cntr(1)-(pi)*cool_pipe_radius/4) .and. &
-               (ypos.lt.cool_pipe_cntr(2)+(pi)*cool_pipe_radius/4) .and. &
-               (ypos.gt.cool_pipe_cntr(2)-(pi)*cool_pipe_radius/4)) then
+          if((xpos.lt.geom_cool_pipe_cntr(1)+(pi)*geom_cool_pipe_radius/4) .and. & 
+               (xpos.gt.geom_cool_pipe_cntr(1)-(pi)*geom_cool_pipe_radius/4) .and. &
+               (ypos.lt.geom_cool_pipe_cntr(2)+(pi)*geom_cool_pipe_radius/4) .and. &
+               (ypos.gt.geom_cool_pipe_cntr(2)-(pi)*geom_cool_pipe_radius/4)) then
              pipe_flag = .true.
           else
              pipe_flag = .false.
           end if
 
           ! Set flags
-          if (j .le. surf_ind_heat_domain .and. &
-               xpos .le. sample_edge .and. &
+          if (j .le. surf_ind_hd .and. &
+               xpos .le. heat_sample_edge .and. &
                (.not.pipe_flag)) then
              if (find_liquid) then
                 if (temp(i,j).gt.temp_melt) then
@@ -335,14 +337,14 @@ contains
   end subroutine get_west_rectangular_idomain
     
 
-  
+   
   ! -----------------------------------------------------------------
   ! Subroutine used to interpolate the free surface position as given
   ! by the fluid solver in order to construct the heat conduction
   ! free interface at a given box on a given level characterized
   ! by xlo (lower corner) and dx (grid resolution) 
   ! -----------------------------------------------------------------     
-  subroutine get_surf_pos(xlo, dx, lo, hi, surf_pos_heat_domain)
+  subroutine get_surf_pos(xlo, dx, lo, hi, surf_pos_hd)
 
     
     use amr_data_module, only : surf_pos
@@ -352,7 +354,7 @@ contains
     integer, intent(in) :: lo(2), hi(2) 
     real(amrex_real), intent(in) :: xlo(2)
     real(amrex_real), intent(in) :: dx(2)
-    real(amrex_real), intent(out) :: surf_pos_heat_domain(lo(1):hi(1))
+    real(amrex_real), intent(out) :: surf_pos_hd(lo(1):hi(1))
 
     ! Local variables
     integer :: i
@@ -369,7 +371,7 @@ contains
       
        ! Position of the free surface in the heat transfer domain at
        ! a given level
-       surf_pos_heat_domain(i) = surf_pos(xind)
+       surf_pos_hd(i) = surf_pos(xind)
        
     end do
     
@@ -399,14 +401,54 @@ contains
 
 
   ! -----------------------------------------------------------------
+  ! Subroutine used to update the position of the bottom of the
+  ! melt pool for a given level
+  ! -----------------------------------------------------------------
+  subroutine update_melt_pos(lev)
+    
+    use amr_data_module, only : phi_new,&
+                                idomain
+
+    ! Input variables
+    integer, intent(in) :: lev
+    
+    ! Local variables
+    type(amrex_geometry) :: geom
+    type(amrex_mfiter) :: mfi
+    type(amrex_box) :: bx
+    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidom
+    
+    if (lev.eq.amrex_max_level) then
+       
+       ! Geometry
+       geom = amrex_geom(lev)
+       
+       ! Loop through all the boxes in the level
+       !$omp parallel private(mfi, bx, pidom)
+       call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
+       do while(mfi%next())
+          bx = mfi%validbox()
+          pidom  => idomain(lev)%dataptr(mfi)
+          call get_melt_pos(bx%lo, bx%hi, &
+                            pidom, lbound(pidom), ubound(pidom), &
+                            geom)
+          
+       end do
+       call amrex_mfiter_destroy(mfi)
+       !$omp end parallel   
+
+    end if
+    
+  end subroutine update_melt_pos
+
+  ! -----------------------------------------------------------------
   ! Subroutine used to get the position of the bottom of the melt
-  ! pool
+  ! pool for a box of a given level
   ! -----------------------------------------------------------------
   subroutine get_melt_pos(lo, hi, idom, id_lo, id_hi, geom)
        
     use amr_data_module, only : melt_pos, &
-                                melt_top, &
-                                surf_pos
+                                melt_top
    
     ! Input and output variables
     integer, intent(in) :: lo(2), hi(2) 
@@ -542,9 +584,7 @@ contains
     if (melt_vel(xind,1).gt.0_amrex_real) then
        xind = xind - 1
        found_upwind = .true.
-    end if
-    
-    if (melt_vel(xind+1,1).lt.0_amrex_real) then
+    else if (melt_vel(xind+1,1).lt.0_amrex_real) then
        xind = xind + 1
        found_upwind = .true.
     end if
@@ -611,6 +651,42 @@ contains
 
 
   ! -----------------------------------------------------------------
+  ! Subroutine used to interpolate the free surface deformation as
+  ! given by the fluid solver at a given box on a given level
+  ! characterized by xlo (lower corner) and dx (grid resolution) 
+  ! -----------------------------------------------------------------     
+  subroutine get_surf_deformation(xlo, dx, lo, hi, surf_def_hd)
+
+    use amr_data_module, only : surf_deformation
+    
+    ! Input and output variables
+    integer, intent(in) :: lo(2), hi(2) 
+    real(amrex_real), intent(in) :: xlo(2)
+    real(amrex_real), intent(in) :: dx(2)
+    real(amrex_real), intent(out) :: surf_def_hd(lo(1):hi(1))
+
+    ! Local variables
+    integer :: i
+    integer :: xind
+
+    ! Note: xlo is the lowest corner of a given box and is defined on the faces.
+    ! xpos refers to the x-coordinate of one cell center of a given box
+    ! and is defined on the centers.
+    
+    do  i = lo(1),hi(1)
+
+       ! Map to maximum level
+       call interp_to_max_lev(lo, xlo, dx, i, xind)
+      
+       ! Deformation of the free surface in the heat transfer domain at
+       ! a given level
+       surf_def_hd(i) = surf_deformation(xind)
+       
+    end do
+    
+  end subroutine get_surf_deformation
+
+  ! -----------------------------------------------------------------
   ! Subroutine used to interpolate spatial locations to the maximum
   ! amrex level where the free surface is defined
   ! -----------------------------------------------------------------  
@@ -643,5 +719,6 @@ contains
     if (xind.gt.surf_ind(1,2)) xind = surf_ind(1,2)
     
   end subroutine interp_to_max_lev
+
   
 end module heat_transfer_domain_module

@@ -141,12 +141,8 @@ subroutine run_simulation()
     do lev = 0, nlevs-1
        ! Limit the change of the timestep between two successive timesteps
        dt_tmp(lev) = min(dt_tmp(lev), time_ddt_max*dt(lev))
-       if(num_subcycling) then
-         n_factor = n_factor * nsubsteps(lev)
-         dt_0 = min(dt_0, n_factor*dt_tmp(lev))
-       else
-         dt_0 = min(dt_0, dt_tmp(lev))
-       end if
+       if (num_subcycling) n_factor = n_factor * nsubsteps(lev)
+       dt_0 = min(dt_0, n_factor*dt_tmp(lev))
        ! Cap the timestep to the value prescribed in input
        dt_0 = min(dt_0, time_dt)
     end do

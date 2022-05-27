@@ -234,7 +234,7 @@ module heat_transfer_implicit_module
    call amrex_multifab_build(temp_tmp_lm1, ba, dm, ncomp, nghost)
 
    ! Copy temperature of the current level to the lm1 multifab
-   call temp_tmp_lm1%copy(temp_tmp, 1, 1, ncomp, 1) 
+   call temp_tmp_lm1%copy(temp_tmp, 1, 1, ncomp, nghost) 
    call temp_tmp_lm1%fill_boundary(geom)
    
  end subroutine update_temperature_lm1
