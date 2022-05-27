@@ -81,6 +81,9 @@ contains
     real(amrex_real) :: projection
     real(amrex_real) :: projection_undeformed
     real(amrex_real) :: pi = 3.1415927
+    real(amrex_real) :: dL
+    real(amrex_real) :: RLi
+    real(amrex_real) :: exp_dec
 
     qb = 0.0
     q_plasma = 0.0
@@ -123,28 +126,9 @@ contains
                   call uniform_heat_flux(time, xpos, zpos, side_flag, q_plasma)
                 elseif (heat_plasma_flux_type.eq.'Input_file') then
                   call file_heat_flux(time, xpos, zpos, side_flag, q_plasma)
-                  if(heat_local_surface_normals) then
-                     call interp_to_max_lev(lo, xlo, dx, i, k, xind, zind)
-                     ! Project the parallel heat-flux which is returned by file_heat_flux based on local surface normals
-                     projection = sw_B_unity(1)*surf_normal(xind,zind,1) + &
-                                  sw_B_unity(2)*surf_normal(xind,zind,2) + &
-                                  sw_B_unity(3)*surf_normal(xind,zind,3)
-
-                     projection_undeformed = sw_B_unity(1)*surf_normal_undeformed(xind,zind,1) + &
-                                             sw_B_unity(2)*surf_normal_undeformed(xind,zind,2) + &
-                                             sw_B_unity(3)*surf_normal_undeformed(xind,zind,3)
-                     if(projection.lt.0.0) then
-                        q_plasma = q_plasma*(abs(projection)*heat_Foa+(1-heat_Foa)*abs(projection_undeformed))
-                     else
-                        q_plasma = q_plasma*(1-heat_Foa)*abs(projection_undeformed)
-                     end if
-                  else
-                     q_plasma = q_plasma*SIN(sw_magnetic_inclination*pi/180)
-                  end if
                 else
                    STOP "Unknown plasma heat flux type"
                 end if
-                if (lev.eq.amrex_max_level) Qplasma_box = Qplasma_box + q_plasma*dx(1)*dx(3)*dt
                 
                 ! Thermionic cooling flux
                 if (heat_cooling_thermionic) then
@@ -168,6 +152,35 @@ contains
                    if (lev.eq.amrex_max_level) Qrad_box = Qrad_box +q_rad*dx(1)*dx(3)*dt
                 end if
                 
+                ! Obtain the true heat flux based on q_\\
+                if(heat_local_surface_normals) then
+                  call interp_to_max_lev(lo, xlo, dx, i, k, xind, zind)
+                  ! Project the parallel heat-flux which is returned by file_heat_flux based on local surface normals
+
+                  projection_undeformed = sw_B_unity(1)*surf_normal_undeformed(xind,zind,1) + &
+                                          sw_B_unity(2)*surf_normal_undeformed(xind,zind,2) + &
+                                          sw_B_unity(3)*surf_normal_undeformed(xind,zind,3)
+
+                  if(abs(abs(projection_undeformed)-0.0523).lt.abs(abs(projection_undeformed)-0.3057) .and. q_plasma.gt.1) then
+                     dL = 0.0049-xpos
+                     RLi = 0.0006
+                     exp_dec = EXP(-dL/RLi)
+                     if (exp_dec.gt.1.0) then
+                        write(*,*) 'WTF' 
+                     end if
+                     q_plasma = q_plasma*(heat_Foa*0.0523 + & 
+                                         (1-heat_Foa)*0.3057*exp_dec)
+                  elseif(abs(abs(projection_undeformed)-0.0523).gt.abs(abs(projection_undeformed)-0.3057).and.q_plasma.gt.1) then
+                     q_plasma = q_plasma*0.3057 
+                  ! end if
+                  elseif (q_plasma.gt.1) then
+                     write(*,*) 'not caught case?' 
+                  end if
+               else
+                  q_plasma = q_plasma*SIN(sw_magnetic_inclination*pi/180)
+               end if
+               if (lev.eq.amrex_max_level) Qplasma_box = Qplasma_box + q_plasma*dx(1)*dx(3)*dt
+
                 ! Sum all flux contributions
                 qb(i,j,k) = q_plasma - q_rad - q_vap - q_therm
                 
@@ -554,7 +567,7 @@ contains
    ! thermionic emission given the surface temperature temperature
    ! see E. Thorén et al. Plasma Phys. Control. Fusion 63 035021 (2021)
    ! -----------------------------------------------------------------   
-   subroutine thermionic_cooling(Ts, q_plasma, q_therm, Jth)
+   subroutine thermionic_cooling(Ts, q_parallel, q_therm, Jth)
  
      use material_properties_module, only : get_work_function, &
                                             get_richardson_constant
@@ -562,9 +575,9 @@ contains
      use read_input_module, only : sw_magnetic_inclination
  
      ! Input and output variables                                       
-     real(amrex_real), intent(in) :: Ts        ! Temperature at the center of cells adjacent to the free surface [K]
-     real(amrex_real), intent(in) :: q_plasma  ! Plasma heat flux [K]
-     real(amrex_real), intent(out) :: q_therm  ! Flux of energy due to thermionic emission [W/m^2]
+     real(amrex_real), intent(in) :: Ts          ! Temperature at the center of cells adjacent to the free surface [K]
+     real(amrex_real), intent(in) :: q_parallel  ! Parallel plasma heat flux [W/m^2]
+     real(amrex_real), intent(out) :: q_therm    ! Flux of energy due to thermionic emission [W/m^2]
      real(amrex_real), intent(out), optional :: Jth
      
      ! Local variables
@@ -576,7 +589,6 @@ contains
      real(amrex_real) :: e = 1.60217662E-19
      real(amrex_real) :: pi = 3.1415927
      real(amrex_real) :: J
-     real(amrex_real) :: q_parallel
      
      call get_work_function(Wf)
      call get_richardson_constant(Aeff)
@@ -584,8 +596,6 @@ contains
      ! Nominal thermionic current from the Richardson-Dushman formula
      Jth_nom = Aeff*EXP(-Wf/(kb*Ts))*Ts**2
 
-     ! Reconstruct q_parallel
-     q_parallel = q_plasma/SIN(sw_magnetic_inclination/180*pi)
      ! Space-charge limited current (semi-empirical expression)
      Jth_lim = 1.51e4 * q_parallel**(1.0/3.0) * (SIN(sw_magnetic_inclination/180*pi))**2
 

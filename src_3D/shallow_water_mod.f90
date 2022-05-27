@@ -616,7 +616,7 @@ module shallow_water_module
          if ( melt_vel(surf_ind(1,2), j, 1).gt.0.0) then 
             melt_vel(surf_ind(1,2)+1, j, 1) = melt_vel(surf_ind(1,2), j, 1)
          else
-            melt_vel(surf_ind(1,2), j, 1) = 0.0
+            melt_vel(surf_ind(1,2)+1, j, 1) = 0.0
          end if
       end do
       ! z-component
