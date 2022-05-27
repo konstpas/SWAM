@@ -21,8 +21,9 @@ module material_properties_niobium_module
   public :: get_mass_density_niobium
   public :: get_electrical_resistivity_niobium
   public :: get_emissivity_niobium
-  public :: get_Richardson_niobium
+  public :: get_richardson_constant_niobium
   public :: get_surface_tension_niobium
+  public :: get_temp_deriv_surface_tension_niobium
   public :: get_viscosity_niobium
   public :: get_work_function_niobium
   public :: get_enthalpy_of_vaporization_niobium
@@ -184,6 +185,27 @@ contains
     
   end subroutine get_surface_tension_niobium
 
+  ! -----------------------------------------------------------------
+  ! Subroutine used to computed the derivative of the surface tension
+  ! with respect to the temperature.
+  ! -----------------------------------------------------------------
+  subroutine get_temp_deriv_surface_tension_niobium(temp,dsigma_dT)
+
+    ! Liquid phase niobium data and fits adopted from Ishikawa, Paradis, Okada and Watanabe, Viscosity
+    ! measurements of molten refractory metals using an electrostatic levitator, Meas. Sci. Technol. 23, 025305
+    ! (2012). Linear fit around the melting point
+    
+    real(amrex_real), intent(in) :: temp    ! Temperature [K]
+    real(amrex_real), intent(out) :: dsigma_dT  ! Surface tension [N/(K*m)] 
+    
+    if (temp.lt.2745.0) then
+       dsigma_dT = 0.0
+    else 
+       dsigma_dT = - 0.17E-3
+    end if
+    
+  end subroutine get_temp_deriv_surface_tension_niobium
+
 
   ! -----------------------------------------------------------------
   ! Subroutine used to computed vapor pressure
@@ -299,7 +321,7 @@ contains
   ! -----------------------------------------------------------------
   ! Subroutine used to compute Richardson constant
   ! -----------------------------------------------------------------
-  subroutine get_Richardson_niobium(Aeff)
+  subroutine get_richardson_constant_niobium(Aeff)
 
     ! Relatively good agreement on the Richardson constant value, see V. S. Fomenko, The Handbook of
     ! thermionic properties, Plenum, New York (1966); W. C. Niehaus and E. A. Coomes, Surface-barrier
@@ -310,7 +332,7 @@ contains
 
     Aeff = 50E4
     
-  end subroutine get_Richardson_niobium
+  end subroutine get_richardson_constant_niobium
 
 
   ! -----------------------------------------------------------------

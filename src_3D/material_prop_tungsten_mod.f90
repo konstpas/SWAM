@@ -23,8 +23,9 @@ module material_properties_tungsten_module
   public :: get_electrical_resistivity_tungsten
   public :: get_emissivity_tungsten
   public :: get_enthalpy_of_vaporization_tungsten
-  public :: get_Richardson_tungsten
+  public :: get_richardson_constant_tungsten
   public :: get_surface_tension_tungsten
+  public :: get_temp_deriv_surface_tension_tungsten
   public :: get_thermelectric_power_tungsten
   public :: get_vapor_pressure_tungsten
   public :: get_viscosity_tungsten
@@ -185,6 +186,26 @@ contains
     
   end subroutine get_surface_tension_tungsten
 
+  ! -----------------------------------------------------------------
+  ! Subroutine used to computed the derivative of the surface tension
+  ! with respect to the temperature.
+  ! -----------------------------------------------------------------
+  subroutine get_temp_deriv_surface_tension_tungsten(temp,dsigma_dT)
+
+   ! Liquid phase tungsten data and fits adopted P.-F. Paradis, T. Ishikawa, R. Fujii and S. Yoda, Physical properties of liquid
+   ! and undercooled tungsten by levitation techniques, Appl. Phys. Lett. 86, 041901 (2005).
+   ! Linear fit around the melting point.
+   
+   real(amrex_real), intent(in) :: temp    ! Temperature [K]
+   real(amrex_real), intent(out) :: dsigma_dT  ! Surface tension [N/(K*m)] 
+   
+   if (temp.lt.3695.0) then
+      dsigma_dT = 0.0
+   else 
+      dsigma_dT = - 0.31E-3
+   end if
+   
+ end subroutine get_temp_deriv_surface_tension_tungsten
 
   ! -----------------------------------------------------------------
   ! Subroutine used to compute vapor pressure
@@ -301,7 +322,7 @@ contains
   ! -----------------------------------------------------------------
   ! Subroutine used to compute Richardson constant
   ! -----------------------------------------------------------------
-  subroutine get_Richardson_tungsten(Aeff)
+  subroutine get_richardson_constant_tungsten(Aeff)
 
     ! Relatively good agreement on the Richardson constant value, after correcting for small work function discrepancies see for
     ! instance M. H. Nichols, The Thermionic Constants of Tungsten as a Function of Crystallographic Direction,
@@ -314,7 +335,7 @@ contains
     
     Aeff = 60E4
    
-  end subroutine get_Richardson_tungsten
+  end subroutine get_richardson_constant_tungsten
 
 
   ! -----------------------------------------------------------------
