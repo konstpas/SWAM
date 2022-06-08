@@ -181,7 +181,7 @@ module read_files_module
          integer, intent(in) :: dims
          integer, intent(in) :: length
          character ( len = length ), intent(in) :: input_filename
-         integer, intent(out) :: points(2)
+         integer, intent(out) :: points(dims)
  
          ! Local variables
          logical got_one
