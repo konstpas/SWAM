@@ -44,6 +44,7 @@ contains
                                   heat_Foa, &
                                   sw_B_unity, &
                                   sw_magnetic_inclination, &
+                                  sw_side_magnetic_inclination, &
                                   geom_name
 
     use amr_data_module, only : surf_current, &
@@ -130,6 +131,9 @@ contains
                    STOP "Unknown plasma heat flux type"
                 end if                
                 if(heat_local_surface_normals) then
+                  if (heat_Foa.gt.1.0+1E-6 .or. heat_Foa.lt.0.0-1E-6) then 
+                     STOP 'Optical ratio should be less than one and more than zero'
+                  end if
                   call interp_to_max_lev(lo, xlo, dx, i, k, xind, zind)
                   ! Project the parallel heat-flux which is returned by file_heat_flux based on local surface normals
                   projection = sw_B_unity(1)*surf_normal(xind,zind,1) + &
@@ -214,8 +218,8 @@ contains
              end if   
 
 
-             zpos = xlo(3) + (1+k-lo(3))*dx(3)
-             ypos = xlo(2) + (1+j-lo(2))*dx(2)
+             zpos = xlo(3) + (0.5+k-lo(3))*dx(3)
+             ypos = xlo(2) + (0.5+j-lo(2))*dx(2)
              if(geom_name .eq. "West" .and. nint(idom(i,j,k)).ne.0 .and. & 
                (xpos.ge.heat_sample_edge .or. nint(idom(i+1,j,k)).eq.0)) then           
                 side_flag = .true.
@@ -241,8 +245,9 @@ contains
  
                !  ! Thermionic cooling flux
                 if (heat_cooling_thermionic_side) then
-                   ! Note the angle of attack at the exposed side is hard-coded to 90 degrees
-                   angle = 90.0
+                   ! Note the angle of attack at the exposed side is not calculated
+                   ! self-consistently w.r.t to local surface normals
+                   angle = sw_side_magnetic_inclination
                    call thermionic_cooling(temp(i,j,k), q_plasma, angle, q_therm)
                    if (lev.eq.local_max_level(i,j,k)) Qtherm_box = Qtherm_box + q_therm*dx(2)*dx(3)*dt
                 end if

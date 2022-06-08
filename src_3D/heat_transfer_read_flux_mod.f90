@@ -22,19 +22,21 @@ module read_heat_flux_module
     subroutine construct_heat_flux_table(side_flag)
       
       use amr_data_module, only: plasma_flux_time_mesh, &
-                                  plasma_flux_surf_x_mesh, &
-                                  plasma_flux_surf_z_mesh, &
-                                  heat_flux_table, &
-                                  plasma_side_flux_time_mesh, &
-                                  plasma_side_flux_surf_y_mesh, &
-                                  plasma_side_flux_surf_z_mesh, &
-                                  heat_side_flux_table
+                                 plasma_flux_surf_x_mesh, &
+                                 plasma_flux_surf_z_mesh, &
+                                 heat_flux_table, &
+                                 plasma_side_flux_time_mesh, &
+                                 plasma_side_flux_surf_y_mesh, &
+                                 plasma_side_flux_surf_z_mesh, &
+                                 heat_side_flux_table
+
       use read_input_module, only: heat_plasma_flux_file, &
                                    heat_plasma_flux_side_file
+
       use read_files_module, only: get_mesh_dimensions
 
-    use read_files_module, only: get_mesh_dimensions, &
-                                 read_heatflux_file
+      use read_files_module, only: get_mesh_dimensions, &
+                                   read_heatflux_file
       
       implicit none
 

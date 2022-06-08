@@ -827,11 +827,19 @@ module shallow_water_module
                                  surf_current, &
                                  domain_top
      
-     use material_properties_module, only : get_viscosity, get_mass_density
+     use material_properties_module, only : get_viscosity, & 
+                                            get_mass_density, &
+                                            get_temp_deriv_surface_tension
+
      use read_input_module, only : heat_cooling_vaporization, &
                                    sw_drytol, &
                                    sw_Bx, &
                                    sw_Bz, &
+                                   sw_gx, &
+                                   sw_gz, &
+                                   sw_marang_cap, &
+                                   sw_marangoni, &
+                                   sw_surf_tension_deriv_prefactor, &
                                    sw_captol, &
                                    geom_name
 
@@ -840,6 +848,7 @@ module shallow_water_module
      
      ! Local variables
      integer :: i,j
+     integer :: dim
      real(amrex_real) :: uR,uL
      real(amrex_real) , dimension(1:3,surf_ind(1,1)-3:surf_ind(1,2)+3,surf_ind(2,1)-3:surf_ind(2,2)+3) :: qold
      real(amrex_real) , dimension(surf_ind(1,1)-3:surf_ind(1,2)+3,surf_ind(2,1)-3:surf_ind(2,2)+3) :: hold,uold,vold,aux
@@ -852,8 +861,10 @@ module shallow_water_module
      real(amrex_real),  dimension(surf_ind(1,1):surf_ind(1,2), surf_ind(2,1):surf_ind(2,2)) :: h_star
      real(amrex_real) :: height
      real(amrex_real) :: old_height
-     integer :: dim
      real(amrex_real) :: curv_scale
+     real(amrex_real) :: marangoni_term
+     real(amrex_real) :: dsigma_dT
+     real(amrex_real) :: dh
 
      ! If the geometry is leading edge, the current should be
      ! by 4 due to its curving, see Thoren et al 2018 Nucl Fusion 58 106003
@@ -914,9 +925,7 @@ module shallow_water_module
      
      ! Update with fluxes along x direction
      dim = 3
-     call geoclaw_update(dim, dtdy, qold, aux) 
-     
-
+     call geoclaw_update(dim, dtdy, qold, aux)    
    
      do j = surf_ind(2,1),surf_ind(2,2)
       do i = surf_ind(1,1),surf_ind(1,2)
@@ -928,15 +937,47 @@ module shallow_water_module
             if (heat_cooling_vaporization) then
                Srce(1,i,j) = -surf_evap_flux(i,j)
             end if
+
+            ! Calculate the contribution of the Marangoni term
+            marangoni_term = 0.0
+            if(sw_marangoni(1) .or. sw_marangoni(2)) then
+               call get_temp_deriv_surface_tension(surf_temperature(i,j), dsigma_dT)
+               dh = abs(surf_pos(i+1,j)-surf_pos(i-1,j))
+               marangoni_term = 3/(2*max(hold(i,j), sw_marang_cap)) * dsigma_dT * & 
+                  (surf_temperature(i+1,j) - surf_temperature(i-1,j))/sqrt((2*surf_dx(1))**2+dh**2)
+
+               if(.not.sw_marangoni(1) .and. marangoni_term.gt.0.0) marangoni_term = 0.0
+               if(.not.sw_marangoni(2) .and. marangoni_term.lt.0.0) marangoni_term = 0.0
+               marangoni_term = marangoni_term*sw_surf_tension_deriv_prefactor
+            end if
+
             ! Source terms for the momentum equation along x
             Srce(2,i,j) = surf_current(i,j)*sw_Bz*curv_scale &
                           + visc * ( (uold(i+1,j) + uold(i-1,j) - 2.*uold(i,j))/(dx**2) & 
-                          + (uold(i,j+1) + uold(i,j-1) - 2.*uold(i,j))/(dy**2))
+                          + (uold(i,j+1) + uold(i,j-1) - 2.*uold(i,j))/(dy**2)) &
+                          + sw_gx*rho &
+                          + marangoni_term
             Srce(2,i,j) = Srce(2,i,j)/rho
+
+            ! Calculate the contribution of the Marangoni term
+            marangoni_term = 0.0
+            if(sw_marangoni(3) .or. sw_marangoni(4)) then
+               call get_temp_deriv_surface_tension(surf_temperature(i,j), dsigma_dT)
+               dh = abs(surf_pos(i,j+1)-surf_pos(i,j-1))
+               marangoni_term = 3/(2*max(hold(i,j), sw_marang_cap)) * dsigma_dT * & 
+                  (surf_temperature(i,j+1) - surf_temperature(i,j-1))/sqrt((2*surf_dx(2))**2+dh**2)
+
+               if(.not.sw_marangoni(3) .and. marangoni_term.gt.0.0) marangoni_term = 0.0
+               if(.not.sw_marangoni(4) .and. marangoni_term.lt.0.0) marangoni_term = 0.0
+               marangoni_term = marangoni_term*sw_surf_tension_deriv_prefactor
+            end if
+            
             ! Source terms for the momentum equation along z
             Srce(3,i,j) = -surf_current(i,j)*sw_Bx*curv_scale &
                           + visc * ( (vold(i+1,j) + vold(i-1,j) - 2.*vold(i,j))/(dx**2) & 
-                          + (vold(i,j+1) + vold(i,j-1) - 2.*vold(i,j))/(dy**2))
+                          + (vold(i,j+1) + vold(i,j-1) - 2.*vold(i,j))/(dy**2))&
+                          + sw_gz*rho &
+                          + marangoni_term
             Srce(3,i,j) = Srce(3,i,j)/rho
          else
             Srce(1,i,j) = 0. 

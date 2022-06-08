@@ -24,6 +24,7 @@ module heat_transfer_domain_module
   public :: get_local_highest_level
   public :: get_surf_deformation
   public :: interp_to_max_lev
+  public :: set_backgroung_domain
   
 contains
   
@@ -516,9 +517,6 @@ contains
    real(amrex_real), intent(in) :: xlo(3) ! Physical location of box boundaries
    real(amrex_real), intent(in) :: dx(3) ! Grid size
 
-   ! Local variables
-   logical found_upwind
-   
    ! Map current level to the maximum level
    call interp_to_max_lev(lo, xlo, dx, xind_lev, zind_lev, xind, zind)
 
@@ -530,19 +528,13 @@ contains
     ! look in the z direction.
     if (melt_vel(xind,zind,1).gt.0_amrex_real) then
       xind = xind-1 
-      found_upwind = .true.
     elseif (melt_vel(xind+1,zind,1).lt.0_amrex_real) then
       xind = xind+1
-      found_upwind = .true.
     elseif (melt_vel(xind,zind,2).gt.0_amrex_real) then
        zind = zind-1 
-       found_upwind = .true.
     elseif (melt_vel(xind,zind+1,2).lt.0_amrex_real) then
       zind = zind+1
-      found_upwind = .true.
-    end if
-
-    if (.not.found_upwind) then
+    else
       xind = xind - 1
       print *, 'Upwind column could not be identified:'&
            ' Taking the column on the left as upwind'
@@ -739,6 +731,48 @@ contains
       if (zind.gt.surf_ind(2,2)) zind = surf_ind(2,2)
       
     end subroutine interp_to_max_lev
+
+
+    ! -----------------------------------------------------------------
+    ! Subroutine used to set the background enthalpy to nearest surface
+    ! enthalpy and the background temperature to 0
+    ! -----------------------------------------------------------------
+    subroutine set_backgroung_domain(xlo, dx, lo, hi, &
+                                     idom, id_lo, id_hi, &
+                                     enth, u_lo, u_hi, &
+                                     temp, t_lo, t_hi)
+    
+      use amr_data_module, only : surf_enthalpy
+      
+      ! Input and output variables
+      integer, intent(in) :: lo(3), hi(3)
+      integer, intent(in) :: id_lo(3), id_hi(3)
+      integer, intent(in) :: t_lo(3), t_hi(3)
+      integer, intent(in) :: u_lo(3), u_hi(3)
+      real(amrex_real), intent(in) :: xlo(3)
+      real(amrex_real), intent(in) :: dx(3)    
+      real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2), id_lo(3):id_hi(3))
+      real(amrex_real), intent(inout) :: enth(u_lo(1):u_hi(1), u_lo(2):u_hi(2), u_lo(3):u_hi(3))
+      real(amrex_real), intent(inout) :: temp(t_lo(1):t_hi(1), t_lo(2):t_hi(2), t_lo(3):t_hi(3))
+  
+      ! Local variables
+      integer :: i,j,k
+      integer :: xind, zind
+
+      do i = lo(1), hi(1)
+         do k = lo(3), hi(3)
+            call interp_to_max_lev(lo, xlo, dx, i, k, xind, zind)
+            do j = lo(2), hi(2)
+
+               if (nint(idom(i,j,k)).eq.0) then
+                  enth(i,j,k) = surf_enthalpy(xind,zind)
+                  temp(i,j,k) = 0.0
+               end if
+
+            end do
+         end do
+      end do
+    end subroutine set_backgroung_domain
 end module heat_transfer_domain_module
 
 

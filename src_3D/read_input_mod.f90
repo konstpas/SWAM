@@ -156,6 +156,8 @@ module read_input_module
   public :: sw_drytol
   ! Inclination of the magnetic field [degrees]
   public :: sw_magnetic_inclination
+  ! The angle of attack of the magnetic field w.r.t. the exposed side in WEST geometry [degrees]
+  public :: sw_side_magnetic_inclination
   ! Magnitude of the magnetic field [T]
   public :: sw_Bx
   public :: sw_Bz
@@ -314,6 +316,7 @@ module read_input_module
   real(amrex_real), save :: sw_drytol
   real(amrex_real), save :: sw_marang_cap
   real(amrex_real), save :: sw_magnetic_inclination
+  real(amrex_real), save :: sw_side_magnetic_inclination
   real(amrex_real), save :: sw_Bx
   real(amrex_real), save :: sw_Bz
   real(amrex_real), save :: sw_gx
@@ -431,6 +434,7 @@ contains
     call pp%query("marangoni_cap", sw_marang_cap)
     call pp%query("read_free_surface_file", sw_read_free_surface_file)
     call pp%query("magnetic_inclination",sw_magnetic_inclination)
+    call pp%query("side_magnetic_inclination",sw_side_magnetic_inclination)
     call pp%query("captol", sw_captol)
     call pp%query("drytol", sw_drytol)
     call pp%queryarr("current", sw_current)
@@ -446,6 +450,12 @@ contains
     call pp%query("geoclaw_iter", sw_iter)
     call pp%query("geoclaw_gravity", sw_gravity)
     call amrex_parmparse_destroy(pp)
+    if( abs(sqrt(sw_B_unity(1)**2+sw_B_unity(3)**2+sw_B_unity(3)**2)-1.0).gt.1E-6) then
+      print *, 'Magnetic field unity vector does not have a lengh of 1. Instead it has a length of ', &
+        sqrt(sw_B_unity(1)**2+sw_B_unity(3)**2+sw_B_unity(3)**2)
+      print *, 'Renormalizing'
+      sw_B_unity = sw_B_unity/(sqrt(sw_B_unity(1)**2+sw_B_unity(3)**2+sw_B_unity(3)**2)) 
+    end if
     
     ! Parameters for the numerics
     call amrex_parmparse_build(pp, "numerics")
@@ -591,6 +601,7 @@ contains
     sw_drytol = 0.0    
     sw_marang_cap = 0.0
     sw_magnetic_inclination = 90.0
+    sw_side_magnetic_inclination = 90.0
     sw_Bx = 0.0
     sw_Bz = 0.0
     sw_gx = 0.0
