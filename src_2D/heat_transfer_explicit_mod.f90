@@ -246,49 +246,60 @@ contains
   ! -----------------------------------------------------------------
   subroutine synch_idomain(lev, temp_tmp)
     
-    use amr_data_module, only : phi_new, &
-                                idomain, &
-                                temp    
-    use heat_transfer_domain_module, only : get_idomain
-        
-    ! Input and output variables
-    integer, intent(in) :: lev
-    type(amrex_multifab), intent(inout) :: temp_tmp
-    
-    ! Local variables
-    integer :: ncomp
-    type(amrex_geometry) :: geom
-    type(amrex_mfiter) :: mfi
-    type(amrex_box) :: bx
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidom
-    real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp_tmp
-    
-    ! Geometry
-    geom = amrex_geom(lev)
+   use amr_data_module, only : phi_new, &
+                               idomain, &
+                               temp    
+   use heat_transfer_domain_module, only : get_idomain, &
+                                           set_backgroung_domain
+       
+   ! Input and output variables
+   integer, intent(in) :: lev
+   type(amrex_multifab), intent(inout) :: temp_tmp
+   
+   ! Local variables
+   integer :: ncomp
+   type(amrex_geometry) :: geom
+   type(amrex_mfiter) :: mfi
+   type(amrex_box) :: bx
+   real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidom
+   real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp_tmp
+   real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
+   real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: penth
+   
+   ! Geometry
+   geom = amrex_geom(lev)
 
-    ! Get number of components
-    ncomp = phi_new(lev)%ncomp()
-    
-    ! Synchronize temperature with ghost points
-    call temp_tmp%copy(temp(lev), 1, 1, ncomp, 1) ! The last 1 is the number of ghost points
-    call temp_tmp%fill_boundary(geom)
-    
-    !$omp parallel private(mfi, bx, pidom, ptemp_tmp)
-    call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
-    do while(mfi%next())
-       bx = mfi%validbox()
-       pidom  => idomain(lev)%dataptr(mfi)
-       ptemp_tmp   => temp_tmp%dataptr(mfi)
-       call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
-            bx%lo, bx%hi, &
-            pidom, lbound(pidom), ubound(pidom), &
-            ptemp_tmp, lbound(ptemp_tmp), ubound(ptemp_tmp))
-       
-    end do
-    call amrex_mfiter_destroy(mfi)   
-    !$omp end parallel
-       
-  end subroutine synch_idomain
+   ! Get number of components
+   ncomp = phi_new(lev)%ncomp()
+   
+   ! Synchronize temperature with ghost points
+   call temp_tmp%copy(temp(lev), 1, 1, ncomp, 0) ! The last 0 is the number of ghost points
+   call temp_tmp%fill_boundary(geom)
+   
+   !$omp parallel private(mfi, bx, pidom, ptemp_tmp, ptemp, penth)
+   call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
+   do while(mfi%next())
+      bx = mfi%validbox()
+      pidom  => idomain(lev)%dataptr(mfi)
+      ptemp_tmp   => temp_tmp%dataptr(mfi)
+      ptemp   => temp(lev)%dataptr(mfi)
+      penth   => phi_new(lev)%dataptr(mfi)
+      call get_idomain(geom%get_physical_location(bx%lo), geom%dx, &
+           bx%lo, bx%hi, &
+           pidom, lbound(pidom), ubound(pidom), &
+           ptemp_tmp, lbound(ptemp_tmp), ubound(ptemp_tmp))
+
+      call set_backgroung_domain(geom%get_physical_location(bx%lo), geom%dx, &
+                                 bx%lo, bx%hi, &
+                                 pidom, lbound(pidom), ubound(pidom), &
+                                 penth, lbound(penth), ubound(penth), &
+                                 ptemp, lbound(ptemp), ubound(ptemp))
+      
+   end do
+   call amrex_mfiter_destroy(mfi)   
+   !$omp end parallel
+      
+ end subroutine synch_idomain
 
     
   ! -----------------------------------------------------------------

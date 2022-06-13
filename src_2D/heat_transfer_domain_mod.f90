@@ -22,7 +22,9 @@ module heat_transfer_domain_module
   public :: reset_melt_pos
   public :: revaluate_heat_domain
   public :: get_surf_deformation
-  
+  public :: interp_to_max_lev
+  public :: set_backgroung_domain
+
 contains
   
   
@@ -720,5 +722,40 @@ contains
     
   end subroutine interp_to_max_lev
 
-  
+   ! -----------------------------------------------------------------
+   ! Subroutine used to set the background enthalpy to nearest surface
+   ! enthalpy and the background temperature to 0
+   ! -----------------------------------------------------------------
+   subroutine set_backgroung_domain(xlo, dx, lo, hi, &
+                                    idom, id_lo, id_hi, &
+                                    enth, u_lo, u_hi, &
+                                    temp, t_lo, t_hi)
+   
+      use amr_data_module, only : surf_enthalpy
+      
+      ! Input and output variables
+      integer, intent(in) :: lo(2), hi(2)
+      integer, intent(in) :: id_lo(2), id_hi(2)
+      integer, intent(in) :: t_lo(2), t_hi(2)
+      integer, intent(in) :: u_lo(2), u_hi(2)
+      real(amrex_real), intent(in) :: xlo(2)
+      real(amrex_real), intent(in) :: dx(2)    
+      real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1), id_lo(2):id_hi(2))
+      real(amrex_real), intent(inout) :: enth(u_lo(1):u_hi(1), u_lo(2):u_hi(2))
+      real(amrex_real), intent(inout) :: temp(t_lo(1):t_hi(1), t_lo(2):t_hi(2))
+
+      ! Local variables
+      integer :: i,j
+      integer :: xind
+
+      do i = lo(1), hi(1)
+         call interp_to_max_lev(lo, xlo, dx, i, xind)
+         do j = lo(2), hi(2)
+            if (nint(idom(i,j)).eq.0) then
+               enth(i,j) = surf_enthalpy(xind)
+               temp(i,j) = 0.0
+            end if
+         end do
+      end do
+   end subroutine set_backgroung_domain  
 end module heat_transfer_domain_module

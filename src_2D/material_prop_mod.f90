@@ -39,6 +39,7 @@ module material_properties_module
   public :: get_heat_capacity
   public :: finalize_mat_prop
   public :: get_viscosity
+  public :: get_temp_deriv_surface_tension
   
   ! -----------------------------------------------------------------
   ! Declare public variables
@@ -312,6 +313,37 @@ contains
      
    end subroutine get_surface_tension
 
+   ! ------------------------------------------------------------------
+   ! Subroutine used to compute the temperature derivatice of the 
+   ! surface tension.
+   ! ------------------------------------------------------------------ 
+   subroutine get_temp_deriv_surface_tension(temp, dsigma_dT)
+
+     use read_input_module, only : material_name    
+     use material_properties_tungsten_module, only : get_temp_deriv_surface_tension_tungsten                                                 
+     use material_properties_beryllium_module, only : get_temp_deriv_surface_tension_beryllium
+     use material_properties_iridium_module, only :  get_temp_deriv_surface_tension_iridium
+     use material_properties_niobium_module,  only : get_temp_deriv_surface_tension_niobium
+     
+      real(amrex_real), intent(in) :: temp    ! Temperature [K]
+      real(amrex_real), intent(out) :: dsigma_dT  ! Surface tension [N/(K*m)]
+
+      if (material_name.eq.'Tungsten') then
+         call get_temp_deriv_surface_tension_tungsten(temp, dsigma_dT)
+      elseif (material_name.eq.'Beryllium') then
+         call get_temp_deriv_surface_tension_beryllium(temp, dsigma_dT)
+      elseif (material_name.eq.'Iridium') then
+         call get_temp_deriv_surface_tension_iridium(temp, dsigma_dT)
+      elseif (material_name.eq.'Niobium') then
+         call get_temp_deriv_surface_tension_niobium(temp, dsigma_dT)
+      elseif (material_name.eq.'Test_melting_one_phase' .or. material_name.eq.'Test_melting_two_phase' &
+         .or. material_name.eq.'Test_Evaporation') then
+            dsigma_dT = 0 ! surface tension not defined for test materials, placeholder value
+      else
+         STOP 'Unknown material'
+      endif
+
+    end subroutine get_temp_deriv_surface_tension
 
    ! ------------------------------------------------------------------
    ! Subroutine used to compute the viscosity

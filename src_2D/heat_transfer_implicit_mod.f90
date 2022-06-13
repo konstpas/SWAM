@@ -93,6 +93,9 @@ contains
     ! Update melt position
     call update_melt_pos(lev)
 
+    ! Set background to avoind errors at the call of averagedown in simulation module
+    call synch_background(lev)
+    
     ! Clean memory
     call free_memory(phi_tmp, temp_tmp, idomain_tmp, fluxes)
     
@@ -1078,5 +1081,48 @@ contains
 
   end subroutine get_enthalpy_advection
 
+  ! -----------------------------------------------------------------
+  ! Subroutine used to set the background temperature to zero and the
+  ! background enthalpy to the one of the closest free-surface cell
+  ! -----------------------------------------------------------------
+  subroutine synch_background(lev)
     
+      use amr_data_module, only : phi_new, &
+                                 idomain, &
+                                 temp    
+      use heat_transfer_domain_module, only : set_backgroung_domain
+         
+      ! Input and output variables
+      integer, intent(in) :: lev
+      
+      ! Local variables
+      type(amrex_geometry) :: geom
+      type(amrex_mfiter) :: mfi
+      type(amrex_box) :: bx
+      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: pidom
+      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: ptemp
+      real(amrex_real), contiguous, pointer, dimension(:,:,:,:) :: penth
+      
+      ! Geometry
+      geom = amrex_geom(lev)
+      
+      !$omp parallel private(mfi, bx, pidom, ptemp, penth)
+      call amrex_mfiter_build(mfi, phi_new(lev), tiling=.false.)
+      do while(mfi%next())
+         bx = mfi%validbox()
+         pidom  => idomain(lev)%dataptr(mfi)
+         ptemp   => temp(lev)%dataptr(mfi)
+         penth   => phi_new(lev)%dataptr(mfi)
+
+         call set_backgroung_domain(geom%get_physical_location(bx%lo), geom%dx, &
+                                    bx%lo, bx%hi, &
+                                    pidom, lbound(pidom), ubound(pidom), &
+                                    penth, lbound(penth), ubound(penth), &
+                                    ptemp, lbound(ptemp), ubound(ptemp))
+         
+      end do
+      call amrex_mfiter_destroy(mfi)   
+      !$omp end parallel
+      
+  end subroutine synch_background    
 end module heat_transfer_implicit_module

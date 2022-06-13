@@ -371,10 +371,17 @@ contains
                                 melt_vel, &
                                 max_melt_vel
                                 
-    use read_input_module, only : sw_magnetic_magnitude, sw_captol, geom_name
+    use read_input_module, only : sw_magnetic_magnitude, & 
+                                  sw_captol, & 
+                                  geom_name, &
+                                  sw_gx, &
+                                  sw_marang_cap, &
+                                  sw_marangoni, &
+                                  sw_surf_tension_deriv_prefactor
 
     use material_properties_module, only : get_mass_density, &
-                                           get_viscosity
+                                           get_viscosity, &
+                                           get_temp_deriv_surface_tension
     
     ! Input and output variables
     real(amrex_real), intent(in) :: dt
@@ -391,8 +398,11 @@ contains
     real(amrex_real) :: rho
     real(amrex_real) :: J_face
     real(amrex_real) :: laplacian_term
-    integer :: adv_flag1, adv_flag2
     real(amrex_real) :: curv_scale
+    real(amrex_real) :: marangoni_term
+    real(amrex_real) :: dh
+    real(amrex_real) :: dsigma_dT
+    integer :: adv_flag1, adv_flag2
 
     ! Reset maximum melt velocity
     max_melt_vel = 0.0
@@ -432,6 +442,7 @@ contains
 
        ! Melt thickness
        hh = (melt_height(i) + melt_height(i-1))/2.0_amrex_real
+       dh = abs(surf_pos(i)-surf_pos(i-1))
        temp_face = (surf_temperature(i) + surf_temperature(i-1))/2.0_amrex_real
        
        ! Compute source terms only for grid points with a finite melt thickness
@@ -450,11 +461,23 @@ contains
                                       melt_vel(i-1,1))/surf_dx(1)**2
           else
             laplacian_term = 0.0
-         end if
+          end if
          
+          ! Calculate the contribution of the Marangoni term
+          marangoni_term = 0.0
+          if(sw_marangoni(1) .or. sw_marangoni(2)) then
+             call get_temp_deriv_surface_tension(temp_face, dsigma_dT)
+             marangoni_term = 3/(2*max(hh, sw_marang_cap)) * dsigma_dT * & 
+                (surf_temperature(i) - surf_temperature(i-1))/sqrt(surf_dx(1)**2+dh**2)
+             if(.not.sw_marangoni(1) .and. marangoni_term.gt.0.0) marangoni_term = 0.0
+             if(.not.sw_marangoni(2) .and. marangoni_term.lt.0.0) marangoni_term = 0.0
+             marangoni_term = marangoni_term*sw_surf_tension_deriv_prefactor
+          end if
           ! Update source term
           src_term(i) =  sw_magnetic_magnitude * J_face*curv_scale & ! Lorentz force
-                         + laplacian_term
+                         + laplacian_term &
+                         + marangoni_term &
+                         + sw_gx*rho
           
           ! Fix dimensionality
           src_term(i) = src_term(i)/rho

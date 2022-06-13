@@ -92,8 +92,17 @@ contains
                                   heat_cooling_thermionic, &
                                   heat_cooling_vaporization, &
                                   heat_cooling_radiation, &
-                                  heat_cooling_radiation
-    use amr_data_module, only : surf_current
+                                  heat_cooling_radiation, &
+                                  heat_local_surface_normals, &
+                                  heat_Foa, &
+                                  sw_magnetic_inclination, &
+                                  sw_B_unity
+
+    use amr_data_module, only : surf_current, &
+                                surf_normal, &
+                                surf_normal_undeformed
+
+    use heat_transfer_domain_module, only : interp_to_max_lev
     
     
     ! Input and output variables
@@ -110,12 +119,17 @@ contains
     
     ! Local variables
     integer :: i, j
+    integer :: xind
     real(amrex_real) :: q_plasma
     real(amrex_real) :: q_rad
     real(amrex_real) :: q_therm
     real(amrex_real) :: q_vap
     real(amrex_real) :: xpos, ypos
     logical :: side_flag
+    real(amrex_real) :: projection
+    real(amrex_real) :: projection_undeformed
+    real(amrex_real) :: pi = 3.1415927
+    real(amrex_real) :: angle_of_attack(lo(1):hi(1), lo(2):hi(2))
 
     side_flag = .false.
 
@@ -135,8 +149,8 @@ contains
              q_rad = 0.0
              
              ! Location of the free surface
-             xpos = xlo(1) + (i - lo(1))*dx(1)
-             ypos = xlo(2) + (j - lo(2))*dx(2)
+             xpos = xlo(1) + (0.5 + i - lo(1))*dx(1)
+             ypos = xlo(2) + (0.5 + j - lo(2))*dx(2)
              
              ! Plasma flux
              if (heat_plasma_flux_type.eq.'Gaussian') then
@@ -147,15 +161,38 @@ contains
                 call file_heat_flux (time, xpos, side_flag, q_plasma)
              else
                 STOP "Unknown plasma heat flux type"
-             end if
+             end if       
+
+             ! Project parallel heat flux onto the free surface         
+             if(heat_local_surface_normals) then
+               if (heat_Foa.gt.1.0+1E-6 .or. heat_Foa.lt.0.0-1E-6) then 
+                  STOP 'Optical ratio should be less than one and more than zero'
+               end if
+               call interp_to_max_lev(lo, xlo, dx, i, xind)
+               ! Project the parallel heat-flux which is returned by file_heat_flux based on local surface normals
+               projection = sw_B_unity(1)*surf_normal(xind,1) + &
+                            sw_B_unity(2)*surf_normal(xind,2)
+
+               projection_undeformed = sw_B_unity(1)*surf_normal_undeformed(xind,1) + &
+                                       sw_B_unity(2)*surf_normal_undeformed(xind,2)
+               if(projection.lt.0.0) then
+                  q_plasma = q_plasma*(abs(projection)*heat_Foa+(1-heat_Foa)*abs(projection_undeformed))
+               else
+                  q_plasma = q_plasma*(1-heat_Foa)*abs(projection_undeformed)
+               end if
+               angle_of_attack(i,j) = 180*ASIN(projection)/pi
+            else
+               angle_of_attack(i,j) = sw_magnetic_inclination
+               q_plasma = q_plasma*SIN(sw_magnetic_inclination*pi/180)
+            end if
              
              ! Thermionic cooling flux (at the maximum level, store the
              ! value of the thermionic current needed in the shallow water solver)
              if (heat_cooling_thermionic) then
                 if(lev.eq.amrex_max_level) then
-                   call thermionic_cooling(temp(i,j), q_plasma, q_therm, surf_current(i))
+                   call thermionic_cooling(temp(i,j), q_plasma, angle_of_attack(i,j), q_therm, surf_current(i))
                 else
-                   call thermionic_cooling(temp(i,j), q_plasma, q_therm)
+                   call thermionic_cooling(temp(i,j), q_plasma, angle_of_attack(i,j), q_therm)
                 end if
              end if
              
@@ -261,12 +298,13 @@ contains
                                         temp, t_lo, t_hi, qb) 
     
     use read_input_module, only : heat_plasma_flux_side_type, &
-                                  heat_cooling_thermionic, &
+                                  heat_cooling_thermionic_side, &
                                   heat_cooling_vaporization, &
                                   heat_cooling_radiation, &
                                   heat_sample_edge, &
                                   geom_name, & 
-                                  heat_cooling_radiation
+                                  heat_cooling_radiation, &
+                                  sw_magnetic_inclination_side
     
     
     ! Input and output variables
@@ -310,8 +348,8 @@ contains
              q_rad = 0.0
 
              ! Location of the exposed surface
-             xpos = xlo(1) + (1 + i - lo(1))*dx(1)
-             ypos = xlo(2) + (j - lo(2))*dx(2)
+             xpos = xlo(1) + (0.5 + i - lo(1))*dx(1)
+             ypos = xlo(2) + (0.5 + j - lo(2))*dx(2)
              
              ! Plasma flux
              if (heat_plasma_flux_side_type.eq.'Gaussian') then
@@ -325,8 +363,8 @@ contains
              end if
              
              ! Thermionic cooling flux
-             if (heat_cooling_thermionic) then
-                call thermionic_cooling(temp(i,j), q_plasma, q_therm)
+             if (heat_cooling_thermionic_side) then
+                call thermionic_cooling(temp(i,j), q_plasma, sw_magnetic_inclination_side, q_therm)
              end if
              
              ! Vaporization cooling flux
@@ -562,53 +600,56 @@ contains
   end subroutine radiation_cooling
    
   ! -----------------------------------------------------------------
-  ! Subroutine used to find the surface cooling flux due to 
-  ! thermionic emission given the surface temperature temperature
-  ! see E. Thorén et al. Plasma Phys. Control. Fusion 63 035021 (2021)
-  ! -----------------------------------------------------------------   
-  subroutine thermionic_cooling(Ts, q_plasma, q_therm, Jth)
-    
-    use material_properties_module, only : get_work_function, &
-                                           get_richardson_constant
-    
-    use read_input_module, only : sw_magnetic_inclination
-    
-    ! Input and output variables                                       
-    real(amrex_real), intent(in) :: Ts        ! Temperature at the center of cells adjacent to the free surface [K]
-    real(amrex_real), intent(in) :: q_plasma  ! Plasma heat flux [K]
-    real(amrex_real), intent(out) :: q_therm  ! Flux of energy due to thermionic emission [W/m^2]
-    real(amrex_real), intent(out), optional :: Jth ! Thermionic current [A/m^2]
-    
+   ! -----------------------------------------------------------------
+   ! Subroutine used to find the surface cooling flux due to 
+   ! thermionic emission given the surface temperature temperature
+   ! see E. Thorén et al. Plasma Phys. Control. Fusion 63 035021 (2021)
+   ! -----------------------------------------------------------------   
+   subroutine thermionic_cooling(Ts, q_plasma, q_therm, angle, Jth)
+ 
+     use material_properties_module, only : get_work_function, &
+                                            get_richardson_constant
+     
+ 
+     ! Input and output variables                                       
+     real(amrex_real), intent(in) :: Ts        ! Temperature at the center of cells adjacent to the free surface [K]
+     real(amrex_real), intent(in) :: q_plasma  ! Plasma heat flux [K]
+     real(amrex_real), intent(in) :: angle     ! The angle of the magnetic field wrt to the local normal [degrees]
+     real(amrex_real), intent(out) :: q_therm  ! Flux of energy due to thermionic emission [W/m^2]
+     real(amrex_real), intent(out), optional :: Jth
+     
      ! Local variables
-    real(amrex_real) :: kb = 1.38064852E-23 ! Boltzmann constant [m^2*kg/(s^2*K)]
-    real(amrex_real) :: Jth_nom
-    real(amrex_real) :: Jth_lim
-    real(amrex_real) :: J
-    real(amrex_real) :: Aeff
-    real(amrex_real) :: Wf
-    real(amrex_real) :: e = 1.60217662E-19
-    real(amrex_real) :: pi = 3.1415927
-    
-    call get_work_function(Wf)
-    call get_richardson_constant(Aeff)
-    
-    ! Nominal thermionic current from the Richardson-Dushman formula
-    Jth_nom = Aeff*EXP(-Wf/(kb*Ts))*Ts**2
-    
-    ! Space-charge limited current (semi-empirical expression)
-    Jth_lim = 1.51e4 * q_plasma**(1.0/3.0) * (SIN(sw_magnetic_inclination/180*pi))**2
-    
-    ! Minimum between nominal and space-charge limited
-    J = MIN(Jth_lim, Jth_nom)
-    
-    ! Heat flux
-    q_therm = J/e*(Wf+2*kb*Ts)
-    
-    ! Thermionic current
-    if (present(Jth)) Jth = J
-    
-  end subroutine thermionic_cooling
-  
+     real(amrex_real) :: kb = 1.38064852E-23 ! Boltzmann constant [m^2*kg/(s^2*K)]
+     real(amrex_real) :: Jth_nom
+     real(amrex_real) :: Jth_lim
+     real(amrex_real) :: Aeff
+     real(amrex_real) :: Wf
+     real(amrex_real) :: e = 1.60217662E-19
+     real(amrex_real) :: pi = 3.1415927
+     real(amrex_real) :: J
+     real(amrex_real) :: q_parallel
+     
+     call get_work_function(Wf)
+     call get_richardson_constant(Aeff)
+
+     ! Nominal thermionic current from the Richardson-Dushman formula
+     Jth_nom = Aeff*EXP(-Wf/(kb*Ts))*Ts**2
+
+     ! Reconstruct q_// based on the angle and the incoming heat-flux
+     q_parallel = q_plasma/SIN(angle*pi/180)
+
+     ! Space-charge limited current (semi-empirical expression)
+     Jth_lim = 1.51e4 * q_parallel**(1.0/3.0) * (SIN(angle/180*pi))**2
+
+     ! Minimum between nominal and space-charge limited
+     J = MIN(Jth_lim, Jth_nom)
+
+     ! Heat flux
+     q_therm = J/e*(Wf+2*kb*Ts)
+
+     if (present(Jth)) Jth = J
+     
+   end subroutine thermionic_cooling
  
   ! -----------------------------------------------------------------
   ! Subroutine used to find the surface cooling flux due to 
@@ -739,7 +780,7 @@ contains
     write(2, *) '# plasma flux and magnetic inclination: ', heat_cooling_debug(5), sw_magnetic_inclination
     write(2, *) '# Temperature[K], Thermionic flux [W/m^2], Radiative flux [W/m^2], Vaporization flux [W/m^2]'
     do i = 0,nint(heat_cooling_debug(4)) 
-       call thermionic_cooling(temp, heat_cooling_debug(5), q_therm)
+       call thermionic_cooling(temp, heat_cooling_debug(5), sw_magnetic_inclination, q_therm)
        call vaporization_cooling(temp, q_vap)
        call radiation_cooling(temp, q_rad)
        write(2,*) temp, q_therm, q_vap, q_rad
