@@ -121,6 +121,7 @@ contains
     integer :: i, j
     integer :: xind
     real(amrex_real) :: q_plasma
+    real(amrex_real) :: q_parallel
     real(amrex_real) :: q_rad
     real(amrex_real) :: q_therm
     real(amrex_real) :: q_vap
@@ -129,7 +130,7 @@ contains
     real(amrex_real) :: projection
     real(amrex_real) :: projection_undeformed
     real(amrex_real) :: pi = 3.1415927
-    real(amrex_real) :: angle_of_attack(lo(1):hi(1), lo(2):hi(2))
+    real(amrex_real) :: angle_of_attack
 
     side_flag = .false.
 
@@ -141,9 +142,11 @@ contains
        
           ! Locate the free surface 
           if(nint(idom(i,j)).ne.0 .and. nint(idom(i,j+1)).eq.0) then
+         !  if(j.eq.255) then
              
              ! Initialize heat flux contributions
              q_plasma = 0.0
+             q_parallel = 0.0
              q_therm = 0.0
              q_vap = 0.0
              q_rad = 0.0
@@ -154,14 +157,14 @@ contains
              
              ! Plasma flux
              if (heat_plasma_flux_type.eq.'Gaussian') then
-                call gaussian_heat_flux(time, xpos, side_flag, q_plasma)
+                call gaussian_heat_flux(time, xpos, side_flag, q_parallel)
              elseif (heat_plasma_flux_type.eq.'Uniform') then
-                call uniform_heat_flux(time, xpos, side_flag, q_plasma)
+                call uniform_heat_flux(time, xpos, side_flag, q_parallel)
              elseif (heat_plasma_flux_type.eq.'Input_file') then
-                call file_heat_flux (time, xpos, side_flag, q_plasma)
+                call file_heat_flux (time, xpos, side_flag, q_parallel)
              else
                 STOP "Unknown plasma heat flux type"
-             end if       
+             end if   
 
              ! Project parallel heat flux onto the free surface         
              if(heat_local_surface_normals) then
@@ -175,24 +178,18 @@ contains
 
                projection_undeformed = sw_B_unity(1)*surf_normal_undeformed(xind,1) + &
                                        sw_B_unity(2)*surf_normal_undeformed(xind,2)
-               if(projection.lt.0.0) then
-                  q_plasma = q_plasma*(abs(projection)*heat_Foa+(1-heat_Foa)*abs(projection_undeformed))
-               else
-                  q_plasma = q_plasma*(1-heat_Foa)*abs(projection_undeformed)
-               end if
-               angle_of_attack(i,j) = 180*ASIN(projection)/pi
-            else
-               angle_of_attack(i,j) = sw_magnetic_inclination
-               q_plasma = q_plasma*SIN(sw_magnetic_inclination*pi/180)
-            end if
+               angle_of_attack = 180*ASIN(projection)/pi
+             else
+               angle_of_attack = sw_magnetic_inclination
+             end if    
              
              ! Thermionic cooling flux (at the maximum level, store the
              ! value of the thermionic current needed in the shallow water solver)
              if (heat_cooling_thermionic) then
                 if(lev.eq.amrex_max_level) then
-                   call thermionic_cooling(temp(i,j), q_plasma, angle_of_attack(i,j), q_therm, surf_current(i))
+                   call thermionic_cooling(temp(i,j), q_parallel, angle_of_attack, q_therm, surf_current(i))
                 else
-                   call thermionic_cooling(temp(i,j), q_plasma, angle_of_attack(i,j), q_therm)
+                   call thermionic_cooling(temp(i,j), q_parallel, angle_of_attack, q_therm)
                 end if
              end if
              
@@ -204,6 +201,17 @@ contains
              ! Radiative cooling flux
              if (heat_cooling_radiation) then
                 call radiation_cooling(temp(i,j), q_rad)
+             end if
+
+ 
+             if(heat_local_surface_normals) then
+               if(projection.lt.0.0) then
+                  q_plasma = q_parallel*(abs(projection)*heat_Foa+(1-heat_Foa)*abs(projection_undeformed))
+               else
+                  q_plasma = q_parallel*(1-heat_Foa)*abs(projection_undeformed)
+               end if
+            else
+              q_plasma = q_parallel*SIN(sw_magnetic_inclination*pi/180)
              end if
              
              ! Sum all flux contributions
@@ -605,7 +613,7 @@ contains
    ! thermionic emission given the surface temperature temperature
    ! see E. Thorén et al. Plasma Phys. Control. Fusion 63 035021 (2021)
    ! -----------------------------------------------------------------   
-   subroutine thermionic_cooling(Ts, q_plasma, q_therm, angle, Jth)
+   subroutine thermionic_cooling(Ts, q_parallel, angle, q_therm, Jth)
  
      use material_properties_module, only : get_work_function, &
                                             get_richardson_constant
@@ -613,8 +621,8 @@ contains
  
      ! Input and output variables                                       
      real(amrex_real), intent(in) :: Ts        ! Temperature at the center of cells adjacent to the free surface [K]
-     real(amrex_real), intent(in) :: q_plasma  ! Plasma heat flux [K]
-     real(amrex_real), intent(in) :: angle     ! The angle of the magnetic field wrt to the local normal [degrees]
+     real(amrex_real), intent(in) :: q_parallel  ! Plasma heat flux [K]
+     real(amrex_real), intent(in) :: angle
      real(amrex_real), intent(out) :: q_therm  ! Flux of energy due to thermionic emission [W/m^2]
      real(amrex_real), intent(out), optional :: Jth
      
@@ -627,16 +635,12 @@ contains
      real(amrex_real) :: e = 1.60217662E-19
      real(amrex_real) :: pi = 3.1415927
      real(amrex_real) :: J
-     real(amrex_real) :: q_parallel
      
      call get_work_function(Wf)
      call get_richardson_constant(Aeff)
 
      ! Nominal thermionic current from the Richardson-Dushman formula
      Jth_nom = Aeff*EXP(-Wf/(kb*Ts))*Ts**2
-
-     ! Reconstruct q_// based on the angle and the incoming heat-flux
-     q_parallel = q_plasma/SIN(angle*pi/180)
 
      ! Space-charge limited current (semi-empirical expression)
      Jth_lim = 1.51e4 * q_parallel**(1.0/3.0) * (SIN(angle/180*pi))**2

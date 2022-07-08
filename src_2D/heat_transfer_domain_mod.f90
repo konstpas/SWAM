@@ -24,6 +24,7 @@ module heat_transfer_domain_module
   public :: get_surf_deformation
   public :: interp_to_max_lev
   public :: set_backgroung_domain
+!   public :: set_physical_boundary
 
 contains
   
@@ -758,4 +759,44 @@ contains
          end do
       end do
    end subroutine set_backgroung_domain  
+
+   ! ! -----------------------------------------------------------------
+   ! ! Subroutine used to fill in the domain ghost points of a multifab.
+   ! ! The multifab should have all interior and coarse-fine ghost points
+   ! ! filled before the call to this function 
+   ! ! -----------------------------------------------------------------   
+   ! subroutine set_physical_boundary(geom, mltfb, lo, hi)
+
+   !    ! Input and output variables
+   !    type(amrex_geometry), intent(in) :: geom
+   !    integer, intent(in) :: lo(2), hi(2)
+   !    real(amrex_real), intent(inout) :: mltfb(lo(1):hi(1), lo(2):hi(2))
+
+   !    ! Local variables
+   !    integer :: i, j, i_valid, j_valid
+   !    integer :: ibound(2)
+   !    integer :: jbound(2)
+      
+   !    ibound(1) = geom%domain%lo(1)
+   !    jbound(1) = geom%domain%lo(2)
+   !    ibound(2) = geom%domain%hi(1)
+   !    ibound(2) = geom%domain%hi(2)
+
+   !    ! Initialize output
+
+   !    do i = lo(1), hi(1)
+   !       do j = lo(2), hi(2)
+   !          i_valid = i
+   !          j_valid = j
+   !          ! Check if the point (i,j) falls within the domain
+   !          if (i.lt.ibound(1)) i_valid = ibound(1)
+   !          if (i.gt.ibound(2)) i_valid = ibound(2)
+   !          if (j.lt.jbound(1)) j_valid = jbound(1)
+   !          if (j.gt.jbound(2)) j_valid = jbound(2)
+   !          mltfb(i,j) = mltfb(i_valid, j_valid)
+   !       end do
+   !    end do
+      
+   ! end subroutine set_physical_boundary
+
 end module heat_transfer_domain_module

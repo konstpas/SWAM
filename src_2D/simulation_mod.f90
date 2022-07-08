@@ -390,7 +390,7 @@ contains
     use heat_transfer_module, only : advance_heat_solver_explicit, &
                                      advance_heat_solver_implicit
                                      
-   !  use electrostatics_module, only : advance_electrostatics
+    use electrostatics_module, only : advance_electrostatics
 
     ! Input and output variables
     real(amrex_real), intent(in) :: dt
@@ -412,7 +412,7 @@ contains
        end if
     end if
 
-   !  call advance_electrostatics()
+    call advance_electrostatics(time+dt)
 
   end subroutine advance_all_levels
 

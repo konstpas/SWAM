@@ -197,6 +197,11 @@ module read_input_module
   ! due to possible uncertainties at the quantity
   public :: sw_surf_tension_deriv_prefactor
 
+    ! --- Variables for the electrostatics solver ---
+
+  ! Flag to control whether to solve for the electrostatics potential or not
+  public :: electrostat_solve
+
   ! --- Variables for the material properties ---
 
   ! Type of material to simulated, only one can be selected (Tungsten,
@@ -315,6 +320,9 @@ module read_input_module
   real(amrex_real), allocatable, save :: sw_pool_params(:)
   character(len=:), allocatable, save :: sw_free_surface_file
 
+  ! Electrostatics solver
+  logical, save :: electrostat_solve
+
   ! Material properties
   character(len=:), allocatable, save :: material_name
   integer, save :: material_nPoints
@@ -427,6 +435,10 @@ contains
     call pp%query("free_surface_file",sw_free_surface_file)
     call amrex_parmparse_destroy(pp)
 
+    ! Parameters for the electrostatics solver
+    call amrex_parmparse_build(pp, "electrostatics")
+    call pp%query("solve", electrostat_solve) 
+
     ! Parameters for the numerics
     call amrex_parmparse_build(pp, "numerics")
     call pp%query("cfl", num_cfl)
@@ -478,6 +490,7 @@ contains
     call set_default_regrid
     call set_default_heat
     call set_default_sw
+    call set_default_electrostat
     call set_default_material
     call set_default_numerics
     call set_default_io
@@ -583,6 +596,13 @@ contains
     sw_free_surface_file = "free_surface.dat"
     
   end subroutine set_default_sw
+
+  subroutine set_default_electrostat
+    
+    electrostat_solve = .true.
+
+  end subroutine set_default_electrostat
+
 
 
   subroutine set_default_material()

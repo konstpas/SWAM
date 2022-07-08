@@ -27,15 +27,19 @@ contains
     use amr_data_module, only : phi_new, &
                                 temp, &
                                 idomain, &
+                                psi, &
                                 t_new, &
                                 surf_pos, &
                                 surf_temperature, &
                                 surf_deformation, &
+                                surf_current, &
                                 melt_pos, &
                                 melt_top, &
                                 surf_ind, &
                                 surf_dx, &
-                                stepno
+                                stepno, &
+                                surf_accum_current_x, & 
+                                surf_accum_current_y
     
     use read_input_module, only : io_plot_file
     
@@ -86,6 +90,14 @@ contains
                               t_new(0), stepno, &
                               amrex_ref_ratio)
 
+    ! Output electrostatic potential
+    name = trim(io_plot_file) // "_potential_" //current_step 
+    call amrex_string_build(varname(1), "psi")
+    call amrex_write_plotfile(name, nlevs, psi, &
+                              varname, amrex_geom, &
+                              t_new(0), stepno, &
+                              amrex_ref_ratio)
+
     max_temp = 0.0
     max_temp_lev = 0.0
     do ilev = 0, nlevs-1
@@ -97,14 +109,17 @@ contains
     name = "melt_thickness_" //trim(current_step)//".dat"
     open(2, file = name, status = 'unknown', action = "write")
     write(2, *) 'x-coordinate     Free Surface     Melt Bottom     Melt top     Free Surface Temperature     Surface deformation', &
-        '    Max temperature'
+            '    Jx    Jy    Jth    Max temperature'
     do i=surf_ind(1,1), surf_ind(1,2)
       ! i starts from 0 so to output the x-coord at the center of the cell add 0.5
       xpos = (i+0.5)*surf_dx(1)
       if (i.eq.surf_ind(1,1)) then
-         write(2, '(7(es13.6, 4x))') xpos, surf_pos(i), melt_pos(i), melt_top(i), surf_temperature(i), surf_deformation(i), max_temp
+         write(2, '(10(es13.6, 4x))') xpos, surf_pos(i), melt_pos(i), melt_top(i), surf_temperature(i), surf_deformation(i), &
+         surf_accum_current_x(i,1)/surf_accum_current_x(i,2), surf_accum_current_y(i,1)/surf_accum_current_y(i,2), & 
+         surf_current(i), max_temp
       else
-         write(2, '(6(es13.6, 4x))') xpos, surf_pos(i), melt_pos(i), melt_top(i), surf_temperature(i), surf_deformation(i)
+         write(2, '(9(es13.6, 4x))') xpos, surf_pos(i), melt_pos(i), melt_top(i), surf_temperature(i), surf_deformation(i), &
+         surf_accum_current_x(i,1)/surf_accum_current_x(i,2), surf_accum_current_y(i,1)/surf_accum_current_y(i,2), surf_current(i)
       endif
     end do
     close(2)
