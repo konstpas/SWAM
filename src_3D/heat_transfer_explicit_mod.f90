@@ -281,7 +281,7 @@ module heat_transfer_explicit_module
    ncomp = phi_new(lev)%ncomp()
    
    ! Synchronize temperature with ghost points
-   call temp_tmp%copy(temp(lev), 1, 1, ncomp, 0) ! The last 1 is the number of ghost points
+   call temp_tmp%copy(temp(lev), 1, 1, ncomp, 0) ! The last 0 is the number of ghost points
    call temp_tmp%fill_boundary(geom)
    
    !$omp parallel private(mfi, bx, pidom, ptemp_tmp, ptemp, penth)

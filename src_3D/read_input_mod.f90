@@ -94,6 +94,12 @@ module read_input_module
   public :: heat_cooling_vaporization
   ! Activate or deactivate radiative cooling (1 = on, 0 = off)
   public :: heat_cooling_radiation
+  ! Species density to be used in the limited thermionic current formula [m^-3]
+  public :: heat_density 
+  ! Mass of ions used in the limited thermionic current formula [kg]
+  public :: heat_ion_mass
+  ! Sheath transmission coefficient
+  public :: heat_sheath_coeff
   ! Solver for the heat equation (explicit or implicit)
   public :: heat_solver
   ! Initial phase of the sample (solid, liquid). Relevant only
@@ -161,7 +167,7 @@ module read_input_module
   ! Magnitude of the magnetic field [T]
   public :: sw_Bx
   public :: sw_Bz
-  ! Magnitude of the acceleration of gravity [m/s^2]
+  ! Magnitude of the acceleration due to gravity [m/s^2]
   public :: sw_gx
   public :: sw_gz
   ! Fixed melt velocity [m/s]. Only used if the momentum equation
@@ -195,7 +201,7 @@ module read_input_module
   ! off (0) the Marangoni contribution in that direction is neglected. 
   public :: sw_marangoni
   ! Capping of the 1/h pre-factor to the Marangoni contribution at the momentum
-  ! equation of the shallow water equations
+  ! equation of the shallow water equations [m]
   public :: sw_marang_cap
   ! Flag to control whether the free surface is read from a file (1 = yes, 0 = no) 
   public :: sw_read_free_surface_file
@@ -303,6 +309,9 @@ module read_input_module
   real(amrex_real), save :: heat_temp_surf
   real(amrex_real), save :: heat_temp_init
   real(amrex_real), save :: heat_Foa
+  real(amrex_real), save :: heat_density
+  real(amrex_real), save :: heat_ion_mass
+  real(amrex_real), save :: heat_sheath_coeff
   real(amrex_real), allocatable, save :: heat_cooling_debug(:)
   real(amrex_real), allocatable, save :: heat_plasma_flux_params(:)
   real(amrex_real), allocatable, save :: heat_plasma_flux_side_params(:)
@@ -321,6 +330,7 @@ module read_input_module
   real(amrex_real), save :: sw_Bz
   real(amrex_real), save :: sw_gx
   real(amrex_real), save :: sw_gz
+  real(amrex_real), save :: sw_gravity
   real(amrex_real), save :: sw_surf_tension_deriv_prefactor
   real(amrex_real), allocatable, save :: sw_melt_velocity(:)
   real(amrex_real), save :: sw_surf_pos_init
@@ -328,9 +338,8 @@ module read_input_module
   real(amrex_real), allocatable, save :: sw_pool_params(:)
   real(amrex_real), allocatable, save :: sw_B_unity(:)
   character(len=:), allocatable, save :: sw_solver
-  real(amrex_real), save :: sw_gravity
-  integer, save :: sw_iter
   character(len=:), allocatable, save :: sw_free_surface_file
+  integer, save :: sw_iter
 
   ! Material properties
   character(len=:), allocatable, save :: material_name
@@ -419,6 +428,9 @@ contains
     call pp%queryarr("cooling_debug",heat_cooling_debug)
     call pp%query("solver",heat_solver)
     call pp%query("reflux", heat_reflux)
+    call pp%query("density", heat_density)
+    call pp%query("ion_mass", heat_ion_mass)
+    call pp%query("sheath_transmission_coeff", heat_sheath_coeff)
     call amrex_parmparse_destroy(pp)
 
     ! Parameters for the shallow water solver
@@ -586,6 +598,9 @@ contains
     heat_solve = .true.
     heat_sample_edge = 0.020
     heat_temp_surf = -1.0
+    heat_density = 2E19
+    heat_ion_mass = 3.34358377E-27
+    heat_sheath_coeff = 7
     
   end subroutine set_default_heat
 

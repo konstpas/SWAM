@@ -118,8 +118,8 @@ contains
     ! Output shallow water variables
     name = "sw_" //trim(current_step)//".dat"
     open(2, file = name, status = 'unknown', action = "write")
-    write(2, *) 'x-coordinate  z-coordinate   Free Surface     Melt Bottom     Melt top     '&
-                'Melt vx     Melt vz     qnew1     qnew2     qnew3     Surface deformaion'
+    write(2, *) 'x-coordinate  z-coordinate   Free Surface     Melt Bottom     Melt top     &
+                 Melt vx     Melt vz     qnew1     qnew2     qnew3     Temperature     Deformaion'
     dashfmt = '(12(es13.6, 4x))'
     do i=surf_ind(1,1), surf_ind(1,2)
         do k=surf_ind(2,1), surf_ind(2,2)

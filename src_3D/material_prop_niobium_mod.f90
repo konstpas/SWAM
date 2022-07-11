@@ -240,7 +240,7 @@ contains
     if (temp.lt.2745.0) then
        mu = 0.0050;
     else 
-      mu = 1.05E-3*EXP(1.556*2745/temp)
+      mu = 1.05E-3*EXP(1.556*2745.0/temp)
     end if
     
   end subroutine get_viscosity_niobium  

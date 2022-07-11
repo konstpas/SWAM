@@ -129,7 +129,9 @@ contains
                   call file_heat_flux(time, xpos, zpos, side_flag, q_plasma)
                 else
                    STOP "Unknown plasma heat flux type"
-                end if                
+                end if      
+                    
+                ! Project parallel heat flux onto the free surface          
                 if(heat_local_surface_normals) then
                   if (heat_Foa.gt.1.0+1E-6 .or. heat_Foa.lt.0.0-1E-6) then 
                      STOP 'Optical ratio should be less than one and more than zero'
@@ -571,6 +573,9 @@ contains
  
      use material_properties_module, only : get_work_function, &
                                             get_richardson_constant
+     use read_input_module, only : heat_density, &
+                                   heat_ion_mass, &
+                                   heat_sheath_coeff
      
  
      ! Input and output variables                                       
@@ -590,6 +595,8 @@ contains
      real(amrex_real) :: pi = 3.1415927
      real(amrex_real) :: J
      real(amrex_real) :: q_parallel
+     real(amrex_real) :: me = 9.1093837E-31
+     real(amrex_real) :: J_lim_prefactor
      
      call get_work_function(Wf)
      call get_richardson_constant(Aeff)
@@ -601,7 +608,8 @@ contains
      q_parallel = q_plasma/SIN(angle*pi/180)
 
      ! Space-charge limited current (semi-empirical expression)
-     Jth_lim = 1.51e4 * q_parallel**(1.0/3.0) * (SIN(angle/180*pi))**2
+     J_lim_prefactor = 0.43*e*heat_density*(sqrt(2*heat_ion_mass)/(heat_sheath_coeff*heat_density))**(1.0/3.0)/sqrt(me)
+     Jth_lim = J_lim_prefactor * q_parallel**(1.0/3.0) * (SIN(angle/180*pi))**2
 
      ! Minimum between nominal and space-charge limited
      J = MIN(Jth_lim, Jth_nom)
