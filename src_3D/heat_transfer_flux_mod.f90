@@ -1,4 +1,4 @@
-module heat_flux_module
+module heat_transfer_flux_module
   
   ! -----------------------------------------------------------------
   ! This module is used to compute the heat flux imposed on the free
@@ -816,4 +816,4 @@ contains
       h = p1*Tc**7 + p2*Tc**6 + p3*Tc**5 + p4*Tc**4 + p5*Tc**3 + p6*Tc**2 + p7*Tc + p8
    end subroutine get_convection_coeff
 
-end module heat_flux_module
+end module heat_transfer_flux_module

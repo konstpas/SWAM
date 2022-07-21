@@ -79,7 +79,15 @@ module amr_data_module
   public :: qnew 
   ! Thermionic current on the free surface
   public :: surf_current 
-  public :: domain_top ! Position of the top of the simulation domain
+  ! Accumalative value of the x-component of the replacment current in the melt layer
+  ! and the number of cells faces that contributed in the accumalated value
+  public :: surf_accum_current_x
+  ! Average value of the y-component of the replacment current in the melt layer
+  public :: surf_accum_current_y
+  ! Average value of the z-component of the replacment current in the melt layer
+  public :: surf_accum_current_z
+  ! Position of the top of the simulation domain
+  public :: domain_top 
   ! Free surface deformation (dh/dt), used for regridding
   public :: surf_deformation
   ! Time
@@ -97,6 +105,9 @@ module amr_data_module
   public :: Qtherm
   public :: Qrad
   public :: Qvap
+
+    ! Electrostatic potential
+  public :: psi
 
   
   ! ------------------------------------------------------------------
@@ -133,6 +144,9 @@ module amr_data_module
   real(amrex_real), save :: surf_xlo(2)
   real(amrex_real), save :: surf_dx(2)
   real(amrex_real), allocatable, save :: surf_current(:,:)
+  real(amrex_real), allocatable, save :: surf_accum_current_x(:,:,:)
+  real(amrex_real), allocatable, save :: surf_accum_current_y(:,:,:)
+  real(amrex_real), allocatable, save :: surf_accum_current_z(:,:,:)
   real(amrex_real), allocatable, save :: surf_deformation(:,:)
 
  
@@ -154,6 +168,9 @@ module amr_data_module
 
   ! Flux registers
   type(amrex_fluxregister), allocatable, save :: flux_reg(:)
+
+  ! Electrostatic potential
+  type(amrex_multifab), allocatable, save :: psi(:)  
 
   ! Variables that keep track of the energy balance
   real(amrex_real), save :: Qplasma
@@ -238,6 +255,9 @@ contains
     allocate(melt_top(lo_x:hi_x, lo_z:hi_z))
     allocate(melt_vel(lo_x:hi_x+1,lo_z:hi_z+1, 1:amrex_spacedim-1))
     allocate(surf_current(lo_x:hi_x, lo_z:hi_z))
+    allocate(surf_accum_current_x(lo_x:hi_x,lo_z:hi_z,1:2))
+    allocate(surf_accum_current_y(lo_x:hi_x,lo_z:hi_z,1:2))
+    allocate(surf_accum_current_z(lo_x:hi_x,lo_z:hi_z,1:2))
     allocate(surf_deformation(lo_x:hi_x,lo_z:hi_z))  
 
   end subroutine allocate_free_surface_variables
@@ -249,6 +269,7 @@ contains
     allocate(phi_new(0:amrex_max_level))
     allocate(phi_old(0:amrex_max_level))
     allocate(temp(0:amrex_max_level))
+    allocate(psi(0:amrex_max_level))
     
   end subroutine allocate_multifabs
 
@@ -335,6 +356,9 @@ contains
     surf_enthalpy = 0.0_amrex_real
     domain_top = amrex_probhi(2)
     surf_current = 0.0_amrex_real
+    surf_accum_current_x = 0.0_amrex_real
+    surf_accum_current_y = 0.0_amrex_real
+    surf_accum_current_z = 0.0_amrex_real
     surf_deformation = 0.0_amrex_real
     
   end subroutine init_free_surface_variables
@@ -388,6 +412,9 @@ contains
     deallocate(melt_top)
     deallocate(melt_vel)
     deallocate(surf_current)
+    deallocate(surf_accum_current_x)
+    deallocate(surf_accum_current_y)
+    deallocate(surf_accum_current_z)
     deallocate(surf_deformation)  
     deallocate(surf_enthalpy)
     deallocate(surf_evap_flux)
@@ -409,6 +436,7 @@ contains
        call amrex_multifab_destroy(phi_new(lev))
        call amrex_multifab_destroy(phi_old(lev))
        call amrex_multifab_destroy(temp(lev))
+       call amrex_multifab_destroy(psi(lev))
     
     end do
     

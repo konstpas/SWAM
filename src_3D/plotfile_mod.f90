@@ -8,10 +8,15 @@ module plotfile_module
   use amr_data_module, only : phi_new, &
                               temp, &
                               idomain, &
+                              psi, &
                               t_new, &
                               surf_pos, &
                               surf_temperature, &
                               surf_deformation, &
+                              surf_current, &
+                              surf_accum_current_x, &
+                              surf_accum_current_y, &
+                              surf_accum_current_z, &
                               melt_pos, &
                               melt_top, &
                               surf_ind, &
@@ -86,17 +91,25 @@ contains
       name = trim(io_plot_file) // "_temperature_" //current_step 
       call amrex_string_build(varname(1), "Temperature")
       call amrex_write_plotfile(name, nlevs, temp, &
-                                 varname, amrex_geom, &
-                                 t_new(0), stepno, &
-                                 amrex_ref_ratio)
+                                varname, amrex_geom, &
+                                t_new(0), stepno, &
+                                amrex_ref_ratio)
 
       ! Output flag to distinguish between material and background
       name = trim(io_plot_file) // "_idomain_" //current_step 
       call amrex_string_build(varname(1), "idomain")
       call amrex_write_plotfile(name, nlevs, idomain, &
-                                 varname, amrex_geom, &
-                                 t_new(0), stepno, &
-                                 amrex_ref_ratio)
+                                varname, amrex_geom, &
+                                t_new(0), stepno, &
+                                amrex_ref_ratio)
+
+      ! Auxillary potential output
+      name = trim(io_plot_file) // "_psi_" //current_step 
+      call amrex_string_build(varname(1), "psi")
+      call amrex_write_plotfile(name, nlevs, psi, &
+                                varname, amrex_geom, &
+                                t_new(0), stepno, &
+                                amrex_ref_ratio)
 
       max_temp = 0.0
       max_temp_lev = 0.0
@@ -119,8 +132,8 @@ contains
     name = "sw_" //trim(current_step)//".dat"
     open(2, file = name, status = 'unknown', action = "write")
     write(2, *) 'x-coordinate  z-coordinate   Free Surface     Melt Bottom     Melt top     &
-                 Melt vx     Melt vz     qnew1     qnew2     qnew3     Temperature     Deformaion'
-    dashfmt = '(12(es13.6, 4x))'
+                 & Melt vx     Melt vz     qnew1     qnew2     qnew3     Temperature     Deformation    Jx    Jy    Jz    Jth'
+    dashfmt = '(16(es13.6, 4x))'
     do i=surf_ind(1,1), surf_ind(1,2)
         do k=surf_ind(2,1), surf_ind(2,2)
            ! i starts from 0 so to output the x-coord at the center of the cell add 0.5
@@ -129,7 +142,11 @@ contains
            zpos = (k+0.5)*surf_dx(2)
            write(2, dashfmt) xpos, zpos, surf_pos(i,k), melt_pos(i,k), melt_top(i,k), &
                              melt_vel(i,k,1) ,melt_vel(i,k,2), qnew(1,i,k), qnew(2,i,k), &
-                             qnew(3,i,k), surf_temperature(i,k), surf_deformation(i,k)
+                             qnew(3,i,k), surf_temperature(i,k), surf_deformation(i,k), & 
+                             surf_accum_current_x(i,k,1), &
+                             surf_accum_current_y(i,k,1), &
+                             surf_accum_current_z(i,k,1), &
+                             surf_current(i,k)
         end do
     end do
     close(2)

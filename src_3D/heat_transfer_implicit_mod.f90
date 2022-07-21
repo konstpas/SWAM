@@ -337,7 +337,7 @@ module heat_transfer_implicit_module
                                       idomain_tmp, alpha, beta, &
                                       rhs)
   
-      use read_input_module, only : heat_temp_surf
+      use read_input_module, only : heat_temp_surf, heat_temp_bottom
       use amr_data_module, only : phi_new, & 
                                   temp, & 
                                   idomain, &
@@ -434,6 +434,9 @@ module heat_transfer_implicit_module
       ! Get right hand for the linear solver
       if (heat_temp_surf.gt.0) then   
          STOP 'The implicit solver cannot be used to solve problems with a fixed temperature on the free surface'
+      elseif (heat_temp_bottom.gt.0) then   
+         STOP 'The implicit solver cannot be used to solve problems with a fixed temperature on the bottom surface [Dev. note: &
+               & To implement that change both get_rhs and the B.C. of the linear solver to Dirichlet.]'
       else
          call get_rhs(lev, bx%lo, bx%hi, time, dt, &
                       geom%get_physical_location(bx%lo), geom%dx, &
@@ -856,7 +859,7 @@ module heat_transfer_implicit_module
                        rhs, r_lo, r_hi, &
                        Qpipe_box, Qtherm_box, Qvap_box, Qrad_box, Qplasma_box)
   
-      use heat_flux_module, only: get_boundary_heat_flux
+      use heat_transfer_flux_module, only: get_boundary_heat_flux
       
       ! Input and output variables
       integer, intent(in) :: lev

@@ -13,7 +13,8 @@ module regrid_module
                                phi_old, &
                                temp, &
                                t_new, &
-                               t_old
+                               t_old, &
+                               psi
    
    implicit none
  
@@ -61,6 +62,7 @@ module regrid_module
      real(amrex_real), contiguous, pointer :: pid(:,:,:,:)
      real(amrex_real), contiguous, pointer :: phi(:,:,:,:)
      real(amrex_real), contiguous, pointer :: ptemp(:,:,:,:)
+     real(amrex_real), contiguous, pointer :: ppsi(:,:,:,:)
      type(amrex_boxarray) :: ba
      type(amrex_distromap) :: dm
      type(amrex_mfiter) :: mfi
@@ -86,6 +88,7 @@ module regrid_module
      call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, 0)
      call amrex_multifab_build(temp(lev), ba, dm, ncomp, 0)
      call amrex_multifab_build(idomain(lev), ba, dm, ncomp, nghost)
+     call amrex_multifab_build(psi(lev), ba, dm, ncomp, nghost)
         
      ! Build the flux registers
      if (lev > 0 .and. heat_reflux) then
@@ -101,6 +104,7 @@ module regrid_module
         phi => phi_new(lev)%dataptr(mfi)
         ptemp => temp(lev)%dataptr(mfi)
         pid => idomain(lev)%dataptr(mfi)
+        ppsi => psi(lev)%dataptr(mfi)
         
         ! Enthalpy
         call init_phi(bx%lo, bx%hi, &
@@ -115,6 +119,10 @@ module regrid_module
                          bx%lo, bx%hi, &
                          pid, lbound(pid), ubound(pid), &
                          ptemp, lbound(ptemp), ubound(ptemp))
+
+       ! Electrostatic potential
+         call init_psi(bx%lo, bx%hi, &
+                       ppsi, lbound(ppsi), ubound(ppsi))
                
      end do
      call amrex_mfiter_destroy(mfi)
@@ -230,6 +238,9 @@ module regrid_module
                
      end do    
      call amrex_mfiter_destroy(mfi)   
+
+   ! Fill electrostatic potential multifab from coarser level
+    call fillcoarsepatch_psi(lev, time, psi(lev))
      
    end subroutine my_make_new_level_from_coarse
  
@@ -329,6 +340,7 @@ module regrid_module
      type(amrex_distromap) :: dm
      type(amrex_mfiter) :: mfi
      type(amrex_multifab) :: new_phi_new
+     type(amrex_multifab) :: new_psi
      type(amrex_box) :: bx
      type(amrex_geometry) :: geom
      
@@ -342,7 +354,10 @@ module regrid_module
      ! Create a copy of phi_new and fill it with fillpatch
      call amrex_multifab_build(new_phi_new, ba, dm, ncomp, 0)
      call fillpatch(lev, time, new_phi_new)
- 
+
+    ! Create a copy of psi and fill it with fillpatch
+     call amrex_multifab_build(new_psi, ba, dm, ncomp, nghost)
+     call fillpatch_psi(lev, time, new_psi) 
      ! Time
      t_new(lev) = time
      t_old(lev) = time - 1.e200_amrex_real
@@ -355,6 +370,7 @@ module regrid_module
      call amrex_multifab_build(phi_old(lev), ba, dm, ncomp, 0)
      call amrex_multifab_build(temp(lev), ba, dm, ncomp, 0)
      call amrex_multifab_build(idomain(lev), ba, dm, ncomp, nghost)
+    call amrex_multifab_build(psi(lev), ba, dm, ncomp, nghost)
      
      ! Build the flux registers
      if (lev > 0 .and. heat_reflux) then
@@ -388,7 +404,11 @@ module regrid_module
                
       end do    
      call amrex_mfiter_destroy(mfi)
-     
+
+    ! Copy the content of new_psi into psi
+    call psi(lev)%copy(new_psi, 1, 1, ncomp, nghost)
+    call amrex_multifab_destroy(new_psi)
+
    end subroutine my_remake_level
  
  
@@ -594,5 +614,93 @@ module regrid_module
      
    end subroutine averagedownto
    
+  ! -----------------------------------------------------------------
+  ! Subroutine used to initialize the electrostatic potential multifab
+  ! -----------------------------------------------------------------
+  subroutine init_psi(lo, hi, &
+                      psi, psi_lo, psi_hi)
+
+    use read_input_module, only : heat_temp_init
+    use material_properties_module, only : get_enthalpy
+
+    ! Input and output variables
+    integer, intent(in) :: lo(3), hi(3)
+    integer, intent(in) :: psi_lo(3), psi_hi(3)
+    real(amrex_real), intent(inout) :: psi(psi_lo(1):psi_hi(1),psi_lo(2):psi_hi(2),psi_lo(3):psi_hi(3))
+
+    ! Local variables
+    integer          :: i,j,k
+
+    do k=lo(3),hi(3)
+      do j=lo(2),hi(2)
+         do i=lo(1),hi(1)
+            psi(i,j,k) = 0.0_amrex_real
+         end do
+      end do
+    end do    
+    
+  end subroutine init_psi
+
+  
+   ! -----------------------------------------------------------------
+   ! Subroutine used to fill the electrostatic potential multifab
+   ! at a given level when that level is created from a coarser one
+   ! ----------------------------------------------------------------- 
+   subroutine fillcoarsepatch_psi(lev, time, psi_local)
+
+      use amr_data_module, only : t_new, lo_bc, hi_bc
+
+      ! Input and output variables
+      integer, intent(in) :: lev
+      real(amrex_real), intent(in) :: time
+      type(amrex_multifab), intent(inout) :: psi_local
+
+
+      call amrex_fillcoarsepatch(psi_local, t_new(lev-1), psi(lev-1),  &
+                                 t_new(lev-1), psi(lev-1),  &
+                                 amrex_geom(lev-1), fill_physbc,  &
+                                 amrex_geom(lev), fill_physbc,  &
+                                 time, ncomp, ncomp, ncomp, &
+                                 amrex_ref_ratio(lev-1), amrex_interp_cell_cons, &
+                                 lo_bc, hi_bc)
+
+   end subroutine fillcoarsepatch_psi
+
+
+   ! -----------------------------------------------------------------
+   ! Subroutine used to fill the electric potential multifab at a given level
+   ! ----------------------------------------------------------------- 
+   subroutine fillpatch_psi(lev, time, psi_local)
+
+      use amr_data_module, only : t_new, lo_bc, hi_bc
+      
+      ! Input and output variables
+      integer, intent(in) :: lev
+      real(amrex_real), intent(in) :: time
+      type(amrex_multifab), intent(inout) :: psi_local
+      
+      
+      if (lev .eq. 0) then
+   
+         call amrex_fillpatch(psi_local, t_new(lev), psi(lev), &
+                              t_new(lev), psi(lev), &
+                              amrex_geom(lev), fill_physbc , &
+                              time, ncomp, ncomp, ncomp)
+         
+      else
+         
+         call amrex_fillpatch(psi_local, t_new(lev-1), psi(lev-1), &
+                              t_new(lev-1), psi(lev-1), &
+                              amrex_geom(lev-1), fill_physbc   , &
+                              t_new(lev), psi(lev), &
+                              t_new(lev), psi(lev), &
+                              amrex_geom(lev), fill_physbc   , &
+                              time, ncomp, ncomp, ncomp, &
+                              amrex_ref_ratio(lev-1), amrex_interp_cell_cons, &
+                              lo_bc, hi_bc)
+   
+      end if
+      
+    end subroutine fillpatch_psi
  end module regrid_module
  

@@ -36,7 +36,7 @@ contains
                                   heat_solve
     use read_heat_flux_module, only : construct_heat_flux_table
     use material_properties_module, only : init_mat_prop
-    use heat_flux_module, only : debug_cooling_fluxes
+    use heat_transfer_flux_module, only : debug_cooling_fluxes
     use regrid_module, only : averagedown, &
                               my_make_new_level_from_scratch, &
                               my_make_new_level_from_coarse, &

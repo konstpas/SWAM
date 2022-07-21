@@ -220,6 +220,7 @@ subroutine run_simulation()
                                 nsubsteps, &
                                 dt  
     use regrid_module, only : averagedownto
+    use electrostatics_module, only : advance_electrostatics
 
     ! Input and output variables
     integer, intent(in) :: lev
@@ -238,6 +239,11 @@ subroutine run_simulation()
     t_old(lev) = time
     t_new(lev) = time + dt(lev)
     call advance_one_level_subcycling(lev, time, dt(lev), substep, temp_lm1)
+
+    ! Solve the electrostatics problem only once when all temperature updates are done
+    if (lev.eq.amrex_get_finest_level() .and. substep.eq.nsubsteps(lev)) then
+      call advance_electrostatics(t_old(0), dt(0))
+    end if
 
     ! Propagate solution and synchronize levels
     if (lev .lt. amrex_get_finest_level()) then
@@ -393,6 +399,7 @@ subroutine run_simulation()
       use shallow_water_module, only : advance_SW
       use heat_transfer_module, only : advance_heat_solver_explicit, &
                                        advance_heat_solver_implicit
+      use electrostatics_module, only : advance_electrostatics
       
       ! Input and output variables
       real(amrex_real), intent(in) :: dt
@@ -414,6 +421,7 @@ subroutine run_simulation()
          end if
       end if
       
+      call advance_electrostatics(time, dt)
     end subroutine advance_all_levels
 
    

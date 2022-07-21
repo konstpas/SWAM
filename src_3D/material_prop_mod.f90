@@ -137,6 +137,7 @@ module material_properties_module
    public :: finalize_mat_prop
    public :: get_viscosity
    public :: get_temp_deriv_surface_tension
+   public :: get_electrical_resistivity
  
    ! -----------------------------------------------------------------
    ! Declare public variables

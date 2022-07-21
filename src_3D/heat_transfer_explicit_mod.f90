@@ -356,7 +356,7 @@ module heat_transfer_explicit_module
                                   Qtherm, &
                                   Qvap, &
                                   Qrad
-      use read_input_module, only : heat_reflux, heat_temp_surf
+      use read_input_module, only : heat_reflux, heat_temp_surf, heat_temp_bottom
       use heat_transfer_domain_module, only : get_idomain, revaluate_heat_domain
       use material_properties_module, only : get_temp
       
@@ -443,6 +443,17 @@ module heat_transfer_explicit_module
                                 pfz, lbound(pfz), ubound(pfz), &
                                 pidout, lbound(pidout), ubound(pidout), &
                                 geom, dt)
+      elseif (heat_temp_bottom.gt.0) then
+         call get_enthalpy_fixT_bottom(time, bx%lo, bx%hi, &
+                                       pin, lbound(pin), ubound(pin), &
+                                       pout, lbound(pout), ubound(pout), &
+                                       ptempin, lbound(ptempin), ubound(ptempin), &
+                                       pfx, lbound(pfx), ubound(pfx), &
+                                       pfy, lbound(pfy), ubound(pfy), &
+                                       pfz, lbound(pfz), ubound(pfz), &
+                                       pidout, lbound(pidout), ubound(pidout), &
+                                       geom, lev, dt, &
+                                       Qpipe_box, Qtherm_box, Qvap_box, Qrad_box, Qplasma_box)
       else
          call get_enthalpy(time, bx%lo, bx%hi, &
                            pin, lbound(pin), ubound(pin),  &
@@ -507,7 +518,7 @@ module heat_transfer_explicit_module
                             geom, lev, dt, &
                             Qpipe_box, Qtherm_box, Qvap_box, Qrad_box, Qplasma_box)
  
-       use heat_flux_module, only: get_boundary_heat_flux
+       use heat_transfer_flux_module, only: get_boundary_heat_flux
        use read_input_module, only : num_subcycling
  
        ! Input and output variables
@@ -732,8 +743,148 @@ module heat_transfer_explicit_module
        end do
  
     end subroutine get_enthalpy_fixT
-  
-  
+
+
+    ! -----------------------------------------------------------------
+    ! Subroutine used to compute the enthalpy at a new time step for
+    ! a given box on a certain level via an explicit update.
+    ! Case with fixed temperature at the bottom surface
+    ! -----------------------------------------------------------------
+    subroutine get_enthalpy_fixT_bottom(time, lo, hi, &
+                                        u_old,  uo_lo, uo_hi, &
+                                        u_new, un_lo, un_hi, &
+                                        temp, t_lo, t_hi, &
+                                        flxx, fx_lo, fx_hi, &
+                                        flxy, fy_lo, fy_hi, &
+                                        flxz, fz_lo, fz_hi, &
+                                        idom, id_lo, id_hi, &
+                                        geom, lev, dt, &
+                                        Qpipe_box, Qtherm_box, Qvap_box, Qrad_box, Qplasma_box)
+ 
+       use material_properties_module, only : get_enthalpy
+       use read_input_module, only : heat_temp_bottom
+       use heat_transfer_flux_module, only: get_boundary_heat_flux
+ 
+       ! Input and output variables
+       integer, intent(in) :: lo(3), hi(3) ! bounds of current tile box
+       integer, intent(in) :: uo_lo(3), uo_hi(3) ! bounds of input enthalpy box 
+       integer, intent(in) :: un_lo(3), un_hi(3) ! bounds of output enthalpy box  
+       integer, intent(in) :: t_lo (3), t_hi (3) ! bounds of temperature box
+       integer, intent(in) :: fx_lo(3), fx_hi(3) ! bounds of the enthalpy flux along x
+       integer, intent(in) :: fy_lo(3), fy_hi(3) ! bounds of the enthalpy flux along y
+       integer, intent(in) :: fz_lo(3), fz_hi(3) ! bounds of the enthalpy flux along z
+       integer, intent(in) :: id_lo(3), id_hi(3) ! bounds of the output idomain box
+       real(amrex_real), intent(in) :: time
+       real(amrex_real), intent(in) :: dt ! time step
+       real(amrex_real), intent(inout) :: u_old (uo_lo(1):uo_hi(1),uo_lo(2):uo_hi(2),uo_lo(3):uo_hi(3)) ! Input enthalpy 
+       real(amrex_real), intent(inout) :: u_new(un_lo(1):un_hi(1),un_lo(2):un_hi(2),un_lo(3):un_hi(3)) ! Output enthalpy
+       real(amrex_real), intent(inout) :: temp(t_lo(1):t_hi(1),t_lo(2):t_hi(2),t_lo(3):t_hi(3)) ! Temperature
+       real(amrex_real), intent(out) :: flxx(fx_lo(1):fx_hi(1),fx_lo(2):fx_hi(2),fx_lo(3):fx_hi(3)) ! flux along the x direction  			
+       real(amrex_real), intent(out) :: flxy(fy_lo(1):fy_hi(1),fy_lo(2):fy_hi(2),fy_lo(3):fy_hi(3)) ! flux along the y direction
+       real(amrex_real), intent(out) :: flxz(fz_lo(1):fz_hi(1),fz_lo(2):fz_hi(2),fz_lo(3):fz_hi(3)) ! flux along the z direction
+       type(amrex_geometry), intent(in) :: geom ! geometry     
+       integer, intent(in) :: lev  
+       real(amrex_real), intent(in) :: idom(id_lo(1):id_hi(1),id_lo(2):id_hi(2),id_lo(3):id_hi(3))
+       real(amrex_real), intent(out) :: Qplasma_box
+       real(amrex_real), intent(out) :: Qpipe_box
+       real(amrex_real), intent(out) :: Qtherm_box
+       real(amrex_real), intent(out) :: Qrad_box
+       real(amrex_real), intent(out) :: Qvap_box
+ 
+       !Local variables
+       integer :: i,j,k
+       real(amrex_real) :: u_bs ! Enthalpy of the points on the bottom surface
+       real(amrex_real) :: dx(3) ! Grid size
+       real(amrex_real) :: lo_phys(3) ! Physical location of the lowest corner of the tile box
+       integer :: lo_bound(3)
+       real(amrex_real) :: qbound(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3)) ! Volumetric heating (boundary)
+       real(amrex_real) :: qvol(lo(1):hi(1),lo(2):hi(2),lo(3):hi(3)) ! Volumetric heating
+      
+       ! Get index of lowest point
+       lo_bound = geom%domain%lo
+ 
+       ! Enthalpy at the bottom surface
+       call get_enthalpy(heat_temp_bottom, u_bs)
+ 
+       ! Get grid size
+       dx = geom%dx(1:3) ! grid width at level 
+ 
+       ! Get physical location of the lowest corner of the tile box
+       lo_phys = geom%get_physical_location(lo)
+ 
+       ! Get enthalpy flux 
+       call get_face_flux(dx, lo_phys, lo, hi, &
+                          u_old, uo_lo, uo_hi, &
+                          flxx, fx_lo, fx_hi, &
+                          flxy, fy_lo, fy_hi, &
+                          flxz, fz_lo, fz_hi, &
+                          temp, t_lo, t_hi, &
+                          idom, id_lo, id_hi, &
+                          .true., .true.)
+ 
+       ! Prescribe external heat flux on the free surface
+       call get_boundary_heat_flux(time, lo_phys, &
+                                   dx, lo, hi, &
+                                   idom, id_lo, id_hi, &
+                                   temp, t_lo, t_hi, lev, dt, &
+                                   Qpipe_box, Qtherm_box, Qvap_box, Qrad_box, &
+                                   Qplasma_box, qbound)
+
+        ! Volumetric sources
+        call get_volumetric_heat_source(dx, lo_phys, lo, hi, &
+                                        u_old, uo_lo, uo_hi, &
+                                        idom, id_lo, id_hi, &
+                                        qvol)
+ 
+       ! Compute enthalpy at the new timestep
+       do   i = lo(1),hi(1)
+          do  j = lo(2),hi(2) 
+             do k = lo(3),hi(3)
+ 
+                if (j .eq. lo_bound(2)) then
+                   u_new(i,j,k) = u_bs ! Impose temperature on the bottom surface
+                else
+                   ! Update enthalpy according to heat equation
+                   u_new(i,j,k) = u_old(i,j,k) &
+                   - dt/dx(1) * (flxx(i+1,j,k) - flxx(i,j,k)) &	! flux divergence x-direction 
+                   - dt/dx(2) * (flxy(i,j+1,k) - flxy(i,j,k)) &	! flux divergence y-direction 
+                   - dt/dx(3) * (flxz(i,j,k+1) - flxz(i,j,k)) &      ! flux divergence z-direction
+                   + dt*qbound(i,j,k) & ! 'boundary volumetric' source
+                   + dt*qvol(i,j,k)  ! volumetric source
+                end if
+ 
+             end do
+          end do
+       end do
+ 
+       ! Scale the fluxes for the flux registers
+       do k = lo(3), hi(3)
+          do j = lo(2), hi(2)
+             do i = lo(1), hi(1) + 1
+                flxx(i,j,k) = flxx(i,j,k) * (dt * dx(2)*dx(3))
+             end do
+          end do
+       end do
+ 
+       do k = lo(3), hi(3)
+          do j = lo(2), hi(2) + 1
+             do i = lo(1), hi(1)
+                flxy(i,j,k) = flxy(i,j,k) * (dt * dx(1)*dx(3))
+             end do
+          end do
+       end do
+ 
+       do k = lo(3), hi(3) + 1
+          do j = lo(2), hi(2)
+             do i = lo(1), hi(1)
+                flxz(i,j,k) = flxz(i,j,k) * (dt * dx(1)*dx(2))
+             end do
+          end do
+       end do
+ 
+    end subroutine get_enthalpy_fixT_bottom
+    
+    
    ! -----------------------------------------------------------------
    ! Subroutine used to the enthalpy fluxes on the edges of the grid
    ! -----------------------------------------------------------------  

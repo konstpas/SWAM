@@ -146,6 +146,8 @@ module read_input_module
   ! Ratio of the parallel heat flux that satisfies the optical approximation
   ! see Nuclear Materials and Energy 17 (2018) 194-199 E. Thoren et al.
   public :: heat_Foa
+  ! Prescribed a temperature at the bottom of the sample (only used if positive) [K]
+  public :: heat_temp_bottom
 
   ! --- Variables for the shallow water solver ---
 
@@ -307,6 +309,7 @@ module read_input_module
   logical, save :: heat_local_surface_normals
   real(amrex_real), save :: heat_sample_edge
   real(amrex_real), save :: heat_temp_surf
+  real(amrex_real), save :: heat_temp_bottom
   real(amrex_real), save :: heat_temp_init
   real(amrex_real), save :: heat_Foa
   real(amrex_real), save :: heat_density
@@ -421,6 +424,7 @@ contains
     call pp%query("plasma_flux_file", heat_plasma_flux_file)
     call pp%query("plasma_flux_side_file", heat_plasma_flux_side_file)
     call pp%query("temp_free_surface", heat_temp_surf)
+    call pp%query("temp_bottom_surface", heat_temp_bottom)
     call pp%query("cooling_thermionic",heat_cooling_thermionic)
     call pp%query("side_cooling_thermionic",heat_cooling_thermionic_side)
     call pp%query("cooling_vaporization",heat_cooling_vaporization)
@@ -598,6 +602,7 @@ contains
     heat_solve = .true.
     heat_sample_edge = 0.020
     heat_temp_surf = -1.0
+    heat_temp_bottom = -1.0
     heat_density = 2E19
     heat_ion_mass = 3.34358377E-27
     heat_sheath_coeff = 7
